@@ -652,6 +652,9 @@ if st.session_state.df is not None:
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
             
             if st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True) and arquivos_scan:
+                # --- FIX: Evitar que o Gemini tente usar o Service Account do Google Sheets ---
+                old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+                
                 client = genai.Client(api_key=chave_padrao)
                 nomes_para_prompt = ", ".join(lista_encarregados)
                 
@@ -705,6 +708,11 @@ if st.session_state.df is not None:
                                     model='gemini-2.5-flash',
                                     contents=[arquivo_up, prompt_ia]
                                 )
+                                
+                                # --- FIX: Restaurar as credenciais do Sheets caso necessário ---
+                                if old_cred:
+                                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
+
                                 texto_resposta = resposta.text.strip()
                                 if texto_resposta.startswith("```json"):
                                     texto_resposta = texto_resposta[7:-3].strip()
