@@ -647,7 +647,7 @@ if st.session_state.df is not None:
             st.error("A biblioteca `google-genai` não está instalada no servidor. Instale usando `pip install google-genai`.")
 
         if HAS_GENAI:
-            chave_padrao = "AQ.Ab8RN6IX432gUlgZe7Rnfp9qNyGP29gxb3EL7sdOcW8FMbPMvA"
+            chave_padrao = "AIzaSyAvEfSXv6axds_TQpPqhtUj65SvHSbHgBo"
             
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
             
