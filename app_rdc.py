@@ -21,6 +21,34 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Sistema RDC & PDE - ENESA", layout="wide", initial_sidebar_state="expanded")
 
+# Injeção de CSS para corrigir o bug de fontes do Streamlit Cloud (texto keyboard_double_arrow_left)
+st.markdown("""
+    <style>
+        /* Tentar forçar o carregamento da fonte oficial de ícones do Google */
+        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0');
+        
+        /* Fallback: se a rede da empresa bloquear a fonte, escondemos o texto feio e colocamos setas normais */
+        .material-symbols-rounded {
+            color: transparent !important;
+            display: inline-block;
+        }
+        
+        /* Esconder agressivamente qualquer ícone que falhar e tentar mostrar as setas antigas */
+        [data-testid="stSidebarCollapseButton"] {
+            display: none !important;
+        }
+        
+        .material-symbols-rounded {
+            display: none !important;
+        }
+        
+        /* Travar a largura da barra lateral (esconder o arrastador) */
+        [data-testid="stSidebarResizer"] {
+            display: none !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Paleta suave — escura mas não agressiva
 cor_fundo = "#1a1d23"
 cor_card = "#22262e"
@@ -412,21 +440,13 @@ if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_ia' not in st.session_state:
     st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+if 'mostrar_upload' not in st.session_state:
+    st.session_state.mostrar_upload = False
 
 # =================================================================
 # BARRA LATERAL
 # =================================================================
 with st.sidebar:
-    # CSS para esconder marcas d'água do Streamlit e botões quebrados
-    st.markdown("""
-        <style>
-            #MainMenu {visibility: hidden;}
-            header {visibility: hidden;}
-            footer {visibility: hidden;}
-            .st-emotion-cache-1z12wxe {display: none;} /* Esconder collapse button que quebrou */
-        </style>
-    """, unsafe_allow_html=True)
-
     if os.path.exists(caminho_logo):
         col1, col2, col3 = st.columns([1.5, 2, 1.5]) 
         with col2:
@@ -434,13 +454,22 @@ with st.sidebar:
         st.markdown("<br>", unsafe_allow_html=True)
         
     st.header("📂 Arquivos Base")
-    st.write("Atualize a base arrastando os ficheiros:")
-    arquivo_pde = st.file_uploader("Base de Efetivo (.csv ou .xlsx):", type=["csv", "xlsx"])
-    arquivo_modelo = st.file_uploader("📄 Layout MODELO.xlsx:", type=["xlsx"])
     
-    if arquivo_modelo is not None:
-        if salvar_modelo_no_disco(arquivo_modelo):
-            st.success("💾 Modelo salvo!")
+    if st.button("➕ Enviar Nova Base (PDE)", use_container_width=True):
+        st.session_state.mostrar_upload = not st.session_state.mostrar_upload
+        
+    arquivo_pde = None
+    arquivo_modelo = None
+    
+    if st.session_state.mostrar_upload:
+        st.markdown("<div style='background-color: #22262e; padding: 10px; border-radius: 8px;'>", unsafe_allow_html=True)
+        arquivo_pde = st.file_uploader("Base de Efetivo (.csv/.xlsx):", type=["csv", "xlsx"])
+        arquivo_modelo = st.file_uploader("📄 Layout MODELO.xlsx:", type=["xlsx"])
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        if arquivo_modelo is not None:
+            if salvar_modelo_no_disco(arquivo_modelo):
+                st.success("💾 Modelo salvo!")
     
     st.markdown("---")
     
