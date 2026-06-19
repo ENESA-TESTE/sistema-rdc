@@ -647,215 +647,211 @@ if st.session_state.df is not None:
             st.error("A biblioteca `google-genai` não está instalada no servidor. Instale usando `pip install google-genai`.")
 
         if HAS_GENAI:
-            chave_padrao = "AQ.Ab8RN6K3Sm_kxaKRqJDWdi5F9Xcpo2_ZGsuJ-eLATBTbampuhQ"
-            api_key_input = st.text_input("🔑 Chave de API Gemini", value=chave_padrao, type="password")
+            chave_padrao = "AQ.Ab8RN6IX432gUlgZe7Rnfp9qNyGP29gxb3EL7sdOcW8FMbPMvA"
             
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
             
             if st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True) and arquivos_scan:
-                if not api_key_input:
-                    st.warning("Insira a chave da API para continuar.")
-                else:
-                    client = genai.Client(api_key=api_key_input)
-                    nomes_para_prompt = ", ".join(lista_encarregados)
+                client = genai.Client(api_key=chave_padrao)
+                nomes_para_prompt = ", ".join(lista_encarregados)
+                
+                prompt_ia = f"""
+                Analise este documento (que pode ter várias páginas). Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
+                Retorne APENAS um array (lista) em formato JSON válido. Exemplo do formato exato esperado:
+                [
+                  {{
+                    "DISCIPLINA": "...",
+                    "ENCARREGADO": "...",
+                    "TURNO": "...",
+                    "ATIVIDADE": "...",
+                    "CALDEIRA": "...",
+                    "LOCAL": "...",
+                    "AREA": "..."
+                  }}
+                ]
+
+                Regras de negócio:
+                - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
+                - ENCARREGADO: Extraia o nome do Encarregado escrito no papel. REGRA CRÍTICA: Compare o que está escrito com esta lista de encarregados válidos: [{nomes_para_prompt}]. Retorne EXATAMENTE o nome correspondente como está grafado na lista fornecida, corrigindo pequenos desvios do manuscrito. SE O NOME ESTIVER TOTALMENTE ILEGÍVEL OU NÃO ESTIVER NESSA LISTA DE FORMA ALGUMA, RETORNE EXATAMENTE O TEXTO 'AJUSTAR NOME'.
+                - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
+                - ATIVIDADE: RESUMA A ATIVIDADE EM NO MÁXIMO 15 PALAVRAS!!! É ESTRITAMENTE PROIBIDO PASSAR DE 15 PALAVRAS, MESMO QUE O TEXTO ORIGINAL SEJA GIGANTE. Se passar de 15 palavras, corte o resto. Foco EXCLUSIVO na ação principal (ex: 'MONTAGEM DE SUPORTE NA CALDEIRA'). Corrija a ortografia e retorne TUDO EM LETRAS MAIÚSCULAS.
+                - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
+                - LOCAL: Procure as caixinhas 'PB ( )' e 'RB ( )'. Se PB marcado com X = 'PB'. Se RB marcado com X = 'RB'. Se nenhum = ''.
+                - AREA: Procure as caixinhas de área/local de trabalho marcadas com X. As opções são: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO-MEC, PRESSAO-TUBULACAO, PRESSAO-FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área marcada. Se nenhuma estiver marcada, retorne ''.
+
+                Não inclua crases, formatação markdown ou texto adicional, apenas o JSON puro começando com [ e terminando com ].
+                """
+
+                progresso = st.progress(0)
+                total_arquivos = len(arquivos_scan)
+                console_log = st.empty()
+                
+                for i, arquivo_scan in enumerate(arquivos_scan):
+                    console_log.info(f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...")
                     
-                    prompt_ia = f"""
-                    Analise este documento (que pode ter várias páginas). Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
-                    Retorne APENAS um array (lista) em formato JSON válido. Exemplo do formato exato esperado:
-                    [
-                      {{
-                        "DISCIPLINA": "...",
-                        "ENCARREGADO": "...",
-                        "TURNO": "...",
-                        "ATIVIDADE": "...",
-                        "CALDEIRA": "...",
-                        "LOCAL": "...",
-                        "AREA": "..."
-                      }}
-                    ]
-
-                    Regras de negócio:
-                    - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
-                    - ENCARREGADO: Extraia o nome do Encarregado escrito no papel. REGRA CRÍTICA: Compare o que está escrito com esta lista de encarregados válidos: [{nomes_para_prompt}]. Retorne EXATAMENTE o nome correspondente como está grafado na lista fornecida, corrigindo pequenos desvios do manuscrito. SE O NOME ESTIVER TOTALMENTE ILEGÍVEL OU NÃO ESTIVER NESSA LISTA DE FORMA ALGUMA, RETORNE EXATAMENTE O TEXTO 'AJUSTAR NOME'.
-                    - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
-                    - ATIVIDADE: RESUMA A ATIVIDADE EM NO MÁXIMO 15 PALAVRAS!!! É ESTRITAMENTE PROIBIDO PASSAR DE 15 PALAVRAS, MESMO QUE O TEXTO ORIGINAL SEJA GIGANTE. Se passar de 15 palavras, corte o resto. Foco EXCLUSIVO na ação principal (ex: 'MONTAGEM DE SUPORTE NA CALDEIRA'). Corrija a ortografia e retorne TUDO EM LETRAS MAIÚSCULAS.
-                    - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
-                    - LOCAL: Procure as caixinhas 'PB ( )' e 'RB ( )'. Se PB marcado com X = 'PB'. Se RB marcado com X = 'RB'. Se nenhum = ''.
-                    - AREA: Procure as caixinhas de área/local de trabalho marcadas com X. As opções são: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO-MEC, PRESSAO-TUBULACAO, PRESSAO-FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área marcada. Se nenhuma estiver marcada, retorne ''.
-
-                    Não inclua crases, formatação markdown ou texto adicional, apenas o JSON puro começando com [ e terminando com ].
-                    """
-
-                    progresso = st.progress(0)
-                    total_arquivos = len(arquivos_scan)
-                    console_log = st.empty()
-                    
-                    for i, arquivo_scan in enumerate(arquivos_scan):
-                        console_log.info(f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...")
-                        
-                        try:
-                            # Salvar temporariamente para enviar pro Gemini
-                            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
-                                tmp.write(arquivo_scan.getvalue())
-                                tmp_path = tmp.name
-                                
-                            arquivo_up = client.files.upload(file=tmp_path)
+                    try:
+                        # Salvar temporariamente para enviar pro Gemini
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
+                            tmp.write(arquivo_scan.getvalue())
+                            tmp_path = tmp.name
                             
-                            max_tentativas = 3
-                            sucesso_arquivo = False
-                            for tentativa in range(max_tentativas):
-                                try:
-                                    resposta = client.models.generate_content(
-                                        model='gemini-2.5-flash',
-                                        contents=[arquivo_up, prompt_ia]
-                                    )
-                                    texto_resposta = resposta.text.strip()
-                                    if texto_resposta.startswith("```json"):
-                                        texto_resposta = texto_resposta[7:-3].strip()
-                                    elif texto_resposta.startswith("```"):
-                                        texto_resposta = texto_resposta[3:-3].strip()
+                        arquivo_up = client.files.upload(file=tmp_path)
+                        
+                        max_tentativas = 3
+                        sucesso_arquivo = False
+                        for tentativa in range(max_tentativas):
+                            try:
+                                resposta = client.models.generate_content(
+                                    model='gemini-2.5-flash',
+                                    contents=[arquivo_up, prompt_ia]
+                                )
+                                texto_resposta = resposta.text.strip()
+                                if texto_resposta.startswith("```json"):
+                                    texto_resposta = texto_resposta[7:-3].strip()
+                                elif texto_resposta.startswith("```"):
+                                    texto_resposta = texto_resposta[3:-3].strip()
 
-                                    dados_extraidos_lista = json.loads(texto_resposta)
+                                dados_extraidos_lista = json.loads(texto_resposta)
 
-                                    if isinstance(dados_extraidos_lista, dict):
-                                        dados_extraidos_lista = [dados_extraidos_lista]
+                                if isinstance(dados_extraidos_lista, dict):
+                                    dados_extraidos_lista = [dados_extraidos_lista]
 
-                                    # Mapeamento de AREA -> sufixo do C.C.
-                                    mapa_area_sufixo = {
-                                        'EQUIPAMENTO': '001', 'DUTO': '002', 'TUBULAÇÃO': '003', 'TUBULACAO': '003',
-                                        'ESTRUTURA MET': '004', 'ESTRUTURA METALICA': '004', 'ESTRUTURA': '004',
-                                        'PRECIPITADOR': '005', 'ESP': '005',
-                                        'PRESSAO-MEC': '006', 'PRESSAO - MEC': '006', 'PRESSÃO-MEC': '006',
-                                        'PRESSAO-TUBULACAO': '007', 'PRESSAO - TUBULACAO': '007', 'PRESSÃO-TUBULAÇÃO': '007',
-                                        'PINTURA': '009', 'ANDAIME': '014', 'ANDAIMES': '014',
-                                        'PRESSAO-FORNALHA': '003', 'PRESSAO - FORNALHA': '003',
-                                        'SOPRAGEM': '015',
-                                    }
+                                # Mapeamento de AREA -> sufixo do C.C.
+                                mapa_area_sufixo = {
+                                    'EQUIPAMENTO': '001', 'DUTO': '002', 'TUBULAÇÃO': '003', 'TUBULACAO': '003',
+                                    'ESTRUTURA MET': '004', 'ESTRUTURA METALICA': '004', 'ESTRUTURA': '004',
+                                    'PRECIPITADOR': '005', 'ESP': '005',
+                                    'PRESSAO-MEC': '006', 'PRESSAO - MEC': '006', 'PRESSÃO-MEC': '006',
+                                    'PRESSAO-TUBULACAO': '007', 'PRESSAO - TUBULACAO': '007', 'PRESSÃO-TUBULAÇÃO': '007',
+                                    'PINTURA': '009', 'ANDAIME': '014', 'ANDAIMES': '014',
+                                    'PRESSAO-FORNALHA': '003', 'PRESSAO - FORNALHA': '003',
+                                    'SOPRAGEM': '015',
+                                }
 
-                                    for dados in dados_extraidos_lista:
-                                        ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
-                                        dados['ITEM'] = int(ultimo_item) + 1
-                                        if 'LOCAL' not in dados:
-                                            dados['LOCAL'] = ''
-                                        if 'AREA' not in dados:
-                                            dados['AREA'] = ''
-                                        st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
-                                        
-                                        # === ATUALIZAR C.C. COMPLETO NA BASE ===
-                                        local_bruto = str(dados.get('LOCAL', '')).strip().upper()
-                                        area_bruta = str(dados.get('AREA', '')).strip().upper()
-                                        disciplina_lida = str(dados.get('DISCIPLINA', '')).strip().upper()
-                                        enc_lido = str(dados.get('ENCARREGADO', '')).strip().upper()
-                                        
-                                        # Limpeza robusta do local (caso a IA retorne "PB (X)")
-                                        local_lido = ''
-                                        if 'PB' in local_bruto: local_lido = 'PB'
-                                        elif 'RB' in local_bruto: local_lido = 'RB'
-                                        # Fallback
-                                        if not local_lido:
-                                            cald = str(dados.get('CALDEIRA', '')).strip().upper()
-                                            if 'PB' in cald: local_lido = 'PB'
-                                            elif 'RB' in cald: local_lido = 'RB'
-                                        
-                                        # Limpeza robusta da área
-                                        area_lida = ''
-                                        for k in mapa_area_sufixo.keys():
-                                            if k in area_bruta or k in disciplina_lida:
-                                                area_lida = k
-                                                break
-                                                
-                                        if enc_lido and enc_lido != 'AJUSTAR NOME' and 'C.C' in df_atual.columns:
-                                            # Busca inteligente do Encarregado (Substring ou Aproximação)
-                                            encarregados_unicos = df_atual['ENCARREGADO'].dropna().unique()
-                                            enc_encontrado = None
+                                for dados in dados_extraidos_lista:
+                                    ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+                                    dados['ITEM'] = int(ultimo_item) + 1
+                                    if 'LOCAL' not in dados:
+                                        dados['LOCAL'] = ''
+                                    if 'AREA' not in dados:
+                                        dados['AREA'] = ''
+                                    st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
+                                    
+                                    # === ATUALIZAR C.C. COMPLETO NA BASE ===
+                                    local_bruto = str(dados.get('LOCAL', '')).strip().upper()
+                                    area_bruta = str(dados.get('AREA', '')).strip().upper()
+                                    disciplina_lida = str(dados.get('DISCIPLINA', '')).strip().upper()
+                                    enc_lido = str(dados.get('ENCARREGADO', '')).strip().upper()
+                                    
+                                    # Limpeza robusta do local (caso a IA retorne "PB (X)")
+                                    local_lido = ''
+                                    if 'PB' in local_bruto: local_lido = 'PB'
+                                    elif 'RB' in local_bruto: local_lido = 'RB'
+                                    # Fallback
+                                    if not local_lido:
+                                        cald = str(dados.get('CALDEIRA', '')).strip().upper()
+                                        if 'PB' in cald: local_lido = 'PB'
+                                        elif 'RB' in cald: local_lido = 'RB'
+                                    
+                                    # Limpeza robusta da área
+                                    area_lida = ''
+                                    for k in mapa_area_sufixo.keys():
+                                        if k in area_bruta or k in disciplina_lida:
+                                            area_lida = k
+                                            break
                                             
-                                            # 1. Match exato
+                                    if enc_lido and enc_lido != 'AJUSTAR NOME' and 'C.C' in df_atual.columns:
+                                        # Busca inteligente do Encarregado (Substring ou Aproximação)
+                                        encarregados_unicos = df_atual['ENCARREGADO'].dropna().unique()
+                                        enc_encontrado = None
+                                        
+                                        # 1. Match exato
+                                        for e in encarregados_unicos:
+                                            if str(e).strip().upper() == enc_lido:
+                                                enc_encontrado = e
+                                                break
+                                        
+                                        # 2. Substring (ex: IA lê "RAIMUNDO EUDE", base tem "RAIMUNDO EUDE DA SILVA")
+                                        if not enc_encontrado:
                                             for e in encarregados_unicos:
-                                                if str(e).strip().upper() == enc_lido:
+                                                if enc_lido in str(e).upper():
                                                     enc_encontrado = e
                                                     break
-                                            
-                                            # 2. Substring (ex: IA lê "RAIMUNDO EUDE", base tem "RAIMUNDO EUDE DA SILVA")
-                                            if not enc_encontrado:
+                                                    
+                                        # 3. Fuzzy Match
+                                        if not enc_encontrado:
+                                            import difflib
+                                            matches = difflib.get_close_matches(enc_lido, [str(e).upper() for e in encarregados_unicos], n=1, cutoff=0.6)
+                                            if matches:
                                                 for e in encarregados_unicos:
-                                                    if enc_lido in str(e).upper():
+                                                    if str(e).upper() == matches[0]:
                                                         enc_encontrado = e
                                                         break
                                                         
-                                            # 3. Fuzzy Match
-                                            if not enc_encontrado:
-                                                import difflib
-                                                matches = difflib.get_close_matches(enc_lido, [str(e).upper() for e in encarregados_unicos], n=1, cutoff=0.6)
-                                                if matches:
-                                                    for e in encarregados_unicos:
-                                                        if str(e).upper() == matches[0]:
-                                                            enc_encontrado = e
-                                                            break
-                                                            
-                                            if enc_encontrado:
-                                                mask_enc = df_atual['ENCARREGADO'] == enc_encontrado
-                                                atualizado = False
+                                        if enc_encontrado:
+                                            mask_enc = df_atual['ENCARREGADO'] == enc_encontrado
+                                            atualizado = False
+                                            
+                                            # Determinar prefixo (PB=125.02, RB=125.01)
+                                            if local_lido in ['PB', 'RB']:
+                                                prefixo_novo = '125.02' if local_lido == 'PB' else '125.01'
                                                 
-                                                # Determinar prefixo (PB=125.02, RB=125.01)
-                                                if local_lido in ['PB', 'RB']:
-                                                    prefixo_novo = '125.02' if local_lido == 'PB' else '125.01'
-                                                    
-                                                    # Determinar sufixo pela AREA marcada
-                                                    sufixo = mapa_area_sufixo.get(area_lida, '')
-                                                    
-                                                    if sufixo:
-                                                        # C.C. completo: prefixo + sufixo
-                                                        cc_novo = f"{prefixo_novo}.{sufixo}"
-                                                        df_atual.loc[mask_enc, 'C.C'] = cc_novo
-                                                        atualizado = True
-                                                        st.toast(f"✅ C.C. de TODA A EQUIPE de {enc_encontrado} → {cc_novo}")
-                                                    else:
-                                                        # Sem área marcada, só troca o prefixo mantendo sufixo original
-                                                        if local_lido == 'PB':
-                                                            df_atual.loc[mask_enc, 'C.C'] = df_atual.loc[mask_enc, 'C.C'].str.replace('125.01.', '125.02.', regex=False)
-                                                        else:
-                                                            df_atual.loc[mask_enc, 'C.C'] = df_atual.loc[mask_enc, 'C.C'].str.replace('125.02.', '125.01.', regex=False)
-                                                        atualizado = True
-                                                        st.toast(f"⚠️ C.C. de TODA A EQUIPE de {enc_encontrado} atualizado parcialmente → {local_lido} (manteve sufixo)")
+                                                # Determinar sufixo pela AREA marcada
+                                                sufixo = mapa_area_sufixo.get(area_lida, '')
+                                                
+                                                if sufixo:
+                                                    # C.C. completo: prefixo + sufixo
+                                                    cc_novo = f"{prefixo_novo}.{sufixo}"
+                                                    df_atual.loc[mask_enc, 'C.C'] = cc_novo
+                                                    atualizado = True
+                                                    st.toast(f"✅ C.C. de TODA A EQUIPE de {enc_encontrado} → {cc_novo}")
                                                 else:
-                                                    st.warning(f"❌ C.C não atualizado para a equipe de {enc_encontrado}: O robô não conseguiu identificar se o local era PB ou RB.")
-                                                
-                                                if atualizado:
-                                                    st.session_state.df = df_atual.copy()
-                                                    # Salvar fisicamente no Google Sheets
-                                                    try:
-                                                        conn_update = st.connection("gsheets", type=GSheetsConnection)
-                                                        conn_update.update(worksheet="Página1", data=df_atual)
-                                                    except Exception as e:
-                                                        st.error(f"Erro ao salvar na nuvem: {e}")
+                                                    # Sem área marcada, só troca o prefixo mantendo sufixo original
+                                                    if local_lido == 'PB':
+                                                        df_atual.loc[mask_enc, 'C.C'] = df_atual.loc[mask_enc, 'C.C'].str.replace('125.01.', '125.02.', regex=False)
+                                                    else:
+                                                        df_atual.loc[mask_enc, 'C.C'] = df_atual.loc[mask_enc, 'C.C'].str.replace('125.02.', '125.01.', regex=False)
+                                                    atualizado = True
+                                                    st.toast(f"⚠️ C.C. de TODA A EQUIPE de {enc_encontrado} atualizado parcialmente → {local_lido} (manteve sufixo)")
                                             else:
-                                                st.error(f"❌ Encarregado '{enc_lido}' não encontrado na base. Equipe não atualizada.")
+                                                st.warning(f"❌ C.C não atualizado para a equipe de {enc_encontrado}: O robô não conseguiu identificar se o local era PB ou RB.")
+                                            
+                                            if atualizado:
+                                                st.session_state.df = df_atual.copy()
+                                                # Salvar fisicamente no Google Sheets
+                                                try:
+                                                    conn_update = st.connection("gsheets", type=GSheetsConnection)
+                                                    conn_update.update(worksheet="Página1", data=df_atual)
+                                                except Exception as e:
+                                                    st.error(f"Erro ao salvar na nuvem: {e}")
+                                        else:
+                                            st.error(f"❌ Encarregado '{enc_lido}' não encontrado na base. Equipe não atualizada.")
 
-                                    sucesso_arquivo = True
-                                    break 
+                                sucesso_arquivo = True
+                                break 
 
-                                except Exception as inner_e:
-                                    if '503' in str(inner_e):
-                                        time.sleep(10)
-                                    else:
-                                        break
-                                        
-                            os.remove(tmp_path)
+                            except Exception as inner_e:
+                                if '503' in str(inner_e):
+                                    time.sleep(10)
+                                else:
+                                    break
+                                    
+                        os.remove(tmp_path)
+                        
+                        if sucesso_arquivo:
+                            st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
+                        else:
+                            st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
                             
-                            if sucesso_arquivo:
-                                st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
-                            else:
-                                st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
-                                
-                        except Exception as e:
-                            st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
-                            
-                        progresso.progress((i + 1) / total_arquivos)
+                    except Exception as e:
+                        st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
+                        
+                    progresso.progress((i + 1) / total_arquivos)
 
-                    console_log.success("🎉 Leitura concluída!")
-                    time.sleep(2)
-                    st.rerun()
-                    
+                console_log.success("🎉 Leitura concluída!")
+                time.sleep(2)
+                st.rerun()
+                
             if not st.session_state.df_ia.empty:
                 st.markdown("#### Dados Extraídos")
                 
