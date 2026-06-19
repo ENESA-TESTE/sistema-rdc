@@ -512,7 +512,7 @@ if arquivo_pde is not None:
 
 elif st.session_state.df is None:
     carregado_nuvem = False
-    if conn:
+    if conn and not st.session_state.get('force_use_local', False):
         try:
             df_gsheets = conn.read(worksheet="Página1", ttl=5)
             df_gsheets = df_gsheets.dropna(how='all')
@@ -521,6 +521,11 @@ elif st.session_state.df is None:
                 carregado_nuvem = True
         except Exception:
             pass
+            
+    # Resetar a flag
+    if st.session_state.get('force_use_local', False):
+        carregado_nuvem = True
+        st.session_state.force_use_local = False
             
     if not carregado_nuvem:
         if os.path.exists(caminho_base_salva_xlsx):
@@ -647,7 +652,7 @@ if st.session_state.df is not None:
             st.error("A biblioteca `google-genai` não está instalada no servidor. Instale usando `pip install google-genai`.")
 
         if HAS_GENAI:
-            chave_padrao = "AIzaSyAvEfSXv6axds_TQpPqhtUj65SvHSbHgBo"
+            chave_padrao = "AIzaSyBPssi9WMPwGfUXXrDHUunE8Yw-GBD3_yM"
             
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
             
@@ -679,8 +684,8 @@ if st.session_state.df is not None:
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
                 - ATIVIDADE: RESUMA A ATIVIDADE EM NO MÁXIMO 15 PALAVRAS!!! É ESTRITAMENTE PROIBIDO PASSAR DE 15 PALAVRAS, MESMO QUE O TEXTO ORIGINAL SEJA GIGANTE. Se passar de 15 palavras, corte o resto. Foco EXCLUSIVO na ação principal (ex: 'MONTAGEM DE SUPORTE NA CALDEIRA'). Corrija a ortografia e retorne TUDO EM LETRAS MAIÚSCULAS.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
-                - LOCAL: Procure as caixinhas 'PB ( )' e 'RB ( )'. Se PB marcado com X = 'PB'. Se RB marcado com X = 'RB'. Se nenhum = ''.
-                - AREA: Procure as caixinhas de área/local de trabalho marcadas com X. As opções são: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO-MEC, PRESSAO-TUBULACAO, PRESSAO-FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área marcada. Se nenhuma estiver marcada, retorne ''.
+                - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
+                - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. As opções são exatamente: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área que estiver marcada. Se nenhuma estiver marcada, retorne ''.
 
                 Não inclua crases, formatação markdown ou texto adicional, apenas o JSON puro começando com [ e terminando com ].
                 """
@@ -726,14 +731,22 @@ if st.session_state.df is not None:
 
                                 # Mapeamento de AREA -> sufixo do C.C.
                                 mapa_area_sufixo = {
-                                    'EQUIPAMENTO': '001', 'DUTO': '002', 'TUBULAÇÃO': '003', 'TUBULACAO': '003',
-                                    'ESTRUTURA MET': '004', 'ESTRUTURA METALICA': '004', 'ESTRUTURA': '004',
+                                    'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
+                                    'DUTO': '002', 'DUTOS': '002',
+                                    'TUBULACAO': '003', 'TUBULAÇÃO': '003',
+                                    'ESTRUTURA MET': '004', 'ESTRUTURA METALICA': '004', 'ESTRUTURA METÁLICA': '004',
                                     'PRECIPITADOR': '005', 'ESP': '005',
-                                    'PRESSAO-MEC': '006', 'PRESSAO - MEC': '006', 'PRESSÃO-MEC': '006',
-                                    'PRESSAO-TUBULACAO': '007', 'PRESSAO - TUBULACAO': '007', 'PRESSÃO-TUBULAÇÃO': '007',
-                                    'PINTURA': '009', 'ANDAIME': '014', 'ANDAIMES': '014',
-                                    'PRESSAO-FORNALHA': '003', 'PRESSAO - FORNALHA': '003',
-                                    'SOPRAGEM': '015',
+                                    'PRESSAO-MEC': '006', 'PRESSAO - MEC': '006', 'PARTE DE PRESSAO - MECANICA': '006',
+                                    'PRESSAO-TUBULACAO': '007', 'PRESSAO - TUBULACAO': '007', 'PARTE DE PRESSAO - TUBULACAO': '007',
+                                    'PRESSAO-FORNALHA': '008', 'PRESSAO - FORNALHA': '008', 'PARTE DE PRESSAO - FORNALHA': '008', 'PARTE DE PRESSAO - FORNALIA': '008',
+                                    'PINTURA': '009',
+                                    'COMISSIONAMENTO': '010', 'APOIO AO COMISSIONAMENTO': '010',
+                                    'OPERACAO ASSISTIDA': '011', 'OPERAÇÃO ASSISTIDA': '011',
+                                    'LAVAGEM QUIMICA': '012', 'LAVAGEM QUÍMICA': '012',
+                                    'SOPRAGEM': '013',
+                                    'ANDAIME': '014', 'ANDAIMES': '014',
+                                    'OPERADOR': '015', 'OPERADORES E MOTORISTAS': '015', 'MOTORISTA': '015',
+                                    'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
                                 }
 
                                 for dados in dados_extraidos_lista:
@@ -830,6 +843,7 @@ if st.session_state.df is not None:
                                                 try:
                                                     conn_update = st.connection("gsheets", type=GSheetsConnection)
                                                     conn_update.update(worksheet="Página1", data=df_atual)
+                                                    st.cache_data.clear()
                                                 except Exception as e:
                                                     st.error(f"Erro ao salvar na nuvem: {e}")
                                         else:
@@ -858,6 +872,7 @@ if st.session_state.df is not None:
 
                 console_log.success("🎉 Leitura concluída!")
                 time.sleep(2)
+                st.session_state.force_use_local = True
                 st.rerun()
                 
             if not st.session_state.df_ia.empty:
