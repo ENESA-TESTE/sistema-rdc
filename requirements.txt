@@ -2,3 +2,6 @@ streamlit
 pandas
 openpyxl
 altair
+google-genai
+st-gsheets-connection
+gspread
