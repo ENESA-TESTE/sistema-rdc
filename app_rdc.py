@@ -417,8 +417,18 @@ if 'df_ia' not in st.session_state:
 # BARRA LATERAL
 # =================================================================
 with st.sidebar:
+    # CSS para esconder marcas d'água do Streamlit e botões quebrados
+    st.markdown("""
+        <style>
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+            .st-emotion-cache-1z12wxe {display: none;} /* Esconder collapse button que quebrou */
+        </style>
+    """, unsafe_allow_html=True)
+
     if os.path.exists(caminho_logo):
-        col1, col2, col3 = st.columns([1, 2, 1]) 
+        col1, col2, col3 = st.columns([1.5, 2, 1.5]) 
         with col2:
             st.image(caminho_logo, use_container_width=True)
         st.markdown("<br>", unsafe_allow_html=True)
