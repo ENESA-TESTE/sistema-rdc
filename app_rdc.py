@@ -28,7 +28,16 @@ if not os.path.exists(config_path):
     with open(config_path, "w", encoding="utf-8") as f:
         f.write('[theme]\nbase="dark"\nprimaryColor="#f39c12"\nbackgroundColor="#1e1e1e"\nsecondaryBackgroundColor="#2b2b2b"\ntextColor="#e0e4ea"\n')
 
-st.set_page_config(page_title="Sistema RDC & PDE - ENESA", layout="wide", initial_sidebar_state="expanded")
+caminho_nome_site = "nome_empresa.txt"
+if os.path.exists(caminho_nome_site):
+    with open(caminho_nome_site, "r", encoding="utf-8") as f:
+        nome_site = f.read().strip()
+    if not nome_site:
+        nome_site = "ENESA Engenharia"
+else:
+    nome_site = "ENESA Engenharia"
+
+st.set_page_config(page_title=f"Sistema RDC & PDE - {nome_site}", layout="wide", initial_sidebar_state="expanded")
 
 # Injeção de CSS para ajustes de interface
 st.markdown("""
@@ -259,7 +268,7 @@ st.markdown(f"""
 st.markdown(f"""
     <div class="enesa-header">
         <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">Sistema de Gestão RDC & PDE</h1>
-        <p style="color: {cor_texto_sub}; font-size: 0.95rem; margin: 6px 0 0 0;">ENESA Engenharia · Controle Operacional de Efetivo</p>
+        <p style="color: {cor_texto_sub}; font-size: 0.95rem; margin: 6px 0 0 0;">{nome_site} - Controle Operacional de Efetivo</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -544,12 +553,31 @@ with st.sidebar:
         st.info("ℹ️ Nenhuma base salva ainda.")
     
     st.markdown("---")
+    
+    is_admin = st.query_params.get("admin", "") == "edson"
+    if is_admin:
+        with st.expander("⚙️ Personalização do Site"):
+            novo_logo = st.file_uploader("Trocar Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
+            if novo_logo:
+                with open(caminho_logo, "wb") as f:
+                    f.write(novo_logo.getbuffer())
+                st.success("Logo atualizado! Recarregue a página.")
+                
+            novo_nome_site = st.text_input("Nome da Empresa/Site:", value=nome_site)
+            if st.button("Salvar Nome"):
+                with open(caminho_nome_site, "w", encoding="utf-8") as f:
+                    f.write(novo_nome_site)
+                st.success("Nome atualizado!")
+                time.sleep(1)
+                st.rerun()
+
+    st.markdown("---")
     st.markdown(
-        """
+        f"""
         <div style='text-align: center; margin-top: 20px; font-size: 12px; color: #888;'>
             <p>Desenvolvido por</p>
             <p style='font-size: 16px; font-weight: bold; color: #ff4b4b; margin-top: -10px;'>Edson Garcia</p>
-            <p style='margin-top: -10px;'>v5.0 · ENESA Engenharia (com ANTIGRAVITY)</p>
+            <p style='margin-top: -10px;'>v5.0 · {nome_site} (com ANTIGRAVITY)</p>
         </div>
         """, 
         unsafe_allow_html=True
@@ -696,7 +724,7 @@ if st.session_state.df is not None:
             encarregado_sel = st.selectbox("Escolha o Encarregado:", lista_encarregados)
             equipe = df_atual[df_atual["ENCARREGADO"] == encarregado_sel]
             st.markdown("")
-            st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">ENESA Engenharia</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado:</strong></td><td>{encarregado_sel}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado:</strong></td><td>{encarregado_sel}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
             st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
             st.markdown("")
             col_btn1, col_btn2 = st.columns(2)
