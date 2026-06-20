@@ -831,16 +831,27 @@ if st.session_state.df is not None:
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True)
+                        
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                # Puxar a versão mais fresca da nuvem para evitar sobrescrever a IA rodando em outra aba
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                if not df_fresco.empty:
+                                    df_fresco = df_fresco.dropna(how='all')
+                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                else:
+                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                
+                                conn.update(worksheet="Historico_F1", data=df_final)
+                                st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
-                                st.success(f"✅ {len(novos_registros)} novos RDCs adicionados com sucesso! ({nomes_ja_existentes} já estavam computados).")
+                                st.success(f"✅ {len(novos_registros)} novos RDCs adicionados e sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).")
                             except Exception as e:
                                 st.error(f"Erro ao salvar na nuvem: {e}")
+                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                         else:
-                            st.success(f"✅ {len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já estavam computados).")
+                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                            st.success(f"✅ {len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -1113,7 +1124,15 @@ if st.session_state.df is not None:
                     if st.session_state.get('f1_modificado', False):
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                if not df_fresco.empty:
+                                    df_fresco = df_fresco.dropna(how='all')
+                                    df_final = pd.concat([df_fresco, st.session_state.df_historico_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                else:
+                                    df_final = st.session_state.df_historico_f1
+                                
+                                conn.update(worksheet="Historico_F1", data=df_final)
+                                st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
                             except Exception as e:
                                 st.error(f"⚠️ Erro ao salvar histórico da F1 na nuvem: {e}")
