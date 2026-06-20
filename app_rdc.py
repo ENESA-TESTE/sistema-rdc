@@ -886,6 +886,11 @@ if st.session_state.df is not None:
                 
         matriz["Total"] = (matriz == "✅").sum(axis=1)
         
+        # Adicionar o total do dia no próprio cabeçalho da coluna (em cima dos dias)
+        total_por_dia = (matriz[dias_str] == "✅").sum(axis=0)
+        novas_colunas = {dia: f"{dia} \n({total_por_dia[dia]})" for dia in dias_str}
+        matriz.rename(columns=novas_colunas, inplace=True)
+        
         total_entregue = matriz["Total"].sum()
         col_tit, col_met = st.columns([3, 1])
         with col_tit:
