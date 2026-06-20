@@ -327,8 +327,23 @@ def preencher_excel(equipe, encarregado_selecionado):
         
         wb = openpyxl.load_workbook(caminho)
             
+        from copy import copy
         ws = wb.active
-        ws[celula_encarregado] = encarregado_selecionado
+        celula_enc = ws[celula_encarregado]
+        celula_enc.value = encarregado_selecionado
+        
+        # Ajuste dinâmico de tamanho para nomes longos
+        tamanho = 16
+        if len(encarregado_selecionado) > 25:
+            tamanho = 14
+        if len(encarregado_selecionado) > 35:
+            tamanho = 12
+            
+        if celula_enc.font:
+            nova_fonte = copy(celula_enc.font)
+            nova_fonte.size = tamanho
+            nova_fonte.bold = True
+            celula_enc.font = nova_fonte
         letra_mat, _ = extrair_coordenadas(celula_matricula)
         letra_nom, linha_nom = extrair_coordenadas(celula_nome)
         letra_fun, _ = extrair_coordenadas(celula_funcao)
@@ -744,18 +759,98 @@ if st.session_state.df is not None:
         st.markdown("### 🏎️ Competição F1 - Entrega de RDC")
         st.markdown("Acompanhamento mensal da entrega dos Relatórios Diários de Campo (RDC).")
         
-        # Filtrar todos os encarregados, EXCETO MATERIAIS, SUPERVISOR e COORDENADOR
-        encarregados_filtrados = []
-        for e in df_atual["ENCARREGADO"].unique():
-            e_str = str(e).strip()
-            if e_str and e_str != "-":
-                funcoes = df_atual[df_atual["NOME"] == e_str]["FUNÇÃO"].astype(str).str.upper()
-                eh_chefe_ou_mat = any("SUPERVISOR" in f or "COORDENADOR" in f or "MATERIAIS" in f for f in funcoes)
-                if not eh_chefe_ou_mat:
-                    encarregados_filtrados.append(e_str)
-                    
-        lista_completa_encarregados = sorted(encarregados_filtrados)
+        encarregados_f1_oficial = [
+            "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
+            "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
+            "SANDRO LIMA DE SOUZA", "ALOISIO FERREIRA SOUZA", "ARLINDO PEREIRA DA SILVA", "FAUZE CELIS RODRIGUES COSTA",
+            "FRANCISCO PEREIRA LIMA", "JOAO PAULO DA COSTA QUARESMA", "JOSE ORLANDO DAS NEVES MADEIRA",
+            "JOSE TARCISIO ARAUJO DA SILVA", "LEANDRO DA CRUZ DE SOUZA", "CLAUDIO LUCIANO ARGELINO",
+            "EDVALDO CARVALHO ANGELIM", "ELDER MENDES JUNIOR", "MANOEL MARIA SARGES SOARES", "CLAUDIO CRUZ SOUSA",
+            "CLIDENILDO GOMES DE ALMEIDA", "GRACINEI PEREIRA DOS SANTOS", "JAILSON MENDES DE OLIVEIRA",
+            "JARBAS DA ROCHA GOMES", "JOSE MAURICIO RODRIGUES DA SILVA", "JOSE SARAIVA LOPES NETO",
+            "JOSMAEL RODRIGUES PEREIRA", "ALEX PANTOJA DE OLIVEIRA", "ARILSON DIAS DO PRADO", "ELTON GOMES DOS SANTOS",
+            "RICARDO SARMENTO FERREIRA", "WENISON DA SILVA CUNHA CORREIA", "FRANCISCO ALVES DA PENHA",
+            "IVAN DO NASCIMENTO RAMOS", "ELDER MENDES", "GEAN LENO JOSE DE FREITAS", "JOSE EDUARDO FARIAS FERREIRA",
+            "EDIMILSON NUNES VASCONCELOS", "LOURISVALDO AMARAL ARAUJO", "VALDEMIR BARBOSA REIS",
+            "LUZINALDO AMARAL DE ARAUJO", "MAURO DE QUEIROZ ANDRADE", "ELIAS SOUSA DA COSTA", "ISAIAS SOUSA LISBOA",
+            "ISMAEL CARLOS GOMES DA SILVA", "RAIMUNDO DA SILVA DOS SANTOS", "RAIMUNDO EUDE DA SILVA FREITAS",
+            "RODOLFO DOS SANTOS COSTA", "ELISEU DA SILVA BISPO", "IRON MARQUES MOREIRA", "LUIZ CARLOS DE SOUZA",
+            "ANTONIO TEIXEIRA BORBA", "JOSE FRANCIVAN MONTEIRO SANTOS", "JOSE WALKER CARNEIRO OLIVEIRA",
+            "LEANDRO DA SILVA QUEIROZ", "SILVIO MANOEL DE ANDRADE", "EVERALDO DOS SANTOS SOARES",
+            "FRANCISCO GRACIEL DE SOUSA MARTINS", "JAILSON SILVA DE GOIS", "JORGINALDO NUNES DA SILVA",
+            "CLAUDIVAN OLIVEIRA DOS SANTOS", "GUILHERME HENRIQUE DE ARAUJO SOUSA", "LEANDRO MARTINS DA SILVA BORGES",
+            "WEVERTON FERNANDES MARIANO", "JORGE DA COSTA SILVA", "RAIMUNDO FRAZAO DOS SANTOS",
+            "JOSE RIBEIRO DO NASCIMENTO JUNIOR", "JOSE ROBERTO SALVADOR FILHO", "MARCUS ANTONIO DE SOUZA",
+            "RAIMUNDO ROGERIO LEITE", "ROUBERVAL SANTOS DOS SANTOS", "CARLOS ALBERTO DA COSTA MOREIRA",
+            "JOSE FELIPE DOS SANTOS", "JOSE GERIARDI FONSECA DE SENA", "JOSE HENRIQUE SILVA VIEIRA",
+            "ODAIR MENEZES DA SILVA", "SIDNALDO SANTOS DE JESUS", "ANDERSON VICTALINO",
+            "FRANCISCO AUGUSTO DE SOUSA BARROS", "GENILSON PEREIRA DE SOUSA", "HELENO MARQUES DE SOUZA NETO",
+            "HEMERSON MONTEIRO DE OLIVEIRA", "JACKSON DEIBSON FELICIANO DA SILVA", "JARDELINO PEREIRA DA COSTA",
+            "JOAO TIAGO OLIVEIRA DE AMORIM", "JOSE MARIA DA SILVA PESSOA", "LUCIO FABIO DA SILVA LEANDRO",
+            "RAIMUNDO GONCALVES DOS SANTOS", "FABRICIO FIGUEIREDO", "RHOKSONY FERREIRA SILVEIRA",
+            "FERNANDO DA CONCEIÇÃO", "ROGERIO BARROS DOS SANTOS", "SIQUEU SANTOS SOLEDADE",
+            "SEBASTIAO CARLOS DE OLIVEIRA", "MANOEL NEPOMUCENO DOS SANTOS", "LUIZ RAMOS DE LIMA",
+            "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
+        ]
         
+        lista_completa_encarregados = sorted([e.upper() for e in encarregados_f1_oficial])
+        
+        # --- LANÇAMENTO MANUAL ---
+        if st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)"):
+            with st.form("form_f1_manual"):
+                st.info("💡 Você pode colar a lista inteira de encarregados aqui (um por linha ou separados por vírgula). O robô vai verificar: se a IA já tiver lido, ele ignora. Se faltou, ele adiciona!")
+                col_m1, col_m2 = st.columns([1, 2])
+                with col_m1:
+                    data_manual = st.date_input("Data do RDC")
+                with col_m2:
+                    nomes_colados = st.text_area("Cole os nomes dos Encarregados", height=120)
+                
+                btn_manual = st.form_submit_button("Processar Lista e Lançar no F1")
+                if btn_manual and nomes_colados.strip():
+                    import re
+                    import difflib
+                    data_str = data_manual.strftime("%Y-%m-%d")
+                    
+                    lista_suja = [n.strip().upper() for n in re.split(r'[\n,;]', nomes_colados) if n.strip()]
+                    
+                    novos_registros = []
+                    nomes_ja_existentes = 0
+                    nomes_nao_encontrados = []
+                    
+                    for nome_sujo in lista_suja:
+                        match = difflib.get_close_matches(nome_sujo, lista_completa_encarregados, n=1, cutoff=0.55)
+                        if match:
+                            nome_oficial = match[0]
+                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == nome_oficial)).any()
+                            if ja_existe:
+                                nomes_ja_existentes += 1
+                            else:
+                                novos_registros.append({"DATA": data_str, "ENCARREGADO": nome_oficial})
+                        else:
+                            nomes_nao_encontrados.append(nome_sujo)
+                            
+                    if novos_registros:
+                        df_novos = pd.DataFrame(novos_registros)
+                        st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True)
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                st.cache_data.clear()
+                                st.success(f"✅ {len(novos_registros)} novos RDCs adicionados com sucesso! ({nomes_ja_existentes} já estavam computados).")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar na nuvem: {e}")
+                        else:
+                            st.success(f"✅ {len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já estavam computados).")
+                    elif nomes_ja_existentes > 0:
+                        st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
+                        
+                    if nomes_nao_encontrados:
+                        st.error(f"❌ Não encontrei na lista oficial (verifique a escrita): {', '.join(nomes_nao_encontrados)}")
+                        
+                    time.sleep(4)
+                    st.rerun()
+        # -------------------------
+
         # Preparar dados de data do histórico
         df_hist = st.session_state.df_historico_f1.copy()
         if not df_hist.empty:
@@ -800,6 +895,21 @@ if st.session_state.df is not None:
         
         st.dataframe(matriz, use_container_width=True)
         
+        # --- EXPORTAR PARA RH ---
+        buffer_rh = io.BytesIO()
+        matriz_export = matriz.reset_index().rename(columns={"index": "ENCARREGADO"})
+        matriz_export.to_excel(buffer_rh, index=False, engine='openpyxl')
+        buffer_rh.seek(0)
+        
+        st.download_button(
+            label="📥 Baixar Planilha do Mês para o RH (.xlsx)",
+            data=buffer_rh,
+            file_name=f"Relatorio_RH_F1_{mes_selecionado}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True
+        )
+        # ------------------------
         st.markdown("---")
         st.markdown("#### 🏆 Pódio do Mês (Top 3 Melhores vs Top 3 Piores)")
         
@@ -898,108 +1008,111 @@ if st.session_state.df is not None:
                     for i, arquivo_scan in enumerate(arquivos_scan):
                         status.update(label=f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...", state="running")
                     
-                    try:
-                        # Salvar temporariamente para enviar pro Gemini
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
-                            tmp.write(arquivo_scan.getvalue())
-                            tmp_path = tmp.name
+                        try:
+                            # Salvar temporariamente para enviar pro Gemini
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
+                                tmp.write(arquivo_scan.getvalue())
+                                tmp_path = tmp.name
                             
-                        arquivo_up = client.files.upload(file=tmp_path)
+                            arquivo_up = client.files.upload(file=tmp_path)
                         
-                        max_tentativas = 3
-                        sucesso_arquivo = False
-                        for tentativa in range(max_tentativas):
-                            try:
-                                resposta = client.models.generate_content(
-                                    model='gemini-2.5-flash',
-                                    contents=[arquivo_up, prompt_ia],
-                                    config=genai.types.GenerateContentConfig(
-                                        response_mime_type="application/json",
-                                        temperature=0.0
+                            max_tentativas = 3
+                            sucesso_arquivo = False
+                            for tentativa in range(max_tentativas):
+                                try:
+                                    resposta = client.models.generate_content(
+                                        model='gemini-2.5-flash',
+                                        contents=[arquivo_up, prompt_ia],
+                                        config=genai.types.GenerateContentConfig(
+                                            response_mime_type="application/json",
+                                            temperature=0.0
+                                        )
                                     )
-                                )
                                 
-                                # --- FIX: Restaurar as credenciais do Sheets caso necessário ---
-                                if old_cred:
-                                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
+                                    # --- FIX: Restaurar as credenciais do Sheets caso necessário ---
+                                    if old_cred:
+                                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
 
-                                texto_resposta = resposta.text.strip()
-                                if texto_resposta.startswith("```json"):
-                                    texto_resposta = texto_resposta[7:-3].strip()
-                                elif texto_resposta.startswith("```"):
-                                    texto_resposta = texto_resposta[3:-3].strip()
+                                    texto_resposta = resposta.text.strip()
+                                    if texto_resposta.startswith("```json"):
+                                        texto_resposta = texto_resposta[7:-3].strip()
+                                    elif texto_resposta.startswith("```"):
+                                        texto_resposta = texto_resposta[3:-3].strip()
 
-                                dados_extraidos_lista = json.loads(texto_resposta)
+                                    dados_extraidos_lista = json.loads(texto_resposta)
 
-                                if isinstance(dados_extraidos_lista, dict):
-                                    dados_extraidos_lista = [dados_extraidos_lista]
+                                    if isinstance(dados_extraidos_lista, dict):
+                                        dados_extraidos_lista = [dados_extraidos_lista]
 
-                                # --- FIX: Consenso de Data do Lote ---
-                                # Como todos os RDCs escaneados juntos pertencem ao mesmo dia,
-                                # pegamos a data mais frequente encontrada e forçamos para todos.
-                                datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
-                                if datas_encontradas:
-                                    data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
-                                    for d in dados_extraidos_lista:
-                                        d["DATA"] = data_consenso
+                                    # --- FIX: Consenso de Data do Lote ---
+                                    # Como todos os RDCs escaneados juntos pertencem ao mesmo dia,
+                                    # pegamos a data mais frequente encontrada e forçamos para todos.
+                                    datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
+                                    if datas_encontradas:
+                                        data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
+                                        for d in dados_extraidos_lista:
+                                            d["DATA"] = data_consenso
 
-                                for dados in dados_extraidos_lista:
-                                    ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
-                                    dados['ITEM'] = int(ultimo_item) + 1
-                                    if 'LOCAL' not in dados:
-                                        dados['LOCAL'] = ''
-                                    if 'AREA' not in dados:
-                                        dados['AREA'] = ''
-                                    st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
+                                    for dados in dados_extraidos_lista:
+                                        ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+                                        dados['ITEM'] = int(ultimo_item) + 1
+                                        if 'LOCAL' not in dados:
+                                            dados['LOCAL'] = ''
+                                        if 'AREA' not in dados:
+                                            dados['AREA'] = ''
+                                        st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
                                     
-                                    # Registro F1
-                                    enc_lido = str(dados.get('ENCARREGADO', '')).strip()
-                                    if enc_lido:
-                                        # Usa a data do formulário RDC extraída pela IA. Se falhar, cai pra data de hoje.
-                                        data_extraida = dados.get('DATA', '').strip()
-                                        try:
-                                            # tenta converter pra garantir que está em YYYY-MM-DD
-                                            data_registro = pd.to_datetime(data_extraida).strftime('%Y-%m-%d')
-                                        except:
-                                            data_registro = datetime.date.today().strftime('%Y-%m-%d')
+                                        # Registro F1
+                                        enc_lido = str(dados.get('ENCARREGADO', '')).strip()
+                                        if enc_lido:
+                                            # Usa a data do formulário RDC extraída pela IA. Se falhar, cai pra data de hoje.
+                                            data_extraida = dados.get('DATA', '').strip()
+                                            try:
+                                                # tenta converter pra garantir que está em YYYY-MM-DD
+                                                data_registro = pd.to_datetime(data_extraida).strftime('%Y-%m-%d')
+                                            except:
+                                                data_registro = datetime.date.today().strftime('%Y-%m-%d')
                                             
-                                        ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
-                                        if not ja_existe:
-                                            novo_registro = pd.DataFrame([{"DATA": data_registro, "ENCARREGADO": enc_lido}])
-                                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, novo_registro], ignore_index=True)
-                                            # Salvar imediatamente na nuvem para não perder
-                                            if conn and not st.session_state.get('force_use_local', False):
-                                                try:
-                                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
-                                                    # Limpar cache do Streamlit para forçar a releitura dos dados atualizados na próxima vez
-                                                    st.cache_data.clear()
-                                                except Exception as e:
-                                                    st.error(f"⚠️ Erro ao salvar histórico da F1 na nuvem: Você já criou a aba 'Historico_F1' na sua planilha do Google Sheets? Detalhe técnico: {e}")
+                                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
+                                            if not ja_existe:
+                                                novo_registro = pd.DataFrame([{"DATA": data_registro, "ENCARREGADO": enc_lido}])
+                                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, novo_registro], ignore_index=True)
+                                                st.session_state.f1_modificado = True
                                     
-                                    # Apenas extrai os dados, sem atualizar a base principal (a pedido do usuário)
+                                        # Apenas extrai os dados, sem atualizar a base principal (a pedido do usuário)
 
-                                sucesso_arquivo = True
-                                break 
+                                    sucesso_arquivo = True
+                                    break 
 
-                            except Exception as inner_e:
-                                if '503' in str(inner_e):
-                                    time.sleep(10)
-                                else:
-                                    break
+                                except Exception as inner_e:
+                                    if '503' in str(inner_e):
+                                        time.sleep(10)
+                                    else:
+                                        break
                                     
-                        os.remove(tmp_path)
+                            os.remove(tmp_path)
                         
-                        if sucesso_arquivo:
-                            st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
-                        else:
-                            st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
+                            if sucesso_arquivo:
+                                st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
+                            else:
+                                st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
                             
-                    except Exception as e:
-                        st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
+                        except Exception as e:
+                            st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
                         
-                    progresso.progress((i + 1) / total_arquivos)
+                        progresso.progress((i + 1) / total_arquivos)
 
                     status.update(label="🎉 Leitura concluída!", state="complete", expanded=False)
+                    
+                    # --- FIX: Salvar F1 na Nuvem em Lote ---
+                    if st.session_state.get('f1_modificado', False):
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                st.cache_data.clear()
+                            except Exception as e:
+                                st.error(f"⚠️ Erro ao salvar histórico da F1 na nuvem: {e}")
+                        st.session_state.f1_modificado = False
                 time.sleep(2)
                 st.session_state.force_use_local = True
                 st.rerun()
