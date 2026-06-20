@@ -20,6 +20,14 @@ except ImportError:
 from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
+# Força a criação do arquivo de tema Escuro automaticamente
+config_dir = ".streamlit"
+os.makedirs(config_dir, exist_ok=True)
+config_path = os.path.join(config_dir, "config.toml")
+if not os.path.exists(config_path):
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write('[theme]\nbase="dark"\nprimaryColor="#f39c12"\nbackgroundColor="#1e1e1e"\nsecondaryBackgroundColor="#2b2b2b"\ntextColor="#e0e4ea"\n')
+
 st.set_page_config(page_title="Sistema RDC & PDE - ENESA", layout="wide", initial_sidebar_state="expanded")
 
 # Injeção de CSS para ajustes de interface
@@ -440,6 +448,31 @@ def preparar_dataframe(df):
 
     df["MATRICULA"] = df["MATRICULA"].str.replace(".0", "", regex=False)
     
+    # -------------------------------------------------------------------------
+    # NOVO: FORÇAR A DISCIPLINA A SER SEMPRE CORRETA DE ACORDO COM O C.C ATUAL
+    # -------------------------------------------------------------------------
+    mapa_sufixo_disciplina = {
+        '001': 'EQUIPAMENTOS', '002': 'DUTOS', '003': 'TUBULACAO', 
+        '004': 'ESTRUTURA METALICA', '005': 'PRECIPITADOR', '006': 'PRESSAO - MECANICA', 
+        '007': 'PRESSAO - TUBULACAO', '008': 'PRESSAO - FORNALHA', '009': 'PINTURA', 
+        '010': 'COMISSIONAMENTO', '011': 'OP. ASSISTIDA', '012': 'LAVAGEM QUIMICA', 
+        '013': 'SOPRAGEM', '014': 'ANDAIME', '015': 'OPERADORES', '016': 'FORA DE ESCOPO',
+        '101': 'GERENCIA', '102': 'PRODUCAO', '103': 'GARANTIA DA QUALIDADE',
+        '104': 'PLANEJAMENTO', '105': 'ADMINISTRACAO', '106': 'SEGURANCA E MEDICINA DO TRABALHO',
+        '107': 'INFRAESTRUTURA', '108': 'ALMOXARIFADO ENESA', '109': 'ALMOXARIFADO MATERIAIS',
+        '110': 'MANUT. ELETRICA PROVISORIA', '111': 'TOPOGRAFIA', '112': 'MOVIMENTACAO DE CARGAS',
+        '113': 'MEDICAO/CUSTO/CONTRATOS'
+    }
+
+    def corrigir_disciplina(row):
+        cc_val = str(row["C.C"]).strip()
+        sufixo = cc_val.split('.')[-1] if '.' in cc_val else cc_val
+        if sufixo in mapa_sufixo_disciplina:
+            return mapa_sufixo_disciplina[sufixo]
+        return str(row.get("DISCIPLINA", "")).upper()
+
+    df["DISCIPLINA"] = df.apply(corrigir_disciplina, axis=1)
+    # -------------------------------------------------------------------------
     colunas_ordenadas = ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "ENCARREGADO"]
     outras_cols = [c for c in df.columns if c not in colunas_ordenadas]
     df = df[colunas_ordenadas + outras_cols]
@@ -534,9 +567,9 @@ if arquivo_pde is not None:
                     )
                 except Exception:
                     pass
-
+        
         st.session_state.df = df_carregado
-        if conn:
+        if conn and not st.session_state.get('force_use_local', False):
             try:
                 conn.update(worksheet="Página1", data=st.session_state.df)
                 st.sidebar.success("☁️ Base salva! C.Cs antigos foram preservados com sucesso!")
@@ -1059,6 +1092,9 @@ if st.session_state.df is not None:
 
                 if houve_atualizacao_global:
                     try:
+                        df_atual = preparar_dataframe(df_atual)
+                        st.session_state.df = df_atual.copy()
+                        
                         status_cc.update(label="Sincronizando C.Cs atualizados com a nuvem...", state="running")
                         conn_update = st.connection("gsheets", type=GSheetsConnection)
                         conn_update.update(worksheet="Página1", data=df_atual)
@@ -1113,18 +1149,37 @@ if st.session_state.df is not None:
 
             # Gráfico de distribuição por C.C.
             st.markdown("**Distribuição de Efetivo por Centro de Custo**")
-            cc_contagem = df_atual[df_atual["C.C"].str.strip() != ""]["C.C"].value_counts().reset_index()
+            
+            # Filtro PB/RB para o Gráfico (Visual mais moderno/Premium)
+            filtro_local_grafico = st.segmented_control(
+                "Filtrar Gráfico por Local:", 
+                ["Ambas", "Caldeira PB", "Caldeira RB"], 
+                default="Ambas"
+            )
+            if not filtro_local_grafico:
+                filtro_local_grafico = "Ambas"
+            
+            df_grafico = df_atual[df_atual["C.C"].str.strip() != ""]
+            if filtro_local_grafico == "Caldeira PB":
+                df_grafico = df_grafico[df_grafico["C.C"].apply(lambda x: "(PB)" in format_cc(x))]
+            elif filtro_local_grafico == "Caldeira RB":
+                df_grafico = df_grafico[df_grafico["C.C"].apply(lambda x: "(RB)" in format_cc(x))]
+                
+            cc_contagem = df_grafico["C.C"].value_counts().reset_index()
             cc_contagem.columns = ["Centro de Custo", "Quantidade"]
             cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
             
-            fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale="Blues", text="Quantidade")
-            fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
-            fig_cc.update_yaxes(categoryorder="total ascending")
-            fig_cc.update_xaxes(visible=False)
-            fig_cc.update_coloraxes(showscale=False)
-            fig_cc.update_traces(textposition='outside')
-            if st.toggle("📊 Visualizar Gráfico de Distribuição por C.C"):
-                st.plotly_chart(fig_cc, use_container_width=True)
+            if len(cc_contagem) > 0:
+                fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale="Blues", text="Quantidade")
+                fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
+                fig_cc.update_yaxes(categoryorder="total ascending")
+                fig_cc.update_xaxes(visible=False)
+                fig_cc.update_coloraxes(showscale=False)
+                fig_cc.update_traces(textposition='outside')
+                if st.toggle("📊 Visualizar Gráfico de Distribuição por C.C"):
+                    st.plotly_chart(fig_cc, use_container_width=True)
+            else:
+                st.info("Nenhum dado encontrado para o filtro selecionado.")
             
             st.markdown("---")
             
