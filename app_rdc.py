@@ -744,15 +744,14 @@ if st.session_state.df is not None:
         st.markdown("### 🏎️ Competição F1 - Entrega de RDC")
         st.markdown("Acompanhamento mensal da entrega dos Relatórios Diários de Campo (RDC).")
         
-        # Filtrar encarregados de SOLDA/MECÂNICA e excluir SUPERVISOR/COORDENADOR
+        # Filtrar todos os encarregados, EXCETO MATERIAIS, SUPERVISOR e COORDENADOR
         encarregados_filtrados = []
         for e in df_atual["ENCARREGADO"].unique():
             e_str = str(e).strip()
             if e_str and e_str != "-":
                 funcoes = df_atual[df_atual["NOME"] == e_str]["FUNÇÃO"].astype(str).str.upper()
-                tem_solda_mec = any("SOLDA" in f or "MECANICA" in f or "MECÂNICA" in f for f in funcoes)
-                eh_chefe = any("SUPERVISOR" in f or "COORDENADOR" in f for f in funcoes)
-                if tem_solda_mec and not eh_chefe:
+                eh_chefe_ou_mat = any("SUPERVISOR" in f or "COORDENADOR" in f or "MATERIAIS" in f for f in funcoes)
+                if not eh_chefe_ou_mat:
                     encarregados_filtrados.append(e_str)
                     
         lista_completa_encarregados = sorted(encarregados_filtrados)
@@ -768,8 +767,6 @@ if st.session_state.df is not None:
             meses_disponiveis = [datetime.date.today().strftime("%Y-%m")]
             
         mes_selecionado = st.selectbox("📅 Selecione o Mês para Análise:", meses_disponiveis)
-        
-        st.markdown(f"#### 📊 Matriz de Entregas - {mes_selecionado}")
         
         if not df_hist.empty:
             df_mes = df_hist[df_hist["MES_ANO"] == mes_selecionado]
@@ -793,6 +790,13 @@ if st.session_state.df is not None:
                 matriz.loc[enc, dia] = "✅"
                 
         matriz["Total"] = (matriz == "✅").sum(axis=1)
+        
+        total_entregue = matriz["Total"].sum()
+        col_tit, col_met = st.columns([3, 1])
+        with col_tit:
+            st.markdown(f"#### 📊 Matriz de Entregas - {mes_selecionado}")
+        with col_met:
+            st.metric("📄 Total de RDCs Entregues", total_entregue)
         
         st.dataframe(matriz, use_container_width=True)
         
@@ -879,7 +883,7 @@ if st.session_state.df is not None:
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
                 - ENCARREGADO: FAÇA O MÁXIMO ESFORÇO POSSÍVEL para descobrir quem é o encarregado. Compare o que está escrito à mão com esta lista oficial: [{nomes_para_prompt}]. Se a caligrafia estiver ruim, com erros de ortografia, ou se houver apenas o primeiro e segundo nome (ex: "Jailson Gois"), use dedução lógica e similaridade para encontrar a correspondência exata na lista. Retorne EXATAMENTE o nome completo que consta na lista fornecida. Somente se for 100% impossível deduzir quem é, retorne o texto 'AJUSTAR NOME'.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
-                - ATIVIDADE: IMPORTANTE: Procure especificamente no formulário pela seção ou tabela chamada "ATIVIDADES" (geralmente na parte de baixo do RDC, onde as linhas são preenchidas à mão com o que foi feito). LEIA TODAS as atividades descritas APENAS NESTE LUGAR e JUNTE TUDO em um ÚNICO RESUMO de no máximo 20 palavras. Corrija a ortografia, extraia a ação principal e retorne TUDO EM LETRAS MAIÚSCULAS. NUNCA SEPARE EM LINHAS DIFERENTES.
+                - ATIVIDADE: OBRIGATÓRIO: Crie um ÚNICO RESUMO SUPER CURTO E DIRETO de NO MÁXIMO 20 PALAVRAS sobre o que foi feito na seção 'ATIVIDADES'. Se você usar mais de 20 palavras, será considerado um erro gravíssimo! Extraia a ação principal, corrija a ortografia e escreva TUDO EM MAIÚSCULAS. NUNCA SEPARE EM LINHAS.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
                 - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. As opções são exatamente: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área que estiver marcada. Se nenhuma estiver marcada, retorne ''.
@@ -967,8 +971,10 @@ if st.session_state.df is not None:
                                             if conn and not st.session_state.get('force_use_local', False):
                                                 try:
                                                     conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
-                                                except:
-                                                    pass
+                                                    # Limpar cache do Streamlit para forçar a releitura dos dados atualizados na próxima vez
+                                                    st.cache_data.clear()
+                                                except Exception as e:
+                                                    st.error(f"⚠️ Erro ao salvar histórico da F1 na nuvem: Você já criou a aba 'Historico_F1' na sua planilha do Google Sheets? Detalhe técnico: {e}")
                                     
                                     # Apenas extrai os dados, sem atualizar a base principal (a pedido do usuário)
 
