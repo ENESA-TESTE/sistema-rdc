@@ -1269,7 +1269,8 @@ if st.session_state.df is not None:
                                     
                                     area_lida = ''
                                     # 1. Tenta achar na área bruta (exato ou contendo)
-                                    for k in mapa_area_sufixo.keys():
+                                    chaves_ordenadas = sorted(mapa_area_sufixo.keys(), key=len, reverse=True)
+                                    for k in chaves_ordenadas:
                                         if k in area_bruta:
                                             area_lida = k
                                             break
@@ -1277,7 +1278,7 @@ if st.session_state.df is not None:
                                     # 2. Se não achar, procura na disciplina (cuidado com falsos positivos de 'ESP')
                                     if not area_lida:
                                         import re
-                                        for k in mapa_area_sufixo.keys():
+                                        for k in chaves_ordenadas:
                                             if k == 'ESP':
                                                 if re.search(r'\bESP\b', disciplina_lida):
                                                     area_lida = k
