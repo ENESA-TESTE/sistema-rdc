@@ -11,6 +11,7 @@ import base64
 import json
 import time
 import tempfile
+import plotly.express as px
 try:
     from google import genai
 except ImportError:
@@ -21,26 +22,36 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Sistema RDC & PDE - ENESA", layout="wide", initial_sidebar_state="expanded")
 
-# Injeção de CSS para corrigir o bug de fontes do Streamlit Cloud (texto keyboard_double_arrow_left)
+# Injeção de CSS para ajustes de interface
 st.markdown("""
     <style>
         /* Tentar forçar o carregamento da fonte oficial de ícones do Google */
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0');
         
-        /* Fallback: se a rede da empresa bloquear a fonte, escondemos o texto feio e colocamos setas normais */
-        .material-symbols-rounded {
-            color: transparent !important;
-            display: inline-block;
-        }
-        
-        /* Esconder agressivamente qualquer ícone que falhar e tentar mostrar as setas antigas */
+        /* Esconder o botão de collapse da sidebar para evitar texto quebrado */
         [data-testid="stSidebarCollapseButton"] {
             display: none !important;
         }
         
-        .material-symbols-rounded {
+        /* Ocultar texto quebrado "arrow_down" do st.expander caso a fonte não carregue */
+        summary .material-symbols-rounded,
+        .st-emotion-cache-1t8fpt5 .material-symbols-rounded,
+        [data-testid="stExpander"] .material-symbols-rounded {
             display: none !important;
+            color: transparent !important;
         }
+        
+        /* Esconder o menu superior chato do Streamlit (Deploy, Rerun, etc) */
+        header { visibility: hidden !important; display: none !important; }
+        [data-testid="stHeader"] { display: none !important; }
+        [data-testid="stToolbar"] { display: none !important; }
+        #MainMenu { display: none !important; }
+        footer { display: none !important; }
+        .stApp > header { display: none !important; }
+        
+        /* Remover a linha colorida no topo e subir o layout */
+        [data-testid="stDecoration"] { display: none !important; }
+        .stApp { margin-top: -60px; }
         
         /* Travar a largura da barra lateral (esconder o arrastador) */
         [data-testid="stSidebarResizer"] {
@@ -412,6 +423,9 @@ def preparar_dataframe(df):
     
     df = df.rename(columns=mapeamento)
     
+    # Remover colunas duplicadas que podem ser geradas após o rename ou pela injeção da nuvem, mantendo a mais recente (last)
+    df = df.loc[:, ~df.columns.duplicated(keep='last')]
+    
     for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]:
         if c not in df.columns:
             df[c] = ""
@@ -502,11 +516,30 @@ except Exception:
 if arquivo_pde is not None:
     df_carregado = ler_arquivo_seguro(arquivo_pde, arquivo_pde.name)
     if df_carregado is not None:
+        # PREPARAR PRIMEIRO para padronizar nomes de colunas (MATRÍCULA -> MATRICULA, etc.)
+        df_carregado = preparar_dataframe(df_carregado)
+        
+        # PRESERVAR O C.C DA BASE ANTIGA DO APP
+        if st.session_state.df is not None:
+            # Prepara a base antiga para garantir que o nome da coluna é exatamente "C.C" e "MATRICULA"
+            df_antigo = preparar_dataframe(st.session_state.df)
+            
+            if "C.C" in df_antigo.columns and "MATRICULA" in df_carregado.columns:
+                try:
+                    df_com_cc = df_antigo[df_antigo["C.C"].astype(str).str.strip() != ""]
+                    mapa_cc = dict(zip(df_com_cc["MATRICULA"], df_com_cc["C.C"]))
+                    
+                    df_carregado["C.C"] = df_carregado.apply(
+                        lambda row: mapa_cc.get(row["MATRICULA"], row["C.C"]) if mapa_cc.get(row["MATRICULA"]) else row["C.C"], axis=1
+                    )
+                except Exception:
+                    pass
+
         st.session_state.df = df_carregado
         if conn:
             try:
                 conn.update(worksheet="Página1", data=st.session_state.df)
-                st.sidebar.success("☁️ Base salva no Google Sheets!")
+                st.sidebar.success("☁️ Base salva! C.Cs antigos foram preservados com sucesso!")
             except Exception as e:
                 st.sidebar.error(f"Erro Nuvem: {e}")
 
@@ -548,7 +581,26 @@ if st.session_state.df is not None:
     df_atual = preparar_dataframe(st.session_state.df.copy())
     lista_encarregados = sorted([str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
 
-    tab_dashboard, tab_emissao, tab_cc, tab_ia = st.tabs(["📊 Dashboard", "🖨️ Emissão de RDC", "💰 Controle de C.C", "🤖 Leitor de RDC (IA)"])
+    mapa_area_sufixo = {
+        'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
+        'DUTO': '002', 'DUTOS': '002',
+        'TUBULACAO': '003', 'TUBULAÇÃO': '003',
+        'ESTRUTURA MET': '004', 'ESTRUTURA METALICA': '004', 'ESTRUTURA METÁLICA': '004',
+        'PRECIPITADOR': '005', 'ESP': '005',
+        'PRESSAO-MEC': '006', 'PRESSAO - MEC': '006', 'PARTE DE PRESSAO - MECANICA': '006',
+        'PRESSAO-TUBULACAO': '007', 'PRESSAO - TUBULACAO': '007', 'PARTE DE PRESSAO - TUBULACAO': '007',
+        'PRESSAO-FORNALHA': '008', 'PRESSAO - FORNALHA': '008', 'PARTE DE PRESSAO - FORNALHA': '008', 'PARTE DE PRESSAO - FORNALIA': '008',
+        'PINTURA': '009',
+        'COMISSIONAMENTO': '010', 'APOIO AO COMISSIONAMENTO': '010',
+        'OPERACAO ASSISTIDA': '011', 'OPERAÇÃO ASSISTIDA': '011',
+        'LAVAGEM QUIMICA': '012', 'LAVAGEM QUÍMICA': '012',
+        'SOPRAGEM': '013',
+        'ANDAIME': '014', 'ANDAIMES': '014',
+        'OPERADOR': '015', 'OPERADORES E MOTORISTAS': '015', 'MOTORISTA': '015',
+        'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
+    }
+
+    tab_dashboard, tab_emissao, tab_cc, tab_ia, tab_ia_cc = st.tabs(["📊 Dashboard", "🖨️ Emissão de RDC", "💰 Controle de C.C", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C"])
 
     with tab_dashboard:
         st.markdown("### Painel de Gestão")
@@ -565,8 +617,15 @@ if st.session_state.df is not None:
             st.markdown("**Mão de Obra Direta**")
             func_mod = df_mod["FUNÇÃO"].value_counts().reset_index()
             func_mod.columns = ["Função", "Quantidade"]
-            chart1 = alt.Chart(func_mod).mark_bar(cornerRadiusTopRight=5, cornerRadiusBottomRight=5, color=cor_laranja).encode(x=alt.X("Quantidade:Q", title="Qtd"), y=alt.Y("Função:N", sort='-x', title="")).properties(height=max(200, len(func_mod) * 35))
-            st.altair_chart(chart1, use_container_width=True)
+            
+            fig_mod = px.bar(func_mod, x="Quantidade", y="Função", orientation="h", color="Quantidade", color_continuous_scale="Oranges", text="Quantidade")
+            fig_mod.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
+            fig_mod.update_yaxes(categoryorder="total ascending")
+            fig_mod.update_xaxes(visible=False)
+            fig_mod.update_coloraxes(showscale=False)
+            fig_mod.update_traces(textposition='outside')
+            if st.toggle("📊 Visualizar Gráfico de Mão de Obra Direta"):
+                st.plotly_chart(fig_mod, use_container_width=True)
             
         st.markdown("")
         st.markdown("**Base Completa**")
@@ -652,11 +711,25 @@ if st.session_state.df is not None:
             st.error("A biblioteca `google-genai` não está instalada no servidor. Instale usando `pip install google-genai`.")
 
         if HAS_GENAI:
-            chave_padrao = "AIzaSyBPssi9WMPwGfUXXrDHUunE8Yw-GBD3_yM"
+            # Tentar ler a chave do cofre secreto (.streamlit/secrets.toml)
+            chave_padrao = ""
+            try:
+                chave_padrao = st.secrets.get("GEMINI_API_KEY", "")
+            except Exception:
+                pass
+            
+            st.markdown("#### Configuração e Upload")
+            if not chave_padrao:
+                chave_padrao = st.text_input("🔑 Cole sua Chave da API Gemini:", type="password", help="Acesse https://aistudio.google.com/apikey para gerar sua chave. Ela fica oculta e protegida.")
+            
+            if not chave_padrao:
+                st.info("☝️ Cole a sua chave de API do Gemini acima para ativar o robô de leitura.")
             
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
+                
+            btn_processar = st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True)
             
-            if st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True) and arquivos_scan:
+            if btn_processar and arquivos_scan and chave_padrao:
                 # --- FIX: Evitar que o Gemini tente usar o Service Account do Google Sheets ---
                 old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
                 
@@ -665,6 +738,7 @@ if st.session_state.df is not None:
                 
                 prompt_ia = f"""
                 Analise este documento (que pode ter várias páginas). Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
+                REGRA IMPORTANTÍSSIMA: Retorne APENAS UM objeto JSON por formulário/página. NÃO separe as atividades em linhas diferentes. JUNTE TODAS as atividades do mesmo formulário em UM ÚNICO campo ATIVIDADE.
                 Retorne APENAS um array (lista) em formato JSON válido. Exemplo do formato exato esperado:
                 [
                   {{
@@ -682,7 +756,7 @@ if st.session_state.df is not None:
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
                 - ENCARREGADO: Extraia o nome do Encarregado escrito no papel. REGRA CRÍTICA: Compare o que está escrito com esta lista de encarregados válidos: [{nomes_para_prompt}]. Retorne EXATAMENTE o nome correspondente como está grafado na lista fornecida, corrigindo pequenos desvios do manuscrito. SE O NOME ESTIVER TOTALMENTE ILEGÍVEL OU NÃO ESTIVER NESSA LISTA DE FORMA ALGUMA, RETORNE EXATAMENTE O TEXTO 'AJUSTAR NOME'.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
-                - ATIVIDADE: RESUMA A ATIVIDADE EM NO MÁXIMO 15 PALAVRAS!!! É ESTRITAMENTE PROIBIDO PASSAR DE 15 PALAVRAS, MESMO QUE O TEXTO ORIGINAL SEJA GIGANTE. Se passar de 15 palavras, corte o resto. Foco EXCLUSIVO na ação principal (ex: 'MONTAGEM DE SUPORTE NA CALDEIRA'). Corrija a ortografia e retorne TUDO EM LETRAS MAIÚSCULAS.
+                - ATIVIDADE: LEIA TODAS as atividades descritas no formulário e JUNTE TUDO em um ÚNICO RESUMO de no máximo 20 palavras. Resuma as ações principais de forma concisa (ex: 'MONTAGEM DE SUPORTE, SOLDAGEM DE DUTO E FABRICAÇÃO DE DISPOSITIVO NA CALDEIRA'). Corrija a ortografia e retorne TUDO EM LETRAS MAIÚSCULAS. NUNCA SEPARE EM LINHAS DIFERENTES.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
                 - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. As opções são exatamente: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área que estiver marcada. Se nenhuma estiver marcada, retorne ''.
@@ -690,12 +764,12 @@ if st.session_state.df is not None:
                 Não inclua crases, formatação markdown ou texto adicional, apenas o JSON puro começando com [ e terminando com ].
                 """
 
-                progresso = st.progress(0)
-                total_arquivos = len(arquivos_scan)
-                console_log = st.empty()
-                
-                for i, arquivo_scan in enumerate(arquivos_scan):
-                    console_log.info(f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...")
+                with st.status("🤖 Robô iniciando análise...", expanded=True) as status:
+                    progresso = st.progress(0)
+                    total_arquivos = len(arquivos_scan)
+                    
+                    for i, arquivo_scan in enumerate(arquivos_scan):
+                        status.update(label=f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...", state="running")
                     
                     try:
                         # Salvar temporariamente para enviar pro Gemini
@@ -729,26 +803,6 @@ if st.session_state.df is not None:
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
 
-                                # Mapeamento de AREA -> sufixo do C.C.
-                                mapa_area_sufixo = {
-                                    'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
-                                    'DUTO': '002', 'DUTOS': '002',
-                                    'TUBULACAO': '003', 'TUBULAÇÃO': '003',
-                                    'ESTRUTURA MET': '004', 'ESTRUTURA METALICA': '004', 'ESTRUTURA METÁLICA': '004',
-                                    'PRECIPITADOR': '005', 'ESP': '005',
-                                    'PRESSAO-MEC': '006', 'PRESSAO - MEC': '006', 'PARTE DE PRESSAO - MECANICA': '006',
-                                    'PRESSAO-TUBULACAO': '007', 'PRESSAO - TUBULACAO': '007', 'PARTE DE PRESSAO - TUBULACAO': '007',
-                                    'PRESSAO-FORNALHA': '008', 'PRESSAO - FORNALHA': '008', 'PARTE DE PRESSAO - FORNALHA': '008', 'PARTE DE PRESSAO - FORNALIA': '008',
-                                    'PINTURA': '009',
-                                    'COMISSIONAMENTO': '010', 'APOIO AO COMISSIONAMENTO': '010',
-                                    'OPERACAO ASSISTIDA': '011', 'OPERAÇÃO ASSISTIDA': '011',
-                                    'LAVAGEM QUIMICA': '012', 'LAVAGEM QUÍMICA': '012',
-                                    'SOPRAGEM': '013',
-                                    'ANDAIME': '014', 'ANDAIMES': '014',
-                                    'OPERADOR': '015', 'OPERADORES E MOTORISTAS': '015', 'MOTORISTA': '015',
-                                    'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
-                                }
-
                                 for dados in dados_extraidos_lista:
                                     ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                                     dados['ITEM'] = int(ultimo_item) + 1
@@ -758,48 +812,192 @@ if st.session_state.df is not None:
                                         dados['AREA'] = ''
                                     st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
                                     
+                                    # Apenas extrai os dados, sem atualizar a base principal (a pedido do usuário)
+
+                                sucesso_arquivo = True
+                                break 
+
+                            except Exception as inner_e:
+                                if '503' in str(inner_e):
+                                    time.sleep(10)
+                                else:
+                                    break
+                                    
+                        os.remove(tmp_path)
+                        
+                        if sucesso_arquivo:
+                            st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
+                        else:
+                            st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
+                            
+                    except Exception as e:
+                        st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
+                        
+                    progresso.progress((i + 1) / total_arquivos)
+
+                    status.update(label="🎉 Leitura concluída!", state="complete", expanded=False)
+                time.sleep(2)
+                st.session_state.force_use_local = True
+                st.rerun()
+                
+            if not st.session_state.df_ia.empty:
+                st.markdown("#### Dados Extraídos")
+                
+                lista_com_alerta = lista_encarregados + ["AJUSTAR NOME"]
+                df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
+                
+                col_dw1, col_dw2 = st.columns([1, 1])
+                with col_dw1:
+                    buffer_df = io.BytesIO()
+                    df_filtrado.to_excel(buffer_df, index=False, engine='openpyxl')
+                    buffer_df.seek(0)
+                    st.download_button(
+                        label="⬇️ Baixar Planilha RDC Lida (.xlsx)",
+                        data=buffer_df,
+                        file_name=f"RDCs_Extraidos_{datetime.datetime.now().strftime('%d%m%Y_%H%M')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                with col_dw2:
+                    if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA', 'LOCAL'])
+                        st.rerun()
+                
+                st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
+
+    with tab_ia_cc:
+        st.markdown("### Robô Atualizador de C.C (Google Gemini)")
+        st.markdown("Faça o upload dos PDFs aqui para o robô identificar o Local (PB/RB) e a Área (Estrutura, Tubulação, etc) e atualizar automaticamente o C.C. das equipes na base global do Google Sheets.")
+        
+        if HAS_GENAI:
+            chave_padrao = ""
+            try:
+                chave_padrao = st.secrets.get("GEMINI_API_KEY", "")
+            except Exception:
+                pass
+            
+            st.markdown("#### Configuração e Upload")
+            if not chave_padrao:
+                chave_padrao = st.text_input("🔑 Cole sua Chave da API Gemini:", type="password", help="Chave oculta e protegida.", key="chave_cc")
+            
+            arquivos_scan_cc = st.file_uploader("Upload de RDCs para atualização de C.C (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True, key="uploader_cc")
+                
+            btn_processar_cc = st.button("🚀 Atualizar C.C das Equipes com IA", type="primary", use_container_width=True)
+            
+            if btn_processar_cc and arquivos_scan_cc and chave_padrao:
+                old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+                client = genai.Client(api_key=chave_padrao)
+                nomes_para_prompt = ", ".join(lista_encarregados)
+                
+                prompt_ia_cc = f"""
+                Analise este documento. Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
+                REGRA IMPORTANTÍSSIMA: Retorne APENAS UM objeto JSON por formulário/página.
+                Retorne APENAS um array (lista) em formato JSON válido.
+                [
+                  {{
+                    "DISCIPLINA": "...",
+                    "ENCARREGADO": "...",
+                    "CALDEIRA": "...",
+                    "LOCAL": "...",
+                    "AREA": "..."
+                  }}
+                ]
+
+                Regras de negócio:
+                - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL.
+                - ENCARREGADO: Extraia o nome do Encarregado escrito no papel. Compare com: [{nomes_para_prompt}]. Retorne EXATAMENTE o nome correspondente. Se ilegível, retorne 'AJUSTAR NOME'.
+                - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
+                - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', rabisco, visto ou marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB'. Se nenhum, retorne ''.
+                - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. Opções: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE a área marcada. Se nenhuma, retorne ''.
+
+                Apenas o JSON puro começando com [ e terminando com ].
+                """
+
+                with st.status("🤖 Atualizando C.C das equipes...", expanded=True) as status_cc:
+                    progresso = st.progress(0)
+                    total_arquivos = len(arquivos_scan_cc)
+                    houve_atualizacao_global = False
+                    
+                    for i, arquivo_scan in enumerate(arquivos_scan_cc):
+                        status_cc.update(label=f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...", state="running")
+                    
+                    try:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
+                            tmp.write(arquivo_scan.getvalue())
+                            tmp_path = tmp.name
+                            
+                        arquivo_up = client.files.upload(file=tmp_path)
+                        
+                        max_tentativas = 3
+                        sucesso_arquivo = False
+                        for tentativa in range(max_tentativas):
+                            try:
+                                resposta = client.models.generate_content(
+                                    model='gemini-2.5-flash',
+                                    contents=[arquivo_up, prompt_ia_cc]
+                                )
+                                
+                                if old_cred:
+                                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
+
+                                texto_json = resposta.text.strip()
+                                if texto_json.startswith("```json"):
+                                    texto_json = texto_json[7:-3].strip()
+                                elif texto_json.startswith("```"):
+                                    texto_json = texto_json[3:-3].strip()
+                                
+                                dados_extraidos_lista = json.loads(texto_json)
+                                if isinstance(dados_extraidos_lista, dict):
+                                    dados_extraidos_lista = [dados_extraidos_lista]
+                                    
+                                for dados in dados_extraidos_lista:
                                     # === ATUALIZAR C.C. COMPLETO NA BASE ===
                                     local_bruto = str(dados.get('LOCAL', '')).strip().upper()
                                     area_bruta = str(dados.get('AREA', '')).strip().upper()
                                     disciplina_lida = str(dados.get('DISCIPLINA', '')).strip().upper()
                                     enc_lido = str(dados.get('ENCARREGADO', '')).strip().upper()
                                     
-                                    # Limpeza robusta do local (caso a IA retorne "PB (X)")
                                     local_lido = ''
                                     if 'PB' in local_bruto: local_lido = 'PB'
                                     elif 'RB' in local_bruto: local_lido = 'RB'
-                                    # Fallback
                                     if not local_lido:
                                         cald = str(dados.get('CALDEIRA', '')).strip().upper()
                                         if 'PB' in cald: local_lido = 'PB'
                                         elif 'RB' in cald: local_lido = 'RB'
                                     
-                                    # Limpeza robusta da área
                                     area_lida = ''
+                                    # 1. Tenta achar na área bruta (exato ou contendo)
                                     for k in mapa_area_sufixo.keys():
-                                        if k in area_bruta or k in disciplina_lida:
+                                        if k in area_bruta:
                                             area_lida = k
                                             break
                                             
+                                    # 2. Se não achar, procura na disciplina (cuidado com falsos positivos de 'ESP')
+                                    if not area_lida:
+                                        import re
+                                        for k in mapa_area_sufixo.keys():
+                                            if k == 'ESP':
+                                                if re.search(r'\bESP\b', disciplina_lida):
+                                                    area_lida = k
+                                                    break
+                                            elif k in disciplina_lida:
+                                                area_lida = k
+                                                break
+                                            
                                     if enc_lido and enc_lido != 'AJUSTAR NOME' and 'C.C' in df_atual.columns:
-                                        # Busca inteligente do Encarregado (Substring ou Aproximação)
                                         encarregados_unicos = df_atual['ENCARREGADO'].dropna().unique()
                                         enc_encontrado = None
                                         
-                                        # 1. Match exato
                                         for e in encarregados_unicos:
                                             if str(e).strip().upper() == enc_lido:
                                                 enc_encontrado = e
                                                 break
-                                        
-                                        # 2. Substring (ex: IA lê "RAIMUNDO EUDE", base tem "RAIMUNDO EUDE DA SILVA")
                                         if not enc_encontrado:
                                             for e in encarregados_unicos:
                                                 if enc_lido in str(e).upper():
                                                     enc_encontrado = e
                                                     break
-                                                    
-                                        # 3. Fuzzy Match
                                         if not enc_encontrado:
                                             import difflib
                                             matches = difflib.get_close_matches(enc_lido, [str(e).upper() for e in encarregados_unicos], n=1, cutoff=0.6)
@@ -813,21 +1011,16 @@ if st.session_state.df is not None:
                                             mask_enc = df_atual['ENCARREGADO'] == enc_encontrado
                                             atualizado = False
                                             
-                                            # Determinar prefixo (PB=125.02, RB=125.01)
                                             if local_lido in ['PB', 'RB']:
                                                 prefixo_novo = '125.02' if local_lido == 'PB' else '125.01'
-                                                
-                                                # Determinar sufixo pela AREA marcada
                                                 sufixo = mapa_area_sufixo.get(area_lida, '')
                                                 
                                                 if sufixo:
-                                                    # C.C. completo: prefixo + sufixo
                                                     cc_novo = f"{prefixo_novo}.{sufixo}"
                                                     df_atual.loc[mask_enc, 'C.C'] = cc_novo
                                                     atualizado = True
                                                     st.toast(f"✅ C.C. de TODA A EQUIPE de {enc_encontrado} → {cc_novo}")
                                                 else:
-                                                    # Sem área marcada, só troca o prefixo mantendo sufixo original
                                                     if local_lido == 'PB':
                                                         df_atual.loc[mask_enc, 'C.C'] = df_atual.loc[mask_enc, 'C.C'].str.replace('125.01.', '125.02.', regex=False)
                                                     else:
@@ -839,13 +1032,7 @@ if st.session_state.df is not None:
                                             
                                             if atualizado:
                                                 st.session_state.df = df_atual.copy()
-                                                # Salvar fisicamente no Google Sheets
-                                                try:
-                                                    conn_update = st.connection("gsheets", type=GSheetsConnection)
-                                                    conn_update.update(worksheet="Página1", data=df_atual)
-                                                    st.cache_data.clear()
-                                                except Exception as e:
-                                                    st.error(f"Erro ao salvar na nuvem: {e}")
+                                                houve_atualizacao_global = True
                                         else:
                                             st.error(f"❌ Encarregado '{enc_lido}' não encontrado na base. Equipe não atualizada.")
 
@@ -870,27 +1057,19 @@ if st.session_state.df is not None:
                         
                     progresso.progress((i + 1) / total_arquivos)
 
-                console_log.success("🎉 Leitura concluída!")
+                if houve_atualizacao_global:
+                    try:
+                        status_cc.update(label="Sincronizando C.Cs atualizados com a nuvem...", state="running")
+                        conn_update = st.connection("gsheets", type=GSheetsConnection)
+                        conn_update.update(worksheet="Página1", data=df_atual)
+                        st.cache_data.clear()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar na nuvem: {e}")
+
+                status_cc.update(label="🎉 Atualização de C.Cs concluída!", state="complete", expanded=False)
                 time.sleep(2)
                 st.session_state.force_use_local = True
                 st.rerun()
-                
-            if not st.session_state.df_ia.empty:
-                st.markdown("#### Dados Extraídos")
-                
-                lista_com_alerta = lista_encarregados + ["AJUSTAR NOME"]
-                df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
-                
-                col_dw1, col_dw2 = st.columns([1, 1])
-                with col_dw1:
-                    buf_excel = io.BytesIO()
-                    df_filtrado.to_excel(buf_excel, index=False)
-                    buf_excel.seek(0)
-                    st.download_button("⬇️ Baixar Planilha RDC Lida (.xlsx)", data=buf_excel, file_name="Planilha_RDC_Lida.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", use_container_width=True)
-                with col_dw2:
-                    if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA', 'LOCAL'])
-                        st.rerun()
                 
                 st.dataframe(df_filtrado, use_container_width=True)
 
@@ -901,6 +1080,29 @@ if st.session_state.df is not None:
             st.warning("⚠️ A coluna de Centro de Custo (C.C) não foi encontrada na base de dados atual. Verifique se a planilha possui essa coluna.")
         else:
             lista_cc = sorted([str(cc) for cc in df_atual["C.C"].unique() if str(cc).strip() != ""])
+            
+            def format_cc(cc_code):
+                if cc_code == "TODOS": return "TODOS"
+                local = "PB" if "125.02" in cc_code else ("RB" if "125.01" in cc_code else "")
+                sufixo = str(cc_code).split('.')[-1] if '.' in str(cc_code) else str(cc_code)
+                mapa_sufixo_nome = {
+                    '001': 'Equipamentos', '002': 'Dutos', '003': 'Tubulação', 
+                    '004': 'Estrutura Metálica', '005': 'Precipitador', '006': 'Pressão - Mecânica', 
+                    '007': 'Pressão - Tubulação', '008': 'Pressão - Fornalha', '009': 'Pintura', 
+                    '010': 'Comissionamento', '011': 'Op. Assistida', '012': 'Lavagem Química', 
+                    '013': 'Sopragem', '014': 'Andaime', '015': 'Operadores', '016': 'Fora de Escopo',
+                    '101': 'Gerência', '102': 'Produção', '103': 'Garantia da Qualidade',
+                    '104': 'Planejamento', '105': 'Administração', '106': 'Segurança e Medicina',
+                    '107': 'Infraestrutura', '108': 'Almoxarifado ENESA', '109': 'Almoxarifado Materiais',
+                    '110': 'Manut. Elétrica Provisória', '111': 'Topografia', '112': 'Movimentação de Cargas',
+                    '113': 'Medição/Contratos'
+                }
+                nome = mapa_sufixo_nome.get(sufixo, '')
+                
+                if nome and local: return f"{cc_code} - {nome} ({local})"
+                elif nome: return f"{cc_code} - {nome}"
+                elif local: return f"{cc_code} ({local})"
+                else: return str(cc_code)
             
             # Métricas gerais
             mc1, mc2, mc3 = st.columns(3)
@@ -913,11 +1115,16 @@ if st.session_state.df is not None:
             st.markdown("**Distribuição de Efetivo por Centro de Custo**")
             cc_contagem = df_atual[df_atual["C.C"].str.strip() != ""]["C.C"].value_counts().reset_index()
             cc_contagem.columns = ["Centro de Custo", "Quantidade"]
-            chart_cc = alt.Chart(cc_contagem).mark_bar(cornerRadiusTopRight=5, cornerRadiusBottomRight=5, color=cor_destaque).encode(
-                x=alt.X("Quantidade:Q", title="Qtd"),
-                y=alt.Y("Centro de Custo:N", sort='-x', title="")
-            ).properties(height=max(250, len(cc_contagem) * 28))
-            st.altair_chart(chart_cc, use_container_width=True)
+            cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
+            
+            fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale="Blues", text="Quantidade")
+            fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
+            fig_cc.update_yaxes(categoryorder="total ascending")
+            fig_cc.update_xaxes(visible=False)
+            fig_cc.update_coloraxes(showscale=False)
+            fig_cc.update_traces(textposition='outside')
+            if st.toggle("📊 Visualizar Gráfico de Distribuição por C.C"):
+                st.plotly_chart(fig_cc, use_container_width=True)
             
             st.markdown("---")
             
@@ -925,7 +1132,7 @@ if st.session_state.df is not None:
             st.markdown("**Consulta Detalhada**")
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                cc_selecionado = st.selectbox("Selecione o Centro de Custo:", ["TODOS"] + lista_cc)
+                cc_selecionado = st.selectbox("Selecione o Centro de Custo:", ["TODOS"] + lista_cc, format_func=format_cc)
             with col_f2:
                 enc_selecionado = st.selectbox("Selecione a Equipe (Encarregado):", ["TODAS AS EQUIPES"] + lista_encarregados)
             
@@ -942,11 +1149,15 @@ if st.session_state.df is not None:
                 st.markdown(f"**Funções no C.C. selecionado** ({len(df_cc_filtrado)} colaboradores)")
                 func_cc = df_cc_filtrado["FUNÇÃO"].value_counts().reset_index()
                 func_cc.columns = ["Função", "Quantidade"]
-                chart_func_cc = alt.Chart(func_cc).mark_bar(cornerRadiusTopRight=5, cornerRadiusBottomRight=5, color=cor_laranja).encode(
-                    x=alt.X("Quantidade:Q", title="Qtd"),
-                    y=alt.Y("Função:N", sort='-x', title="")
-                ).properties(height=max(200, len(func_cc) * 30))
-                st.altair_chart(chart_func_cc, use_container_width=True)
+                
+                fig_func = px.bar(func_cc, x="Quantidade", y="Função", orientation="h", color="Quantidade", color_continuous_scale="Oranges", text="Quantidade")
+                fig_func.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(200, len(func_cc) * 35))
+                fig_func.update_yaxes(categoryorder="total ascending")
+                fig_func.update_xaxes(visible=False)
+                fig_func.update_coloraxes(showscale=False)
+                fig_func.update_traces(textposition='outside')
+                if st.toggle("📊 Visualizar Gráfico de Funções"):
+                    st.plotly_chart(fig_func, use_container_width=True)
                 
                 # Tabela detalhada
                 colunas_exibir = ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "ENCARREGADO"]
