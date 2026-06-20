@@ -487,6 +487,8 @@ if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_ia' not in st.session_state:
     st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+if 'df_historico_f1' not in st.session_state:
+    st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
 if 'mostrar_upload' not in st.session_state:
     st.session_state.mostrar_upload = False
 
@@ -588,6 +590,13 @@ elif st.session_state.df is None:
         except Exception:
             pass
             
+        try:
+            df_f1 = conn.read(worksheet="Historico_F1", ttl=5)
+            if not df_f1.empty:
+                st.session_state.df_historico_f1 = df_f1.dropna(how='all')
+        except Exception:
+            pass
+            
     # Resetar a flag
     if st.session_state.get('force_use_local', False):
         carregado_nuvem = True
@@ -633,7 +642,7 @@ if st.session_state.df is not None:
         'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
     }
 
-    tab_dashboard, tab_emissao, tab_cc, tab_ia, tab_ia_cc = st.tabs(["📊 Dashboard", "🖨️ Emissão de RDC", "💰 Controle de C.C", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C"])
+    tab_dashboard, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc = st.tabs(["📊 Dashboard", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C"])
 
     with tab_dashboard:
         st.markdown("### Painel de Gestão")
@@ -731,6 +740,84 @@ if st.session_state.df is not None:
                         except Exception as e:
                             st.error(f"Erro: {e}")
 
+    with tab_f1:
+        st.markdown("### 🏎️ Competição F1 - Entrega de RDC")
+        st.markdown("Acompanhamento mensal da entrega dos Relatórios Diários de Campo (RDC).")
+        
+        # Filtrar encarregados de SOLDA/MECÂNICA e excluir SUPERVISOR/COORDENADOR
+        encarregados_filtrados = []
+        for e in df_atual["ENCARREGADO"].unique():
+            e_str = str(e).strip()
+            if e_str and e_str != "-":
+                funcoes = df_atual[df_atual["NOME"] == e_str]["FUNÇÃO"].astype(str).str.upper()
+                tem_solda_mec = any("SOLDA" in f or "MECANICA" in f or "MECÂNICA" in f for f in funcoes)
+                eh_chefe = any("SUPERVISOR" in f or "COORDENADOR" in f for f in funcoes)
+                if tem_solda_mec and not eh_chefe:
+                    encarregados_filtrados.append(e_str)
+                    
+        lista_completa_encarregados = sorted(encarregados_filtrados)
+        
+        # Preparar dados de data do histórico
+        df_hist = st.session_state.df_historico_f1.copy()
+        if not df_hist.empty:
+            df_hist["DATA"] = pd.to_datetime(df_hist["DATA"], format="%Y-%m-%d", errors="coerce")
+            df_hist = df_hist.dropna(subset=["DATA"])
+            df_hist["MES_ANO"] = df_hist["DATA"].dt.strftime("%Y-%m")
+            meses_disponiveis = sorted(df_hist["MES_ANO"].unique(), reverse=True)
+        else:
+            meses_disponiveis = [datetime.date.today().strftime("%Y-%m")]
+            
+        mes_selecionado = st.selectbox("📅 Selecione o Mês para Análise:", meses_disponiveis)
+        
+        st.markdown(f"#### 📊 Matriz de Entregas - {mes_selecionado}")
+        
+        if not df_hist.empty:
+            df_mes = df_hist[df_hist["MES_ANO"] == mes_selecionado]
+            df_mes = df_mes[df_mes["ENCARREGADO"].isin(lista_completa_encarregados)]
+        else:
+            df_mes = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
+            
+        import calendar
+        ano, mes = map(int, mes_selecionado.split('-'))
+        num_dias = calendar.monthrange(ano, mes)[1]
+        
+        # Montar a Matriz
+        dias_str = [str(d) for d in range(1, num_dias + 1)]
+        matriz = pd.DataFrame(index=lista_completa_encarregados, columns=dias_str)
+        matriz = matriz.fillna("❌")
+        
+        for _, row in df_mes.iterrows():
+            dia = str(row["DATA"].day)
+            enc = row["ENCARREGADO"]
+            if enc in matriz.index:
+                matriz.loc[enc, dia] = "✅"
+                
+        matriz["Total"] = (matriz == "✅").sum(axis=1)
+        
+        st.dataframe(matriz, use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("#### 🏆 Pódio do Mês (Top 3 Melhores vs Top 3 Piores)")
+        
+        ranking = matriz[["Total"]].sort_values(by="Total", ascending=False).reset_index()
+        ranking.columns = ["ENCARREGADO", "ENTREGAS"]
+        
+        col_top, col_bot = st.columns(2)
+        with col_top:
+            st.success("🥇 Os 3 que MAIS entregaram")
+            top3 = ranking.head(3)
+            for i, row in top3.iterrows():
+                medalha = "🥇" if i == 0 else ("🥈" if i == 1 else "🥉")
+                st.markdown(f"**{medalha} {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
+                
+        with col_bot:
+            st.error("📉 Os 3 que MENOS entregaram")
+            bot3 = ranking.tail(3).sort_values(by="ENTREGAS", ascending=True).reset_index(drop=True)
+            for i, row in bot3.iterrows():
+                st.markdown(f"**🚨 {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+
     with tab_ia:
         st.markdown("### 🤖 Robô de Extração Inteligente (Google Gemini)")
         st.markdown("<p style='margin-top: -15px; font-size: 14px; color: #888;'>Uma ideia original por <b>Caio Farisco</b></p>", unsafe_allow_html=True)
@@ -772,9 +859,11 @@ if st.session_state.df is not None:
                 prompt_ia = f"""
                 Analise este documento (que pode ter várias páginas). Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
                 REGRA IMPORTANTÍSSIMA: Retorne APENAS UM objeto JSON por formulário/página. NÃO separe as atividades em linhas diferentes. JUNTE TODAS as atividades do mesmo formulário em UM ÚNICO campo ATIVIDADE.
+                DICA DE OURO: Todos os RDCs dentro deste arquivo PDF pertencem EXATAMENTE ao mesmo dia. Portanto, a DATA extraída deve ser idêntica para todos os formulários.
                 Retorne APENAS um array (lista) em formato JSON válido. Exemplo do formato exato esperado:
                 [
                   {{
+                    "DATA": "YYYY-MM-DD",
                     "DISCIPLINA": "...",
                     "ENCARREGADO": "...",
                     "TURNO": "...",
@@ -786,8 +875,9 @@ if st.session_state.df is not None:
                 ]
 
                 Regras de negócio:
+                - DATA: Extraia a data em que o RDC foi preenchido. Retorne RIGOROSAMENTE no formato YYYY-MM-DD (Ano-Mês-Dia).
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
-                - ENCARREGADO: Extraia o nome do Encarregado escrito no papel. REGRA CRÍTICA: Compare o que está escrito com esta lista de encarregados válidos: [{nomes_para_prompt}]. Retorne EXATAMENTE o nome correspondente como está grafado na lista fornecida, corrigindo pequenos desvios do manuscrito. SE O NOME ESTIVER TOTALMENTE ILEGÍVEL OU NÃO ESTIVER NESSA LISTA DE FORMA ALGUMA, RETORNE EXATAMENTE O TEXTO 'AJUSTAR NOME'.
+                - ENCARREGADO: FAÇA O MÁXIMO ESFORÇO POSSÍVEL para descobrir quem é o encarregado. Compare o que está escrito à mão com esta lista oficial: [{nomes_para_prompt}]. Se a caligrafia estiver ruim, com erros de ortografia, ou se houver apenas o primeiro e segundo nome (ex: "Jailson Gois"), use dedução lógica e similaridade para encontrar a correspondência exata na lista. Retorne EXATAMENTE o nome completo que consta na lista fornecida. Somente se for 100% impossível deduzir quem é, retorne o texto 'AJUSTAR NOME'.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
                 - ATIVIDADE: IMPORTANTE: Procure especificamente no formulário pela seção ou tabela chamada "ATIVIDADES" (geralmente na parte de baixo do RDC, onde as linhas são preenchidas à mão com o que foi feito). LEIA TODAS as atividades descritas APENAS NESTE LUGAR e JUNTE TUDO em um ÚNICO RESUMO de no máximo 20 palavras. Corrija a ortografia, extraia a ação principal e retorne TUDO EM LETRAS MAIÚSCULAS. NUNCA SEPARE EM LINHAS DIFERENTES.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
@@ -818,7 +908,11 @@ if st.session_state.df is not None:
                             try:
                                 resposta = client.models.generate_content(
                                     model='gemini-2.5-flash',
-                                    contents=[arquivo_up, prompt_ia]
+                                    contents=[arquivo_up, prompt_ia],
+                                    config=genai.types.GenerateContentConfig(
+                                        response_mime_type="application/json",
+                                        temperature=0.0
+                                    )
                                 )
                                 
                                 # --- FIX: Restaurar as credenciais do Sheets caso necessário ---
@@ -836,6 +930,15 @@ if st.session_state.df is not None:
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
 
+                                # --- FIX: Consenso de Data do Lote ---
+                                # Como todos os RDCs escaneados juntos pertencem ao mesmo dia,
+                                # pegamos a data mais frequente encontrada e forçamos para todos.
+                                datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
+                                if datas_encontradas:
+                                    data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
+                                    for d in dados_extraidos_lista:
+                                        d["DATA"] = data_consenso
+
                                 for dados in dados_extraidos_lista:
                                     ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                                     dados['ITEM'] = int(ultimo_item) + 1
@@ -844,6 +947,28 @@ if st.session_state.df is not None:
                                     if 'AREA' not in dados:
                                         dados['AREA'] = ''
                                     st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
+                                    
+                                    # Registro F1
+                                    enc_lido = str(dados.get('ENCARREGADO', '')).strip()
+                                    if enc_lido:
+                                        # Usa a data do formulário RDC extraída pela IA. Se falhar, cai pra data de hoje.
+                                        data_extraida = dados.get('DATA', '').strip()
+                                        try:
+                                            # tenta converter pra garantir que está em YYYY-MM-DD
+                                            data_registro = pd.to_datetime(data_extraida).strftime('%Y-%m-%d')
+                                        except:
+                                            data_registro = datetime.date.today().strftime('%Y-%m-%d')
+                                            
+                                        ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
+                                        if not ja_existe:
+                                            novo_registro = pd.DataFrame([{"DATA": data_registro, "ENCARREGADO": enc_lido}])
+                                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, novo_registro], ignore_index=True)
+                                            # Salvar imediatamente na nuvem para não perder
+                                            if conn and not st.session_state.get('force_use_local', False):
+                                                try:
+                                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                                except:
+                                                    pass
                                     
                                     # Apenas extrai os dados, sem atualizar a base principal (a pedido do usuário)
 
