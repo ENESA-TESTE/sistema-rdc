@@ -278,6 +278,7 @@ caminho_modelo_salvo = os.path.join(pasta_base, "MODELO_SALVO.xlsx")
 
 # Caminhos para PERSISTÊNCIA (salvar a base do usuário)
 caminho_base_salva_csv = os.path.join(pasta_base, "BASE_ATUAL.csv")
+caminho_hist_cc = os.path.join(pasta_base, "historico_cc.csv")
 caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
 
 celula_encarregado = "I4"
@@ -657,10 +658,10 @@ with st.sidebar:
         st.markdown("---")
         st.markdown("#### ⚙️ Painel de Configurações")
         
-        with st.expander("🔑 Ver Usuários e Senhas"):
+        if st.toggle("🔑 Ver Usuários e Senhas"):
             usuarios_carregados = carregar_usuarios()
             dados_usuarios = []
-            for u_nome, u_dados in usuarios_carregados.items():
+            for u_nome, u_dados in sorted(usuarios_carregados.items()):
                 dados_usuarios.append({
                     "Login": u_nome,
                     "Senha": u_dados.get("senha", ""),
@@ -726,7 +727,7 @@ with st.sidebar:
                 st.rerun()
         
         st.markdown("**Usuários Cadastrados:**")
-        for u, dados in usuarios_db.items():
+        for u, dados in sorted(usuarios_db.items()):
             col_u, col_del = st.columns([3, 1])
             col_u.text(f"👤 {u} ({dados.get('role', 'user')})")
             if u != "admin":
@@ -830,6 +831,34 @@ if st.session_state.df is not None:
     df_atual = preparar_dataframe(st.session_state.df.copy())
     lista_encarregados_base = sorted([str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
 
+    # ====== HISTÓRICO DE C.C (FOTOGRAFIA DIÁRIA) ======
+    try:
+        hoje_hist = datetime.date.today().strftime("%Y-%m-%d")
+        df_cc_valido = df_atual[df_atual["C.C"].astype(str).str.strip() != ""]
+        if not df_cc_valido.empty:
+            cc_counts = df_cc_valido["C.C"].value_counts().reset_index()
+            cc_counts.columns = ["C.C", "Efetivo"]
+            cc_counts["DATA"] = hoje_hist
+            
+            hist_cc_existente = pd.DataFrame()
+            if os.path.exists(caminho_hist_cc):
+                try:
+                    hist_cc_existente = pd.read_csv(caminho_hist_cc)
+                except:
+                    pass
+                
+            if not hist_cc_existente.empty and "DATA" in hist_cc_existente.columns:
+                hist_cc_existente = hist_cc_existente[hist_cc_existente["DATA"] != hoje_hist]
+                hist_cc_novo = pd.concat([hist_cc_existente, cc_counts], ignore_index=True)
+            else:
+                hist_cc_novo = cc_counts
+                
+            hist_cc_novo.to_csv(caminho_hist_cc, index=False)
+    except Exception as e:
+        pass # Falha silenciosa para não quebrar o app
+    # ==================================================
+
+
     encarregados_f1_oficial = [
         "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
         "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
@@ -887,36 +916,56 @@ if st.session_state.df is not None:
     tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C"])
 
     with tab_dashboard:
-        st.markdown("### Painel de Gestão")
+        st.markdown("### 🎛️ Centro de Comando (Overview)")
         
-        termo_busca = st.text_input("🔍 Buscar funcionário (Nome, Matrícula ou Função):")
+        # Linha 1: Cartões de KPI
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("👷 Efetivo Total", len(df_atual))
         
-        m1, m2, m3 = st.columns(3)
-        m1.metric("👷 Funcionários", len(df_atual))
-        m2.metric("👔 Encarregados (Base)", len(lista_encarregados_base))
-        m3.metric("🔧 Funções", df_atual["FUNÇÃO"].nunique())
-        st.markdown("")
+        qtd_encarregados_dash = len([e for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
+        m2.metric("👔 Encarregados Ativos", qtd_encarregados_dash)
         
-        mod_direta = ["MONTADOR DE ANDAIME", "SOLDADOR TIG/ER", "LIXADOR", "MECANICO MONTADOR", "ENCANADOR", "AJUDANTE", "SOLDADOR RX", "SOLDADOR TIG", "CALDEREIRO", "SOLDADOR MIG/ER"]
-        df_mod = df_atual[df_atual["FUNÇÃO"].str.upper().isin(mod_direta)]
+        # Calcular MOD vs MOI global
+        qtd_mod = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOD"])
+        qtd_moi = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOI"])
+        total_mo = qtd_mod + qtd_moi
+        pct_mod = round((qtd_mod / total_mo * 100), 1) if total_mo > 0 else 0
+        m3.metric("⚙️ % MOD Global", f"{pct_mod}%")
         
-        if len(df_mod) > 0:
-            st.markdown("**Mão de Obra Direta**")
-            func_mod = df_mod["FUNÇÃO"].value_counts().reset_index()
-            func_mod.columns = ["Função", "Quantidade"]
-            
-            fig_mod = px.bar(func_mod, x="Quantidade", y="Função", orientation="h", color="Quantidade", color_continuous_scale="Oranges", text="Quantidade")
-            fig_mod.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
-            fig_mod.update_yaxes(categoryorder="total ascending")
-            fig_mod.update_xaxes(visible=False)
-            fig_mod.update_coloraxes(showscale=False)
-            fig_mod.update_traces(textposition='outside')
-            if st.toggle("📊 Visualizar Gráfico de Mão de Obra Direta"):
-                st.plotly_chart(fig_mod, use_container_width=True)
-            
-        st.markdown("")
-        st.markdown("**Base Completa**")
-        df_exibicao = df_atual[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]].copy()
+        m4.metric("🔧 Funções na Obra", df_atual["FUNÇÃO"].nunique())
+        
+        st.markdown("---")
+        
+        col_dash1, col_dash2 = st.columns([4, 6])
+        
+        with col_dash1:
+            st.markdown("**Status Operacional (Global)**")
+            if total_mo > 0:
+                df_mo_global = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod, qtd_moi]})
+                fig_mo_g = px.pie(df_mo_global, values="Quantidade", names="Tipo", hole=0.6, color_discrete_sequence=["#27ae60", "#e74c3c"])
+                fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                st.plotly_chart(fig_mo_g, use_container_width=True)
+            else:
+                st.info("Classificação de Mão de Obra não encontrada.")
+                
+        with col_dash2:
+            st.markdown("**Top 10 Maiores Equipes (Encarregados)**")
+            df_enc_dash = df_atual[(df_atual["ENCARREGADO"].str.strip() != "") & (df_atual["ENCARREGADO"].isin(lista_completa_encarregados))]
+            if not df_enc_dash.empty:
+                top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
+                top_enc.columns = ["Encarregado", "Efetivo"]
+                fig_top_enc = px.bar(top_enc, x="Efetivo", y="Encarregado", orientation="h", color="Efetivo", color_continuous_scale="Blues", text="Efetivo")
+                fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300)
+                fig_top_enc.update_yaxes(categoryorder="total ascending")
+                fig_top_enc.update_xaxes(visible=False)
+                fig_top_enc.update_coloraxes(showscale=False)
+                fig_top_enc.update_traces(textposition='outside', cliponaxis=False)
+                st.plotly_chart(fig_top_enc, use_container_width=True)
+                
+        st.markdown("---")
+        st.markdown("**🔍 Base Completa (Pesquisa Rápida)**")
+        termo_busca = st.text_input("Buscar funcionário (Nome, Matrícula ou Função):")
+        df_exibicao = df_atual[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "C.C"]].copy()
         if termo_busca:
             mask = (
                 df_exibicao["NOME"].astype(str).str.contains(termo_busca, case=False, na=False) |
@@ -951,7 +1000,53 @@ if st.session_state.df is not None:
             st.error(f"**Atenção:** {encarregados_pendentes} encarregados ainda não entregaram o RDC hoje.")
             entregues_list = df_hoje["ENCARREGADO"].unique() if not df_hoje.empty else []
             pendentes_list = [e for e in lista_completa_encarregados if e not in entregues_list]
-            df_pend = pd.DataFrame({"Encarregados Pendentes (Hoje)": pendentes_list})
+            
+            # Botão de Gerar PDF
+            col_pdf, col_gap = st.columns([2, 3])
+            with col_pdf:
+                if st.button("📄 Gerar PDF de Cobrança", use_container_width=True):
+                    from fpdf import FPDF
+                    import tempfile
+                    
+                    class PDF(FPDF):
+                        def header(self):
+                            self.set_font('Helvetica', 'B', 15)
+                            self.set_text_color(0, 0, 0)
+                            self.cell(0, 10, 'Relatorio de Pendencias - RDC', 0, 1, 'C')
+                            self.set_font('Helvetica', 'I', 10)
+                            self.cell(0, 10, f'Data: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 1, 'C')
+                            self.ln(5)
+                    
+                    pdf = PDF()
+                    pdf.add_page()
+                    pdf.set_font('Helvetica', 'B', 12)
+                    pdf.set_text_color(200, 0, 0)
+                    pdf.cell(0, 10, f'{len(pendentes_list)} Encarregados nao entregaram o RDC hoje:', 0, 1, 'L')
+                    pdf.ln(2)
+                    
+                    pdf.set_font('Helvetica', '', 10)
+                    pdf.set_text_color(0, 0, 0)
+                    for pendente in sorted(pendentes_list):
+                        # Evitar problemas de encoding no PDF básico
+                        nome_p = str(pendente).encode('latin-1', 'replace').decode('latin-1')
+                        pdf.cell(0, 8, f'- {nome_p}', 0, 1, 'L')
+                        
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                        pdf.output(tmp.name)
+                        with open(tmp.name, "rb") as f:
+                            pdf_bytes = f.read()
+                    
+                    st.download_button(
+                        label="⬇️ Baixar PDF",
+                        data=pdf_bytes,
+                        file_name=f"Cobranca_RDC_{hoje}.pdf",
+                        mime="application/pdf",
+                        type="primary",
+                        use_container_width=True
+                    )
+                    
+            st.markdown("<br>", unsafe_allow_html=True)
+            df_pend = pd.DataFrame({"Encarregados Pendentes (Hoje)": sorted(pendentes_list)})
             st.dataframe(df_pend, hide_index=True, use_container_width=True)
         else:
             st.success("🎉 Todos os RDCs de hoje já foram entregues!")
@@ -1803,6 +1898,37 @@ if st.session_state.df is not None:
             
             st.markdown("---")
             
+            # --- Seção de Histórico (Máquina do Tempo) ---
+            if os.path.exists(caminho_hist_cc):
+                try:
+                    df_hist = pd.read_csv(caminho_hist_cc)
+                    if not df_hist.empty and "DATA" in df_hist.columns:
+                        st.markdown("**📈 Máquina do Tempo: Evolução do Efetivo**")
+                        # Filtro para escolher o CC
+                        cc_selecionado = st.selectbox("Selecione a equipe para analisar o crescimento:", ["Geral (Todos)"] + lista_cc)
+                        
+                        if cc_selecionado == "Geral (Todos)":
+                            df_plot = df_hist.groupby("DATA")["Efetivo"].sum().reset_index()
+                            titulo_graf = "Crescimento Geral da Obra"
+                        else:
+                            df_plot = df_hist[df_hist["C.C"] == cc_selecionado].copy()
+                            titulo_graf = f"Evolução - C.C {cc_selecionado}"
+                            
+                        if not df_plot.empty:
+                            df_plot["DATA_DT"] = pd.to_datetime(df_plot["DATA"], errors='coerce')
+                            df_plot = df_plot.sort_values("DATA_DT")
+                            
+                            fig_hist = px.line(df_plot, x="DATA", y="Efetivo", markers=True, title=titulo_graf, line_shape="spline")
+                            fig_hist.update_layout(xaxis_title="", yaxis_title="Quantidade de Colaboradores", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300)
+                            fig_hist.update_xaxes(type='category')
+                            fig_hist.update_yaxes(tickformat="d")
+                            fig_hist.update_traces(line=dict(width=3, color="#00d2ff"), marker=dict(size=8, color="#ff4b4b"))
+                            st.plotly_chart(fig_hist, use_container_width=True)
+                        else:
+                            st.info("Aguardando acumular mais dias de dados para gerar a curva.")
+                except Exception:
+                    pass
+            # ---------------------------------------------
             st.markdown("**Liderança: Efetivo de Encarregados por C.C**")
             # Tabela sumarizando quantos encarregados tem em cada CC (Apenas encarregados reais da lista oficial)
             df_lideres = df_cc_aba[(df_cc_aba["ENCARREGADO"].str.strip() != "") & (df_cc_aba["ENCARREGADO"].isin(lista_completa_encarregados))].copy()
