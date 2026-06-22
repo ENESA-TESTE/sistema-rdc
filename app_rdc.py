@@ -656,6 +656,19 @@ with st.sidebar:
     if st.session_state.role_usuario == "admin":
         st.markdown("---")
         st.markdown("#### ⚙️ Painel de Configurações")
+        
+        with st.expander("🔑 Ver Usuários e Senhas"):
+            usuarios_carregados = carregar_usuarios()
+            dados_usuarios = []
+            for u_nome, u_dados in usuarios_carregados.items():
+                dados_usuarios.append({
+                    "Login": u_nome,
+                    "Senha": u_dados.get("senha", ""),
+                    "Acesso": u_dados.get("role", "user")
+                })
+            df_usuarios = pd.DataFrame(dados_usuarios)
+            st.dataframe(df_usuarios, hide_index=True, use_container_width=True)
+            
         novo_logo = st.file_uploader("Trocar Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
         if novo_logo:
             with open(caminho_logo, "wb") as f:
