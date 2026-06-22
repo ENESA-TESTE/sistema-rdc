@@ -458,15 +458,65 @@ def preparar_dataframe(df):
         if c not in df.columns:
             df[c] = ""
         df[c] = df[c].fillna("").astype(str).str.strip()
-        df[c] = df[c].replace(["nan", "NaN", "None", "0.0", "0"], "")
+        df[c] = df[c].replace(["nan", "NaN", "None", "0.0", "0", "#N/D", "#N/A", "#REF!", "-"], "")
 
     for c in ["C.C", "DISCIPLINA", "MÃO DE OBRA"]:
         if c not in df.columns:
             df[c] = ""
         df[c] = df[c].fillna("").astype(str).str.strip()
-        df[c] = df[c].replace(["nan", "NaN", "None", "0.0", "0"], "")
+        df[c] = df[c].replace(["nan", "NaN", "None", "0.0", "0", "#N/D", "#N/A", "#REF!", "-"], "")
 
     df["MATRICULA"] = df["MATRICULA"].str.replace(".0", "", regex=False)
+    
+    # -------------------------------------------------------------------------
+    # NOVO: NORMALIZAR NOMES DE C.C VINDOS DO ERP EM FORMATO DE TEXTO
+    # Ex: "PB - Dutos" -> "125.02.002"
+    # -------------------------------------------------------------------------
+    def normalizar_cc(valor):
+        val = str(valor).upper()
+        if not val or val.startswith("125."):
+            return valor
+            
+        prefixo = ""
+        if "PB" in val: prefixo = "125.02"
+        elif "RB" in val: prefixo = "125.01"
+            
+        sufixo = ""
+        if "DUTO" in val: sufixo = "002"
+        elif "EQUIPA" in val: sufixo = "001"
+        elif "TUBU" in val and "PRESS" not in val: sufixo = "003"
+        elif "ESTRUTURA" in val: sufixo = "004"
+        elif "PRECIP" in val: sufixo = "005"
+        elif "PRESS" in val and "MEC" in val: sufixo = "006"
+        elif "PRESS" in val and "TUBU" in val: sufixo = "007"
+        elif "PRESS" in val and "FORN" in val: sufixo = "008"
+        elif "PINTURA" in val: sufixo = "009"
+        elif "COMIS" in val: sufixo = "010"
+        elif "ASSISTIDA" in val: sufixo = "011"
+        elif "LAVAGEM" in val: sufixo = "012"
+        elif "SOPRAGEM" in val: sufixo = "013"
+        elif "ANDAIME" in val: sufixo = "014"
+        elif "OPERADOR" in val: sufixo = "015"
+        elif "ESCOPO" in val: sufixo = "016"
+        elif "GERENC" in val: sufixo = "101"
+        elif "PRODUC" in val or "PRODUÇ" in val: sufixo = "102"
+        elif "QUALIDADE" in val: sufixo = "103"
+        elif "PLANEJAMENTO" in val: sufixo = "104"
+        elif "ADMINISTRA" in val: sufixo = "105"
+        elif "MEDICINA" in val or "SEGURAN" in val: sufixo = "106"
+        elif "INFRAESTRUTURA" in val: sufixo = "107"
+        elif "ALMOXARIFADO" in val and "ENESA" in val: sufixo = "108"
+        elif "ALMOXARIFADO" in val: sufixo = "109"
+        elif "ELETRICA PROV" in val: sufixo = "110"
+        elif "TOPOGRAFIA" in val: sufixo = "111"
+        elif "CARGA" in val or "MOVIMENTA" in val: sufixo = "112"
+        elif "MEDICAO" in val or "CUSTO" in val: sufixo = "113"
+        
+        if prefixo and sufixo:
+            return f"{prefixo}.{sufixo}"
+        return valor
+
+    df["C.C"] = df["C.C"].apply(normalizar_cc)
     
     # -------------------------------------------------------------------------
     # NOVO: FORÇAR A DISCIPLINA A SER SEMPRE CORRETA DE ACORDO COM O C.C ATUAL
@@ -770,11 +820,21 @@ if arquivo_pde is not None:
             if "C.C" in df_antigo.columns and "MATRICULA" in df_carregado.columns:
                 try:
                     df_com_cc = df_antigo[df_antigo["C.C"].astype(str).str.strip() != ""]
-                    mapa_cc = dict(zip(df_com_cc["MATRICULA"], df_com_cc["C.C"]))
                     
-                    df_carregado["C.C"] = df_carregado.apply(
-                        lambda row: mapa_cc.get(row["MATRICULA"], row["C.C"]) if mapa_cc.get(row["MATRICULA"]) else row["C.C"], axis=1
-                    )
+                    # O C.C do PDE agora é a verdade absoluta.
+                    # Apenas herdamos o C.C do Encarregado caso o colaborador venha sem C.C no PDE.
+                    # Passo 2: Herdar o C.C do Encarregado para novos colaboradores (ou transferidos sem C.C)
+                    if "ENCARREGADO" in df_carregado.columns and "ENCARREGADO" in df_com_cc.columns:
+                        mapa_enc_cc = df_com_cc.groupby("ENCARREGADO")["C.C"].agg(lambda x: x.value_counts().index[0] if len(x) > 0 else "").to_dict()
+                        
+                        def herdar_cc(row):
+                            cc_atual = str(row.get("C.C", "")).strip()
+                            if not cc_atual:
+                                return mapa_enc_cc.get(row.get("ENCARREGADO", ""), "")
+                            return cc_atual
+                            
+                        df_carregado["C.C"] = df_carregado.apply(herdar_cc, axis=1)
+                        
                 except Exception:
                     pass
         
@@ -1356,7 +1416,10 @@ if st.session_state.df is not None:
                 
         st.markdown("---")
         st.markdown("#### 📈 Evolução Mensal")
-        df_evolucao = df_hist.groupby("MES_ANO").size().reset_index(name="RDCs Entregues")
+        if not df_hist.empty and "MES_ANO" in df_hist.columns:
+            df_evolucao = df_hist.groupby("MES_ANO").size().reset_index(name="RDCs Entregues")
+        else:
+            df_evolucao = pd.DataFrame()
         if not df_evolucao.empty:
             fig_ev = px.line(df_evolucao, x="MES_ANO", y="RDCs Entregues", text="RDCs Entregues", markers=True)
             fig_ev.update_traces(textposition="top center", line_color="#4a9eed", marker=dict(size=8))
