@@ -918,21 +918,36 @@ if st.session_state.df is not None:
     with tab_dashboard:
         st.markdown("### 🎛️ Centro de Comando (Overview)")
         
+        # Filtro de MOI / MOD
+        filtro_dash_mo = st.segmented_control(
+            "Filtrar Visão por Tipo de Mão de Obra:", 
+            ["Ambas", "MOD", "MOI"], 
+            default="Ambas"
+        )
+        if not filtro_dash_mo:
+            filtro_dash_mo = "Ambas"
+            
+        df_dash = df_atual.copy()
+        if filtro_dash_mo == "MOD":
+            df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]
+        elif filtro_dash_mo == "MOI":
+            df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]
+        
         # Linha 1: Cartões de KPI
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("👷 Efetivo Total", len(df_atual))
+        m1.metric(f"👷 Efetivo ({filtro_dash_mo})", len(df_dash))
         
-        qtd_encarregados_dash = len([e for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
+        qtd_encarregados_dash = len([e for e in df_dash["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
         m2.metric("👔 Encarregados Ativos", qtd_encarregados_dash)
         
-        # Calcular MOD vs MOI global
-        qtd_mod = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOD"])
-        qtd_moi = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOI"])
-        total_mo = qtd_mod + qtd_moi
-        pct_mod = round((qtd_mod / total_mo * 100), 1) if total_mo > 0 else 0
-        m3.metric("⚙️ % MOD Global", f"{pct_mod}%")
+        # Calcular MOD vs MOI global (Mantendo a visão global para a pizza e o KPI %)
+        qtd_mod_g = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOD"])
+        qtd_moi_g = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOI"])
+        total_mo_g = qtd_mod_g + qtd_moi_g
+        pct_mod_g = round((qtd_mod_g / total_mo_g * 100), 1) if total_mo_g > 0 else 0
+        m3.metric("⚙️ % MOD Global", f"{pct_mod_g}%")
         
-        m4.metric("🔧 Funções na Obra", df_atual["FUNÇÃO"].nunique())
+        m4.metric("🔧 Funções na Obra", df_dash["FUNÇÃO"].nunique())
         
         st.markdown("---")
         
@@ -940,8 +955,8 @@ if st.session_state.df is not None:
         
         with col_dash1:
             st.markdown("**Status Operacional (Global)**")
-            if total_mo > 0:
-                df_mo_global = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod, qtd_moi]})
+            if total_mo_g > 0:
+                df_mo_global = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_g, qtd_moi_g]})
                 fig_mo_g = px.pie(df_mo_global, values="Quantidade", names="Tipo", hole=0.6, color_discrete_sequence=["#27ae60", "#e74c3c"])
                 fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                 st.plotly_chart(fig_mo_g, use_container_width=True)
@@ -949,8 +964,8 @@ if st.session_state.df is not None:
                 st.info("Classificação de Mão de Obra não encontrada.")
                 
         with col_dash2:
-            st.markdown("**Top 10 Maiores Equipes (Encarregados)**")
-            df_enc_dash = df_atual[(df_atual["ENCARREGADO"].str.strip() != "") & (df_atual["ENCARREGADO"].isin(lista_completa_encarregados))]
+            st.markdown(f"**Top 10 Maiores Equipes ({filtro_dash_mo})**")
+            df_enc_dash = df_dash[(df_dash["ENCARREGADO"].str.strip() != "") & (df_dash["ENCARREGADO"].isin(lista_completa_encarregados))]
             if not df_enc_dash.empty:
                 top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
                 top_enc.columns = ["Encarregado", "Efetivo"]
@@ -963,9 +978,9 @@ if st.session_state.df is not None:
                 st.plotly_chart(fig_top_enc, use_container_width=True)
                 
         st.markdown("---")
-        st.markdown("**🔍 Base Completa (Pesquisa Rápida)**")
+        st.markdown(f"**🔍 Base Completa ({filtro_dash_mo})**")
         termo_busca = st.text_input("Buscar funcionário (Nome, Matrícula ou Função):")
-        df_exibicao = df_atual[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "C.C"]].copy()
+        df_exibicao = df_dash[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "C.C"]].copy()
         if termo_busca:
             mask = (
                 df_exibicao["NOME"].astype(str).str.contains(termo_busca, case=False, na=False) |
