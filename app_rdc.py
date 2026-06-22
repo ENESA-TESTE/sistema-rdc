@@ -571,18 +571,27 @@ if st.session_state.usuario_logado is None:
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Entrar no Sistema", type="primary", use_container_width=True):
-                if user_input in usuarios_db and usuarios_db[user_input]["senha"] == pass_input:
-                    st.session_state.usuario_logado = user_input
-                    st.session_state.role_usuario = usuarios_db[user_input].get("role", "user")
-                    st.session_state.nome_completo = usuarios_db[user_input].get("nome", user_input)
+                user_clean = user_input.strip().upper()
+                pass_clean = pass_input.strip()
+                
+                user_encontrado = None
+                for key_db in usuarios_db.keys():
+                    if key_db.strip().upper() == user_clean:
+                        user_encontrado = key_db
+                        break
+                
+                if user_encontrado and usuarios_db[user_encontrado]["senha"] == pass_clean:
+                    st.session_state.usuario_logado = user_encontrado
+                    st.session_state.role_usuario = usuarios_db[user_encontrado].get("role", "user")
+                    st.session_state.nome_completo = usuarios_db[user_encontrado].get("nome", user_encontrado)
                     
                     if lembrar_me:
-                        cookie_manager.set("rdc_user_session", user_input, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                        cookie_manager.set("rdc_user_session", user_encontrado, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                         
                     time.sleep(1) # Tempo para o cookie assentar
                     st.rerun()
                 else:
-                    st.error("Usuário ou senha incorretos.")
+                    st.error("Usuário ou senha incorretos. Verifique espaços em branco ou letras erradas.")
     st.stop() # Bloqueia todo o resto do sistema!
 
 # =================================================================
