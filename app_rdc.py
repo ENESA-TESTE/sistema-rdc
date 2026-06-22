@@ -914,20 +914,43 @@ if st.session_state.df is not None:
         
         # Montar a Matriz
         dias_str = [str(d) for d in range(1, num_dias + 1)]
+        
+        # Identificar sábados e domingos
+        dias_fim_de_semana = set()
+        for d in range(1, num_dias + 1):
+            data_check = datetime.date(ano, mes, d)
+            if data_check.weekday() >= 5:  # 5=Sábado, 6=Domingo
+                dias_fim_de_semana.add(str(d))
+        
+        dias_uteis = [d for d in dias_str if d not in dias_fim_de_semana]
+        
         matriz = pd.DataFrame(index=lista_completa_encarregados, columns=dias_str)
-        matriz = matriz.fillna("❌")
+        # Preencher dias úteis com ❌ e fins de semana com ➖
+        for col in dias_str:
+            if col in dias_fim_de_semana:
+                matriz[col] = "➖"
+            else:
+                matriz[col] = "❌"
         
         for _, row in df_mes.iterrows():
             dia = str(row["DATA"].day)
             enc = row["ENCARREGADO"]
-            if enc in matriz.index:
+            if enc in matriz.index and dia not in dias_fim_de_semana:
                 matriz.loc[enc, dia] = "✅"
                 
-        matriz["Total"] = (matriz == "✅").sum(axis=1)
+        # Total conta apenas dias úteis (ignora fins de semana)
+        matriz["Total"] = (matriz[dias_uteis] == "✅").sum(axis=1)
         
         # Adicionar o total do dia no próprio cabeçalho da coluna (em cima dos dias)
         total_por_dia = (matriz[dias_str] == "✅").sum(axis=0)
-        novas_colunas = {dia: f"{dia} \n({total_por_dia[dia]})" for dia in dias_str}
+        novas_colunas = {}
+        for dia in dias_str:
+            if dia in dias_fim_de_semana:
+                data_check = datetime.date(ano, mes, int(dia))
+                nome_dia = "SAB" if data_check.weekday() == 5 else "DOM"
+                novas_colunas[dia] = f"{dia}\n({nome_dia})"
+            else:
+                novas_colunas[dia] = f"{dia}\n({total_por_dia[dia]})"
         matriz.rename(columns=novas_colunas, inplace=True)
         
         total_entregue = matriz["Total"].sum()
