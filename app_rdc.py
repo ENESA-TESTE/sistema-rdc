@@ -1739,33 +1739,54 @@ if st.session_state.df is not None:
                 else: return str(cc_code)
             
             # Métricas gerais
-            mc1, mc2, mc3, mc4 = st.columns(4)
+            mc1, mc2, mc3, mc4, mc5 = st.columns(5)
             mc1.metric("🏢 Centros de Custo", len(lista_cc))
             mc2.metric("👷 Total Alocados", len(df_cc_aba))
             mc3.metric("🔧 Funções Distintas", df_cc_aba["FUNÇÃO"].nunique())
             
             qtd_encarregados = len([e for e in df_cc_aba["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
             mc4.metric("👨‍💼 Encarregados", qtd_encarregados)
+            
+            span_of_control = round(len(df_cc_aba) / qtd_encarregados, 1) if qtd_encarregados > 0 else 0
+            mc5.metric("👥 Span of Control", span_of_control)
             st.markdown("")
 
-            # Gráfico de distribuição por C.C.
-            st.markdown("**Distribuição de Efetivo por Centro de Custo**")
+            # Gráficos lado a lado
+            col_graf1, col_graf2 = st.columns([6, 4])
             
-            cc_contagem = df_cc_aba["C.C"].value_counts().reset_index()
-            cc_contagem.columns = ["Centro de Custo", "Quantidade"]
-            cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
-            
-            if len(cc_contagem) > 0:
-                fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale="Blues", text="Quantidade")
-                fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
-                fig_cc.update_yaxes(categoryorder="total ascending")
-                fig_cc.update_xaxes(visible=False)
-                fig_cc.update_coloraxes(showscale=False)
-                fig_cc.update_traces(textposition='outside')
-                if st.toggle("📊 Visualizar Gráfico de Distribuição por C.C"):
+            with col_graf1:
+                # Gráfico de distribuição por C.C.
+                st.markdown("**Distribuição de Efetivo por Centro de Custo**")
+                
+                cc_contagem = df_cc_aba["C.C"].value_counts().reset_index()
+                cc_contagem.columns = ["Centro de Custo", "Quantidade"]
+                cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
+                
+                if len(cc_contagem) > 0:
+                    fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale="Blues", text="Quantidade")
+                    fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
+                    fig_cc.update_yaxes(categoryorder="total ascending")
+                    fig_cc.update_xaxes(visible=False)
+                    fig_cc.update_coloraxes(showscale=False)
+                    fig_cc.update_traces(textposition='outside', cliponaxis=False)
+                    
                     st.plotly_chart(fig_cc, use_container_width=True)
-            else:
-                st.info("Nenhum dado encontrado para o filtro selecionado.")
+                else:
+                    st.info("Nenhum dado encontrado para gerar gráfico de C.C.")
+                    
+            with col_graf2:
+                # Gráfico: MOD vs MOI
+                st.markdown("**Proporção MOD vs MOI**")
+                df_mod = df_cc_aba[df_cc_aba["MÃO DE OBRA"].str.strip() != ""]
+                if not df_mod.empty:
+                    mo_contagem = df_mod["MÃO DE OBRA"].value_counts().reset_index()
+                    mo_contagem.columns = ["Tipo", "Quantidade"]
+                    fig_mo = px.pie(mo_contagem, values="Quantidade", names="Tipo", hole=0.65, color_discrete_sequence=["#4a9eed", "#f39c12", "#e74c3c"])
+                    fig_mo.update_layout(margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=350, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                    
+                    st.plotly_chart(fig_mo, use_container_width=True)
+                else:
+                    st.info("Dados de Mão de Obra não disponíveis.")
             
             st.markdown("---")
             
