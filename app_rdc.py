@@ -265,12 +265,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown(f"""
-    <div class="enesa-header">
-        <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">Sistema de Gestão RDC & PDE</h1>
-        <p style="color: {cor_texto_sub}; font-size: 0.95rem; margin: 6px 0 0 0;">{nome_site} - Controle Operacional de Efetivo</p>
-    </div>
-""", unsafe_allow_html=True)
+# Removido o header global daqui para aparecer apenas após o login.
 
 # =================================================================
 # CAMINHOS E CONFIGURAÇÕES
@@ -517,6 +512,90 @@ if 'mostrar_upload' not in st.session_state:
     st.session_state.mostrar_upload = False
 
 # =================================================================
+# SISTEMA DE LOGIN (BLOQUEIO GLOBAL) E COOKIES
+# =================================================================
+import extra_streamlit_components as stx
+
+cookie_manager = stx.CookieManager()
+
+caminho_usuarios = "usuarios.json"
+import json
+if not os.path.exists(caminho_usuarios):
+    with open(caminho_usuarios, "w", encoding="utf-8") as f:
+        json.dump({"admin": {"senha": "123", "nome": "Administrador", "role": "admin"}}, f)
+
+def carregar_usuarios():
+    if not os.path.exists(caminho_usuarios): return {}
+    with open(caminho_usuarios, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def salvar_usuarios(users):
+    with open(caminho_usuarios, "w", encoding="utf-8") as f:
+        json.dump(users, f)
+
+if "usuario_logado" not in st.session_state:
+    st.session_state.usuario_logado = None
+if "role_usuario" not in st.session_state:
+    st.session_state.role_usuario = None
+if "nome_completo" not in st.session_state:
+    st.session_state.nome_completo = None
+
+usuarios_db = carregar_usuarios()
+
+# Tentativa de auto-login via Cookie
+cookie_user = cookie_manager.get("rdc_user_session")
+if st.session_state.usuario_logado is None and cookie_user and cookie_user in usuarios_db:
+    st.session_state.usuario_logado = cookie_user
+    st.session_state.role_usuario = usuarios_db[cookie_user].get("role", "user")
+    st.session_state.nome_completo = usuarios_db[cookie_user].get("nome", cookie_user)
+
+if st.session_state.usuario_logado is None:
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        # Se houver logo, mostra logo acima da caixa
+        if os.path.exists(caminho_logo):
+            col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+            with col_l2:
+                st.image(caminho_logo, use_container_width=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+        with st.container(border=True):
+            st.markdown(f"<h3 style='text-align: center; color: {cor_azul}; margin-bottom: 0px; font-weight: 600;'>{nome_site}</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: #8b919e; margin-bottom: 25px; font-size: 14px;'>Acesso Restrito ao Sistema</p>", unsafe_allow_html=True)
+            
+            user_input = st.text_input("Usuário (Login):")
+            pass_input = st.text_input("Senha:", type="password")
+            lembrar_me = st.checkbox("Manter conectado", value=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Entrar no Sistema", type="primary", use_container_width=True):
+                if user_input in usuarios_db and usuarios_db[user_input]["senha"] == pass_input:
+                    st.session_state.usuario_logado = user_input
+                    st.session_state.role_usuario = usuarios_db[user_input].get("role", "user")
+                    st.session_state.nome_completo = usuarios_db[user_input].get("nome", user_input)
+                    
+                    if lembrar_me:
+                        cookie_manager.set("rdc_user_session", user_input, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                        
+                    time.sleep(1) # Tempo para o cookie assentar
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos.")
+    st.stop() # Bloqueia todo o resto do sistema!
+
+# =================================================================
+# CABEÇALHO GLOBAL (Mostrado apenas se logado)
+# =================================================================
+st.markdown(f"""
+    <div class="enesa-header">
+        <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">Sistema de Gestão RDC & PDE</h1>
+        <p style="color: {cor_texto_sub}; font-size: 0.95rem; margin: 6px 0 0 0;">{nome_site} - Controle Operacional de Efetivo</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# =================================================================
 # BARRA LATERAL
 # =================================================================
 with st.sidebar:
@@ -554,22 +633,85 @@ with st.sidebar:
     
     st.markdown("---")
     
-    is_admin = st.query_params.get("admin", "") == "edson"
-    if is_admin:
-        with st.expander("⚙️ Personalização do Site"):
-            novo_logo = st.file_uploader("Trocar Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
-            if novo_logo:
-                with open(caminho_logo, "wb") as f:
-                    f.write(novo_logo.getbuffer())
-                st.success("Logo atualizado! Recarregue a página.")
+    st.markdown("---")
+    st.markdown(f"👤 Bem-vindo(a), **{st.session_state.nome_completo}**")
+    
+    if st.button("Sair (Logout)", use_container_width=True):
+        cookie_manager.delete("rdc_user_session")
+        st.session_state.usuario_logado = None
+        st.session_state.role_usuario = None
+        st.session_state.nome_completo = None
+        time.sleep(1)
+        st.rerun()
+        
+    if st.session_state.role_usuario == "admin":
+        st.markdown("---")
+        st.markdown("#### ⚙️ Painel de Configurações")
+        novo_logo = st.file_uploader("Trocar Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
+        if novo_logo:
+            with open(caminho_logo, "wb") as f:
+                f.write(novo_logo.getbuffer())
+            st.success("Logo atualizado! Recarregue a página.")
+            
+        novo_nome_site = st.text_input("Nome da Empresa/Site:", value=nome_site)
+        if st.button("Salvar Nome"):
+            with open(caminho_nome_site, "w", encoding="utf-8") as f:
+                f.write(novo_nome_site)
+            st.success("Nome atualizado!")
+            time.sleep(1)
+            st.rerun()
                 
-            novo_nome_site = st.text_input("Nome da Empresa/Site:", value=nome_site)
-            if st.button("Salvar Nome"):
-                with open(caminho_nome_site, "w", encoding="utf-8") as f:
-                    f.write(novo_nome_site)
-                st.success("Nome atualizado!")
+        st.markdown("---")
+        st.markdown("**💾 Backup Seguro**")
+        
+        # Função para gerar backup ZIP
+        buffer_zip = io.BytesIO()
+        with zipfile.ZipFile(buffer_zip, "w") as z:
+            # Backup da Base de Efetivo
+            if st.session_state.df is not None:
+                buffer_pde = io.BytesIO()
+                st.session_state.df.to_excel(buffer_pde, index=False, engine='openpyxl')
+                z.writestr("BASE_EFETIVO.xlsx", buffer_pde.getvalue())
+            
+            # Backup do Histórico F1
+            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
+                buffer_f1 = io.BytesIO()
+                st.session_state.df_historico_f1.to_excel(buffer_f1, index=False, engine='openpyxl')
+                z.writestr("HISTORICO_F1.xlsx", buffer_f1.getvalue())
+        
+        st.download_button(
+            label="📥 Baixar Backup (.zip)",
+            data=buffer_zip.getvalue(),
+            file_name=f"Backup_RDC_{datetime.datetime.now().strftime('%Y%m%d')}.zip",
+            mime="application/zip",
+            use_container_width=True
+        )
+
+        st.markdown("---")
+        st.markdown("#### 👥 Gestão de Usuários")
+        with st.form("form_novo_usuario"):
+            st.markdown("**Adicionar / Editar Usuário**")
+            novo_user = st.text_input("Usuário (Login):")
+            nova_senha = st.text_input("Senha:")
+            novo_nome = st.text_input("Nome Completo:")
+            nova_role = st.selectbox("Nível de Acesso:", ["user", "admin"])
+            submit_user = st.form_submit_button("Salvar Usuário")
+            if submit_user and novo_user and nova_senha:
+                usuarios_db[novo_user] = {"senha": nova_senha, "nome": novo_nome, "role": nova_role}
+                salvar_usuarios(usuarios_db)
+                st.success(f"Usuário '{novo_user}' salvo!")
                 time.sleep(1)
                 st.rerun()
+        
+        st.markdown("**Usuários Cadastrados:**")
+        for u, dados in usuarios_db.items():
+            col_u, col_del = st.columns([3, 1])
+            col_u.text(f"👤 {u} ({dados.get('role', 'user')})")
+            if u != "admin":
+                if col_del.button("❌", key=f"del_{u}"):
+                    del usuarios_db[u]
+                    salvar_usuarios(usuarios_db)
+                    st.rerun()
 
     st.markdown("---")
     st.markdown(
@@ -664,7 +806,42 @@ elif st.session_state.df is None:
 # =================================================================
 if st.session_state.df is not None:
     df_atual = preparar_dataframe(st.session_state.df.copy())
-    lista_encarregados = sorted([str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
+    lista_encarregados_base = sorted([str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
+
+    encarregados_f1_oficial = [
+        "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
+        "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
+        "SANDRO LIMA DE SOUZA", "ALOISIO FERREIRA SOUZA", "ARLINDO PEREIRA DA SILVA", "FAUZE CELIS RODRIGUES COSTA",
+        "FRANCISCO PEREIRA LIMA", "JOAO PAULO DA COSTA QUARESMA", "JOSE ORLANDO DAS NEVES MADEIRA",
+        "JOSE TARCISIO ARAUJO DA SILVA", "LEANDRO DA CRUZ DE SOUZA", "CLAUDIO LUCIANO ARGELINO",
+        "EDVALDO CARVALHO ANGELIM", "ELDER MENDES JUNIOR", "MANOEL MARIA SARGES SOARES", "CLAUDIO CRUZ SOUSA",
+        "CLIDENILDO GOMES DE ALMEIDA", "GRACINEI PEREIRA DOS SANTOS", "JAILSON MENDES DE OLIVEIRA",
+        "JARBAS DA ROCHA GOMES", "JOSE MAURICIO RODRIGUES DA SILVA", "JOSE SARAIVA LOPES NETO",
+        "JOSMAEL RODRIGUES PEREIRA", "ALEX PANTOJA DE OLIVEIRA", "ARILSON DIAS DO PRADO", "ELTON GOMES DOS SANTOS",
+        "RICARDO SARMENTO FERREIRA", "WENISON DA SILVA CUNHA CORREIA", "FRANCISCO ALVES DA PENHA",
+        "IVAN DO NASCIMENTO RAMOS", "ELDER MENDES", "GEAN LENO JOSE DE FREITAS", "JOSE EDUARDO FARIAS FERREIRA",
+        "EDIMILSON NUNES VASCONCELOS", "LOURISVALDO AMARAL ARAUJO", "VALDEMIR BARBOSA REIS",
+        "LUZINALDO AMARAL DE ARAUJO", "MAURO DE QUEIROZ ANDRADE", "ELIAS SOUSA DA COSTA", "ISAIAS SOUSA LISBOA",
+        "ISMAEL CARLOS GOMES DA SILVA", "RAIMUNDO DA SILVA DOS SANTOS", "RAIMUNDO EUDE DA SILVA FREITAS",
+        "RODOLFO DOS SANTOS COSTA", "ELISEU DA SILVA BISPO", "IRON MARQUES MOREIRA", "LUIZ CARLOS DE SOUZA",
+        "ANTONIO TEIXEIRA BORBA", "JOSE FRANCIVAN MONTEIRO SANTOS", "JOSE WALKER CARNEIRO OLIVEIRA",
+        "LEANDRO DA SILVA QUEIROZ", "SILVIO MANOEL DE ANDRADE", "EVERALDO DOS SANTOS SOARES",
+        "FRANCISCO GRACIEL DE SOUSA MARTINS", "JAILSON SILVA DE GOIS", "JORGINALDO NUNES DA SILVA",
+        "CLAUDIVAN OLIVEIRA DOS SANTOS", "GUILHERME HENRIQUE DE ARAUJO SOUSA", "LEANDRO MARTINS DA SILVA BORGES",
+        "WEVERTON FERNANDES MARIANO", "JORGE DA COSTA SILVA", "RAIMUNDO FRAZAO DOS SANTOS",
+        "JOSE RIBEIRO DO NASCIMENTO JUNIOR", "JOSE ROBERTO SALVADOR FILHO", "MARCUS ANTONIO DE SOUZA",
+        "RAIMUNDO ROGERIO LEITE", "ROUBERVAL SANTOS DOS SANTOS", "CARLOS ALBERTO DA COSTA MOREIRA",
+        "JOSE FELIPE DOS SANTOS", "JOSE GERIARDI FONSECA DE SENA", "JOSE HENRIQUE SILVA VIEIRA",
+        "ODAIR MENEZES DA SILVA", "SIDNALDO SANTOS DE JESUS", "ANDERSON VICTALINO",
+        "FRANCISCO AUGUSTO DE SOUSA BARROS", "GENILSON PEREIRA DE SOUSA", "HELENO MARQUES DE SOUZA NETO",
+        "HEMERSON MONTEIRO DE OLIVEIRA", "JACKSON DEIBSON FELICIANO DA SILVA", "JARDELINO PEREIRA DA COSTA",
+        "JOAO TIAGO OLIVEIRA DE AMORIM", "JOSE MARIA DA SILVA PESSOA", "LUCIO FABIO DA SILVA LEANDRO",
+        "RAIMUNDO GONCALVES DOS SANTOS", "FABRICIO FIGUEIREDO", "RHOKSONY FERREIRA SILVEIRA",
+        "FERNANDO DA CONCEIÇÃO", "ROGERIO BARROS DOS SANTOS", "SIQUEU SANTOS SOLEDADE",
+        "SEBASTIAO CARLOS DE OLIVEIRA", "MANOEL NEPOMUCENO DOS SANTOS", "LUIZ RAMOS DE LIMA",
+        "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
+    ]
+    lista_completa_encarregados = sorted([e.upper() for e in encarregados_f1_oficial])
 
     mapa_area_sufixo = {
         'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
@@ -685,13 +862,16 @@ if st.session_state.df is not None:
         'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
     }
 
-    tab_dashboard, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc = st.tabs(["📊 Dashboard", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C"])
+    tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C"])
 
     with tab_dashboard:
         st.markdown("### Painel de Gestão")
+        
+        termo_busca = st.text_input("🔍 Buscar funcionário (Nome, Matrícula ou Função):")
+        
         m1, m2, m3 = st.columns(3)
         m1.metric("👷 Funcionários", len(df_atual))
-        m2.metric("👔 Encarregados", len(lista_encarregados))
+        m2.metric("👔 Encarregados (Base)", len(lista_encarregados_base))
         m3.metric("🔧 Funções", df_atual["FUNÇÃO"].nunique())
         st.markdown("")
         
@@ -714,14 +894,52 @@ if st.session_state.df is not None:
             
         st.markdown("")
         st.markdown("**Base Completa**")
-        st.dataframe(df_atual[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]], hide_index=True, use_container_width=True)
+        df_exibicao = df_atual[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]].copy()
+        if termo_busca:
+            mask = (
+                df_exibicao["NOME"].astype(str).str.contains(termo_busca, case=False, na=False) |
+                df_exibicao["MATRICULA"].astype(str).str.contains(termo_busca, case=False, na=False) |
+                df_exibicao["FUNÇÃO"].astype(str).str.contains(termo_busca, case=False, na=False)
+            )
+            df_exibicao = df_exibicao[mask]
+        st.dataframe(df_exibicao, hide_index=True, use_container_width=True)
+
+    with tab_resumo:
+        st.markdown("### 📅 Resumo Diário")
+        hoje = datetime.date.today().strftime("%Y-%m-%d")
+        
+        df_hoje = pd.DataFrame()
+        if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
+            df_hist = st.session_state.df_historico_f1.copy()
+            df_hist["DATA_STR"] = pd.to_datetime(df_hist["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
+            df_hoje = df_hist[df_hist["DATA_STR"] == hoje]
+            
+        encarregados_esperados = len(lista_completa_encarregados)
+        entregues_hoje_lista = [e for e in df_hoje["ENCARREGADO"].unique() if e in lista_completa_encarregados] if not df_hoje.empty else []
+        encarregados_entregues = len(entregues_hoje_lista)
+        encarregados_pendentes = encarregados_esperados - encarregados_entregues
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("🎯 Esperados", encarregados_esperados)
+        c2.metric("✅ Entregues", encarregados_entregues)
+        c3.metric("⏳ Pendentes", encarregados_pendentes)
+        
+        st.markdown("---")
+        if encarregados_pendentes > 0:
+            st.error(f"**Atenção:** {encarregados_pendentes} encarregados ainda não entregaram o RDC hoje.")
+            entregues_list = df_hoje["ENCARREGADO"].unique() if not df_hoje.empty else []
+            pendentes_list = [e for e in lista_completa_encarregados if e not in entregues_list]
+            df_pend = pd.DataFrame({"Encarregados Pendentes (Hoje)": pendentes_list})
+            st.dataframe(df_pend, hide_index=True, use_container_width=True)
+        else:
+            st.success("🎉 Todos os RDCs de hoje já foram entregues!")
 
     with tab_emissao:
         st.markdown("### Emissão de RDC")
-        if not lista_encarregados:
+        if not lista_encarregados_base:
             st.warning("Nenhum encarregado encontrado na base.")
         else:
-            encarregado_sel = st.selectbox("Escolha o Encarregado:", lista_encarregados)
+            encarregado_sel = st.selectbox("Escolha o Encarregado:", lista_encarregados_base)
             equipe = df_atual[df_atual["ENCARREGADO"] == encarregado_sel]
             st.markdown("")
             st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado:</strong></td><td>{encarregado_sel}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
@@ -757,7 +975,7 @@ if st.session_state.df is not None:
                             zip_buffer = io.BytesIO()
                             qtd = 0
                             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                                for enc in lista_encarregados:
+                                for enc in lista_encarregados_base:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
                                         wb_e = preencher_excel(eq, enc)
@@ -787,41 +1005,7 @@ if st.session_state.df is not None:
         st.markdown("### 🏎️ Competição F1 - Entrega de RDC")
         st.markdown("Acompanhamento mensal da entrega dos Relatórios Diários de Campo (RDC).")
         
-        encarregados_f1_oficial = [
-            "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
-            "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
-            "SANDRO LIMA DE SOUZA", "ALOISIO FERREIRA SOUZA", "ARLINDO PEREIRA DA SILVA", "FAUZE CELIS RODRIGUES COSTA",
-            "FRANCISCO PEREIRA LIMA", "JOAO PAULO DA COSTA QUARESMA", "JOSE ORLANDO DAS NEVES MADEIRA",
-            "JOSE TARCISIO ARAUJO DA SILVA", "LEANDRO DA CRUZ DE SOUZA", "CLAUDIO LUCIANO ARGELINO",
-            "EDVALDO CARVALHO ANGELIM", "ELDER MENDES JUNIOR", "MANOEL MARIA SARGES SOARES", "CLAUDIO CRUZ SOUSA",
-            "CLIDENILDO GOMES DE ALMEIDA", "GRACINEI PEREIRA DOS SANTOS", "JAILSON MENDES DE OLIVEIRA",
-            "JARBAS DA ROCHA GOMES", "JOSE MAURICIO RODRIGUES DA SILVA", "JOSE SARAIVA LOPES NETO",
-            "JOSMAEL RODRIGUES PEREIRA", "ALEX PANTOJA DE OLIVEIRA", "ARILSON DIAS DO PRADO", "ELTON GOMES DOS SANTOS",
-            "RICARDO SARMENTO FERREIRA", "WENISON DA SILVA CUNHA CORREIA", "FRANCISCO ALVES DA PENHA",
-            "IVAN DO NASCIMENTO RAMOS", "ELDER MENDES", "GEAN LENO JOSE DE FREITAS", "JOSE EDUARDO FARIAS FERREIRA",
-            "EDIMILSON NUNES VASCONCELOS", "LOURISVALDO AMARAL ARAUJO", "VALDEMIR BARBOSA REIS",
-            "LUZINALDO AMARAL DE ARAUJO", "MAURO DE QUEIROZ ANDRADE", "ELIAS SOUSA DA COSTA", "ISAIAS SOUSA LISBOA",
-            "ISMAEL CARLOS GOMES DA SILVA", "RAIMUNDO DA SILVA DOS SANTOS", "RAIMUNDO EUDE DA SILVA FREITAS",
-            "RODOLFO DOS SANTOS COSTA", "ELISEU DA SILVA BISPO", "IRON MARQUES MOREIRA", "LUIZ CARLOS DE SOUZA",
-            "ANTONIO TEIXEIRA BORBA", "JOSE FRANCIVAN MONTEIRO SANTOS", "JOSE WALKER CARNEIRO OLIVEIRA",
-            "LEANDRO DA SILVA QUEIROZ", "SILVIO MANOEL DE ANDRADE", "EVERALDO DOS SANTOS SOARES",
-            "FRANCISCO GRACIEL DE SOUSA MARTINS", "JAILSON SILVA DE GOIS", "JORGINALDO NUNES DA SILVA",
-            "CLAUDIVAN OLIVEIRA DOS SANTOS", "GUILHERME HENRIQUE DE ARAUJO SOUSA", "LEANDRO MARTINS DA SILVA BORGES",
-            "WEVERTON FERNANDES MARIANO", "JORGE DA COSTA SILVA", "RAIMUNDO FRAZAO DOS SANTOS",
-            "JOSE RIBEIRO DO NASCIMENTO JUNIOR", "JOSE ROBERTO SALVADOR FILHO", "MARCUS ANTONIO DE SOUZA",
-            "RAIMUNDO ROGERIO LEITE", "ROUBERVAL SANTOS DOS SANTOS", "CARLOS ALBERTO DA COSTA MOREIRA",
-            "JOSE FELIPE DOS SANTOS", "JOSE GERIARDI FONSECA DE SENA", "JOSE HENRIQUE SILVA VIEIRA",
-            "ODAIR MENEZES DA SILVA", "SIDNALDO SANTOS DE JESUS", "ANDERSON VICTALINO",
-            "FRANCISCO AUGUSTO DE SOUSA BARROS", "GENILSON PEREIRA DE SOUSA", "HELENO MARQUES DE SOUZA NETO",
-            "HEMERSON MONTEIRO DE OLIVEIRA", "JACKSON DEIBSON FELICIANO DA SILVA", "JARDELINO PEREIRA DA COSTA",
-            "JOAO TIAGO OLIVEIRA DE AMORIM", "JOSE MARIA DA SILVA PESSOA", "LUCIO FABIO DA SILVA LEANDRO",
-            "RAIMUNDO GONCALVES DOS SANTOS", "FABRICIO FIGUEIREDO", "RHOKSONY FERREIRA SILVEIRA",
-            "FERNANDO DA CONCEIÇÃO", "ROGERIO BARROS DOS SANTOS", "SIQUEU SANTOS SOLEDADE",
-            "SEBASTIAO CARLOS DE OLIVEIRA", "MANOEL NEPOMUCENO DOS SANTOS", "LUIZ RAMOS DE LIMA",
-            "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
-        ]
-        
-        lista_completa_encarregados = sorted([e.upper() for e in encarregados_f1_oficial])
+        # A lista completa foi movida para cima para ser compartilhada com a aba de Resumo Diário
         
         # --- LANÇAMENTO MANUAL ---
         if st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)"):
@@ -959,8 +1143,44 @@ if st.session_state.df is not None:
             st.markdown(f"#### 📊 Matriz de Entregas - {mes_selecionado}")
         with col_met:
             st.metric("📄 Total de RDCs Entregues", total_entregue)
+            
+        # Alerta de Devedores (3 dias úteis)
+        if mes_selecionado == datetime.date.today().strftime("%Y-%m"):
+            hoje_int = datetime.date.today().day
+            dias_passados = [d for d in dias_uteis if int(d) <= hoje_int]
+            devedores = []
+            if len(dias_passados) >= 3:
+                ultimos_3 = dias_passados[-3:]
+                for enc in matriz.index:
+                    if all(matriz.loc[enc, novas_colunas[dia]] == "❌" for dia in ultimos_3):
+                        devedores.append(enc)
+            if devedores:
+                st.error(f"🚨 **ALERTA CRÍTICO:** {len(devedores)} encarregados não entregaram RDC nos últimos 3 dias úteis.")
+                if st.toggle("👀 Mostrar lista de encarregados com pendência crítica"):
+                    dados_dev = []
+                    for enc in devedores:
+                        entregues_ate_hoje = sum(1 for d in dias_passados if matriz.loc[enc, novas_colunas[d]] == "✅")
+                        pendentes_ate_hoje = len(dias_passados) - entregues_ate_hoje
+                        dados_dev.append({"Encarregados": enc, "Faltas Totais no Mês": pendentes_ate_hoje})
+                    
+                    df_dev = pd.DataFrame(dados_dev).sort_values(by="Faltas Totais no Mês", ascending=False)
+                    st.dataframe(df_dev, hide_index=True, use_container_width=True)
         
-        st.dataframe(matriz, use_container_width=True)
+        def cor_fundo(valor):
+            if valor == "✅":
+                return "background-color: rgba(74, 222, 128, 0.2); color: #4ade80;"
+            elif valor == "❌":
+                return "background-color: rgba(255, 75, 75, 0.2); color: #ff4b4b;"
+            elif valor == "➖":
+                return "background-color: rgba(128, 128, 128, 0.2); color: #888;"
+            return ""
+            
+        try:
+            matriz_estilizada = matriz.style.map(cor_fundo)
+        except AttributeError:
+            matriz_estilizada = matriz.style.applymap(cor_fundo)
+            
+        st.dataframe(matriz_estilizada, use_container_width=True)
         
         # --- EXPORTAR PARA RH ---
         buffer_rh = io.BytesIO()
@@ -973,29 +1193,63 @@ if st.session_state.df is not None:
             data=buffer_rh,
             file_name=f"Relatorio_RH_F1_{mes_selecionado}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary",
             use_container_width=True
         )
         # ------------------------
         st.markdown("---")
-        st.markdown("#### 🏆 Pódio do Mês (Top 3 Melhores vs Top 3 Piores)")
+        st.markdown("#### 🏆 Pódio do Mês (Top Melhores Entregas)")
         
         ranking = matriz[["Total"]].sort_values(by="Total", ascending=False).reset_index()
         ranking.columns = ["ENCARREGADO", "ENTREGAS"]
         
-        col_top, col_bot = st.columns(2)
-        with col_top:
-            st.success("🥇 Os 3 que MAIS entregaram")
-            top3 = ranking.head(3)
-            for i, row in top3.iterrows():
-                medalha = "🥇" if i == 0 else ("🥈" if i == 1 else "🥉")
-                st.markdown(f"**{medalha} {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
+        st.success("🥇 Os 3 que MAIS entregaram")
+        top3 = ranking.head(3)
+        for i, row in top3.iterrows():
+            medalha = "🥇" if i == 0 else ("🥈" if i == 1 else "🥉")
+            st.markdown(f"**{medalha} {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
                 
-        with col_bot:
-            st.error("📉 Os 3 que MENOS entregaram")
-            bot3 = ranking.tail(3).sort_values(by="ENTREGAS", ascending=True).reset_index(drop=True)
-            for i, row in bot3.iterrows():
-                st.markdown(f"**🚨 {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
+        st.markdown("---")
+        st.markdown("#### 📈 Evolução Mensal")
+        df_evolucao = df_hist.groupby("MES_ANO").size().reset_index(name="RDCs Entregues")
+        if not df_evolucao.empty:
+            fig_ev = px.line(df_evolucao, x="MES_ANO", y="RDCs Entregues", text="RDCs Entregues", markers=True)
+            fig_ev.update_traces(textposition="top center", line_color="#4a9eed", marker=dict(size=8))
+            fig_ev.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), xaxis_title="Mês", yaxis_title="Total de RDCs")
+            st.plotly_chart(fig_ev, use_container_width=True)
+            
+        st.markdown("---")
+        if st.button("📄 Gerar Relatório Mensal em PDF", type="primary", use_container_width=True):
+            try:
+                from fpdf import FPDF
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, txt=f"Relatorio Mensal F1 - {mes_selecionado}", ln=True, align='C')
+                pdf.ln(10)
+                
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(200, 10, txt=f"Total de RDCs Entregues no Mes: {total_entregue}", ln=True)
+                pdf.ln(10)
+                
+                pdf.set_font("Arial", 'B', 14)
+                pdf.cell(200, 10, txt="Os 3 Melhores do Mes:", ln=True)
+                pdf.set_font("Arial", '', 12)
+                for i, row in top3.iterrows():
+                    pdf.cell(200, 10, txt=f"{i+1} Lugar: {row['ENCARREGADO']} - {row['ENTREGAS']} RDCs", ln=True)
+                pdf.ln(5)
+                # Devedores Críticos
+                if devedores:
+                    pdf.set_font("Arial", 'B', 14)
+                    pdf.set_text_color(255, 0, 0)
+                    pdf.cell(200, 10, txt="Alerta Critico - Sem RDC a mais de 3 dias:", ln=True)
+                    pdf.set_font("Arial", '', 12)
+                    for d in devedores:
+                        pdf.cell(200, 10, txt=f"- {d}", ln=True)
+                
+                pdf_output = bytes(pdf.output())
+                st.download_button("📥 Clique aqui para baixar o PDF", data=pdf_output, file_name=f"Relatorio_{mes_selecionado}.pdf", mime="application/pdf", type="primary")
+            except ImportError:
+                st.error("Biblioteca FPDF não encontrada. Avise o desenvolvedor para instalar `fpdf2`.")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
 
@@ -1035,7 +1289,7 @@ if st.session_state.df is not None:
                 old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
                 
                 client = genai.Client(api_key=chave_padrao)
-                nomes_para_prompt = ", ".join(lista_encarregados)
+                nomes_para_prompt = ", ".join(lista_encarregados_base)
                 
                 prompt_ia = f"""
                 Analise este documento (que pode ter várias páginas). Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
@@ -1195,7 +1449,7 @@ if st.session_state.df is not None:
             if not st.session_state.df_ia.empty:
                 st.markdown("#### Dados Extraídos")
                 
-                lista_com_alerta = lista_encarregados + ["AJUSTAR NOME"]
+                lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
                 df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
                 
                 col_dw1, col_dw2 = st.columns([1, 1])
@@ -1240,7 +1494,7 @@ if st.session_state.df is not None:
             if btn_processar_cc and arquivos_scan_cc and chave_padrao:
                 old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
                 client = genai.Client(api_key=chave_padrao)
-                nomes_para_prompt = ", ".join(lista_encarregados)
+                nomes_para_prompt = ", ".join(lista_encarregados_base)
                 
                 prompt_ia_cc = f"""
                 Analise este documento. Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
@@ -1509,7 +1763,7 @@ if st.session_state.df is not None:
             with col_f1:
                 cc_selecionado = st.selectbox("Selecione o Centro de Custo:", ["TODOS"] + lista_cc, format_func=format_cc)
             with col_f2:
-                enc_selecionado = st.selectbox("Selecione a Equipe (Encarregado):", ["TODAS AS EQUIPES"] + lista_encarregados)
+                enc_selecionado = st.selectbox("Selecione a Equipe (Encarregado):", ["TODAS AS EQUIPES"] + lista_encarregados_base)
             
             df_cc_filtrado = df_atual[df_atual["C.C"].str.strip() != ""]
             

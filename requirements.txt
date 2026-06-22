@@ -6,3 +6,4 @@ google-genai
 st-gsheets-connection
 gspread
 plotly
+extra-streamlit-components
