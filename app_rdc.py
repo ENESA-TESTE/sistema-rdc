@@ -978,20 +978,43 @@ if st.session_state.df is not None:
     with tab_dashboard:
         st.markdown("### 🎛️ Centro de Comando (Overview)")
         
-        # Filtro de MOI / MOD
-        filtro_dash_mo = st.segmented_control(
-            "Filtrar Visão por Tipo de Mão de Obra:", 
-            ["Ambas", "MOD", "MOI"], 
-            default="Ambas"
-        )
-        if not filtro_dash_mo:
-            filtro_dash_mo = "Ambas"
+        # Filtro de MOI / MOD e Local
+        col_filtros1, col_filtros2 = st.columns(2)
+        with col_filtros1:
+            filtro_dash_mo = st.segmented_control(
+                "Filtrar Visão por Tipo de Mão de Obra:", 
+                ["Ambas", "MOD", "MOI"], 
+                default="Ambas"
+            )
+            if not filtro_dash_mo:
+                filtro_dash_mo = "Ambas"
+                
+        with col_filtros2:
+            filtro_dash_local = st.segmented_control(
+                "Filtrar Dados por Local:", 
+                ["Ambas", "PB", "RB", "ESP"], 
+                default="Ambas",
+                key="filtro_dash_local_key"
+            )
+            if not filtro_dash_local:
+                filtro_dash_local = "Ambas"
             
         df_dash = df_atual.copy()
+        
+        # Aplicar filtro MOI/MOD
         if filtro_dash_mo == "MOD":
             df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]
         elif filtro_dash_mo == "MOI":
             df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]
+            
+        # Aplicar filtro Local
+        df_dash = df_dash[df_dash["C.C"].str.strip() != ""]
+        if filtro_dash_local == "PB":
+            df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
+        elif filtro_dash_local == "RB":
+            df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
+        elif filtro_dash_local == "ESP":
+            df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
         
         # Linha 1: Cartões de KPI
         m1, m2, m3, m4 = st.columns(4)
@@ -1551,7 +1574,7 @@ if st.session_state.df is not None:
                             for tentativa in range(max_tentativas):
                                 try:
                                     resposta = client.models.generate_content(
-                                        model='gemini-2.5-flash',
+                                        model='gemini-1.5-flash',
                                         contents=[arquivo_up, prompt_ia],
                                         config=genai.types.GenerateContentConfig(
                                             response_mime_type="application/json",
@@ -1902,7 +1925,8 @@ if st.session_state.df is not None:
             filtro_local = st.segmented_control(
                 "Filtrar Dados por Local:", 
                 ["Ambas", "PB", "RB", "ESP"], 
-                default="Ambas"
+                default="Ambas",
+                key="filtro_cc_local_key"
             )
             if not filtro_local:
                 filtro_local = "Ambas"
