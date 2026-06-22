@@ -1698,7 +1698,22 @@ if st.session_state.df is not None:
         if "C.C" not in df_atual.columns or df_atual["C.C"].str.strip().eq("").all():
             st.warning("⚠️ A coluna de Centro de Custo (C.C) não foi encontrada na base de dados atual. Verifique se a planilha possui essa coluna.")
         else:
-            lista_cc = sorted([str(cc) for cc in df_atual["C.C"].unique() if str(cc).strip() != ""])
+            # Filtro PB/RB Global para a aba C.C
+            filtro_local = st.segmented_control(
+                "Filtrar Dados por Local:", 
+                ["Ambas", "PB", "RB"], 
+                default="Ambas"
+            )
+            if not filtro_local:
+                filtro_local = "Ambas"
+                
+            df_cc_aba = df_atual[df_atual["C.C"].str.strip() != ""]
+            if filtro_local == "PB":
+                df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.02" in str(x))]
+            elif filtro_local == "RB":
+                df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.01" in str(x))]
+
+            lista_cc = sorted([str(cc) for cc in df_cc_aba["C.C"].unique()])
             
             def format_cc(cc_code):
                 if cc_code == "TODOS": return "TODOS"
@@ -1724,31 +1739,19 @@ if st.session_state.df is not None:
                 else: return str(cc_code)
             
             # Métricas gerais
-            mc1, mc2, mc3 = st.columns(3)
+            mc1, mc2, mc3, mc4 = st.columns(4)
             mc1.metric("🏢 Centros de Custo", len(lista_cc))
-            mc2.metric("👷 Total Alocados", len(df_atual[df_atual["C.C"].str.strip() != ""]))
-            mc3.metric("🔧 Funções Distintas", df_atual[df_atual["C.C"].str.strip() != ""]["FUNÇÃO"].nunique())
+            mc2.metric("👷 Total Alocados", len(df_cc_aba))
+            mc3.metric("🔧 Funções Distintas", df_cc_aba["FUNÇÃO"].nunique())
+            
+            qtd_encarregados = len([e for e in df_cc_aba["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
+            mc4.metric("👨‍💼 Encarregados", qtd_encarregados)
             st.markdown("")
 
             # Gráfico de distribuição por C.C.
             st.markdown("**Distribuição de Efetivo por Centro de Custo**")
             
-            # Filtro PB/RB para o Gráfico (Visual mais moderno/Premium)
-            filtro_local_grafico = st.segmented_control(
-                "Filtrar Gráfico por Local:", 
-                ["Ambas", "Caldeira PB", "Caldeira RB"], 
-                default="Ambas"
-            )
-            if not filtro_local_grafico:
-                filtro_local_grafico = "Ambas"
-            
-            df_grafico = df_atual[df_atual["C.C"].str.strip() != ""]
-            if filtro_local_grafico == "Caldeira PB":
-                df_grafico = df_grafico[df_grafico["C.C"].apply(lambda x: "(PB)" in format_cc(x))]
-            elif filtro_local_grafico == "Caldeira RB":
-                df_grafico = df_grafico[df_grafico["C.C"].apply(lambda x: "(RB)" in format_cc(x))]
-                
-            cc_contagem = df_grafico["C.C"].value_counts().reset_index()
+            cc_contagem = df_cc_aba["C.C"].value_counts().reset_index()
             cc_contagem.columns = ["Centro de Custo", "Quantidade"]
             cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
             
@@ -1766,15 +1769,38 @@ if st.session_state.df is not None:
             
             st.markdown("---")
             
+            st.markdown("**Liderança: Efetivo de Encarregados por C.C**")
+            # Tabela sumarizando quantos encarregados tem em cada CC (Apenas encarregados reais da lista oficial)
+            df_lideres = df_cc_aba[(df_cc_aba["ENCARREGADO"].str.strip() != "") & (df_cc_aba["ENCARREGADO"].isin(lista_completa_encarregados))].copy()
+            
+            if len(df_lideres) > 0:
+                df_agrupado = df_lideres.groupby(["C.C", "ENCARREGADO"]).size().reset_index(name="QTD. COLABORADORES")
+                df_agrupado["LOCAL"] = df_agrupado["C.C"].apply(lambda x: "PB" if "125.02" in str(x) else ("RB" if "125.01" in str(x) else "OUTROS"))
+                df_agrupado["NOME C.C"] = df_agrupado["C.C"].apply(format_cc)
+                
+                # Reorganizar colunas
+                df_agrupado = df_agrupado[["LOCAL", "NOME C.C", "ENCARREGADO", "QTD. COLABORADORES"]].sort_values(by=["LOCAL", "NOME C.C", "QTD. COLABORADORES"], ascending=[True, True, False])
+                
+                # Exibe a tabela agrupada
+                st.dataframe(df_agrupado, hide_index=True, use_container_width=True)
+            else:
+                st.info("Nenhum encarregado da lista oficial vinculado a um Centro de Custo para o filtro selecionado.")
+                
+            st.markdown("---")
+            
             # Filtros por C.C. e Equipe
             st.markdown("**Consulta Detalhada**")
+            
+            # Filtramos a lista de encarregados para exibir APENAS quem realmente é encarregado da lista oficial
+            lista_encarregados_detalhada = sorted([str(e) for e in df_cc_aba["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
+            
             col_f1, col_f2 = st.columns(2)
             with col_f1:
                 cc_selecionado = st.selectbox("Selecione o Centro de Custo:", ["TODOS"] + lista_cc, format_func=format_cc)
             with col_f2:
-                enc_selecionado = st.selectbox("Selecione a Equipe (Encarregado):", ["TODAS AS EQUIPES"] + lista_encarregados_base)
+                enc_selecionado = st.selectbox("Selecione a Equipe (Encarregado):", ["TODAS AS EQUIPES"] + lista_encarregados_detalhada)
             
-            df_cc_filtrado = df_atual[df_atual["C.C"].str.strip() != ""]
+            df_cc_filtrado = df_cc_aba.copy()
             
             if cc_selecionado != "TODOS":
                 df_cc_filtrado = df_cc_filtrado[df_cc_filtrado["C.C"] == cc_selecionado]
