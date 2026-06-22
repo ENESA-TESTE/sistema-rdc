@@ -1898,10 +1898,10 @@ if st.session_state.df is not None:
         if "C.C" not in df_atual.columns or df_atual["C.C"].str.strip().eq("").all():
             st.warning("⚠️ A coluna de Centro de Custo (C.C) não foi encontrada na base de dados atual. Verifique se a planilha possui essa coluna.")
         else:
-            # Filtro PB/RB Global para a aba C.C
+            # Filtro PB/RB/ESP Global para a aba C.C
             filtro_local = st.segmented_control(
                 "Filtrar Dados por Local:", 
-                ["Ambas", "PB", "RB"], 
+                ["Ambas", "PB", "RB", "ESP"], 
                 default="Ambas"
             )
             if not filtro_local:
@@ -1909,9 +1909,11 @@ if st.session_state.df is not None:
                 
             df_cc_aba = df_atual[df_atual["C.C"].str.strip() != ""]
             if filtro_local == "PB":
-                df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.02" in str(x))]
+                df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
             elif filtro_local == "RB":
-                df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.01" in str(x))]
+                df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
+            elif filtro_local == "ESP":
+                df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: ".005" in str(x))]
 
             lista_cc = sorted([str(cc) for cc in df_cc_aba["C.C"].unique()])
             
