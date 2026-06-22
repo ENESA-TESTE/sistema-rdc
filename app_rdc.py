@@ -741,7 +741,7 @@ with st.sidebar:
         f"""
         <div style='text-align: center; margin-top: 20px; font-size: 12px; color: #888;'>
             <p>Desenvolvido por</p>
-            <p style='font-size: 16px; font-weight: bold; color: #ff4b4b; margin-top: -10px;'>Edson Garcia</p>
+            <p style='font-size: 16px; font-weight: bold; color: #ff4b4b; margin-top: -10px;'>Edson Garcia - 125</p>
             <p style='margin-top: -10px;'>v5.0 · {nome_site} (com ANTIGRAVITY)</p>
         </div>
         """, 
@@ -977,6 +977,20 @@ if st.session_state.df is not None:
                 fig_top_enc.update_traces(textposition='outside', cliponaxis=False)
                 st.plotly_chart(fig_top_enc, use_container_width=True)
                 
+        st.markdown("---")
+        
+        st.markdown(f"**👥 Liderança: Resumo Geral de Encarregados ({filtro_dash_mo})**")
+        df_enc_full = df_dash[(df_dash["ENCARREGADO"].str.strip() != "") & (df_dash["ENCARREGADO"].isin(lista_completa_encarregados))]
+        if not df_enc_full.empty:
+            resumo_enc = df_enc_full["ENCARREGADO"].value_counts().reset_index()
+            resumo_enc.columns = ["Encarregado", "Tamanho da Equipe"]
+            
+            termo_enc = st.text_input("🔍 Procurar Encarregado específico:")
+            if termo_enc:
+                resumo_enc = resumo_enc[resumo_enc["Encarregado"].astype(str).str.contains(termo_enc, case=False, na=False)]
+                
+            st.dataframe(resumo_enc, hide_index=True, use_container_width=True)
+            
         st.markdown("---")
         st.markdown(f"**🔍 Base Completa ({filtro_dash_mo})**")
         termo_busca = st.text_input("Buscar funcionário (Nome, Matrícula ou Função):")
