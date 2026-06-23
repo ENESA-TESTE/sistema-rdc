@@ -743,18 +743,21 @@ if st.session_state.get("role") == "encarregado":
     try:
         import os, pandas as pd
         # Os caminhos globais jã estão definidos acima
+        df_enc = None
         if os.path.exists(caminho_base_salva_csv):
             df_enc = pd.read_csv(caminho_base_salva_csv)
-            if "ENCARREGADO" in df_enc.columns:
-                enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
-                if enc_list:
-                    encarregados = sorted(enc_list)
         elif os.path.exists(caminho_base_salva_xlsx):
             df_enc = pd.read_excel(caminho_base_salva_xlsx)
-            if "ENCARREGADO" in df_enc.columns:
-                enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
-                if enc_list:
-                    encarregados = sorted(enc_list)
+        elif os.path.exists(caminho_pde_padrao):
+            try:
+                df_enc = pd.read_csv(caminho_pde_padrao, sep=";", encoding="latin-1")
+            except:
+                df_enc = pd.read_csv(caminho_pde_padrao)
+                
+        if df_enc is not None and "ENCARREGADO" in df_enc.columns:
+            enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
+            if enc_list:
+                encarregados = sorted(enc_list)
     except Exception as e:
         st.error(f"Erro ao carregar encarregados: {e}")
 
@@ -805,7 +808,7 @@ if st.session_state.get("role") == "encarregado":
                 
                 try:
                     with st.spinner("Enviando dados..."):
-                        res = requests.post(WEBHOOK_URL, data={"payload_data": json.dumps(rdc_json)})
+                        res = requests.post(WEBHOOK_URL, json=rdc_json, allow_redirects=True)
                     if res.status_code == 200:
                         st.success("✅ RDC enviado com sucesso! Você já pode fechar esta página.")
                     else:
