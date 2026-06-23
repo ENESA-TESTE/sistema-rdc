@@ -268,6 +268,7 @@ st.markdown(f"""
 # --- LOGIN / AUTENTICAÇÃO ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+    st.session_state.role = None
 
 if not st.session_state.logged_in:
     col_log1, col_log2, col_log3 = st.columns([1, 2, 1])
@@ -280,16 +281,22 @@ if not st.session_state.logged_in:
         """, unsafe_allow_html=True)
         
         with st.form("login_form"):
-            senha_input = st.text_input("Digite a senha de acesso da equipe:", type="password")
+            senha_input = st.text_input("Digite a senha de acesso (Admin ou Encarregado):", type="password")
             btn_login = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if btn_login:
-                senha_oficial = "Enesa@2026"
+                senha_admin = "Enesa@2026"
+                senha_encarregado = "Campo@2026"
                 if "senha_global" in st.secrets:
-                    senha_oficial = st.secrets["senha_global"]
+                    senha_admin = st.secrets["senha_global"]
                     
-                if senha_input == senha_oficial:
+                if senha_input == senha_admin:
                     st.session_state.logged_in = True
+                    st.session_state.role = "admin"
+                    st.rerun()
+                elif senha_input == senha_encarregado:
+                    st.session_state.logged_in = True
+                    st.session_state.role = "encarregado"
                     st.rerun()
                 else:
                     st.error("❌ Senha incorreta! Tente novamente.")
@@ -679,7 +686,7 @@ if st.session_state.usuario_logado is None and cookie_user and cookie_user in us
     st.session_state.role_usuario = usuarios_db[cookie_user].get("role", "user")
     st.session_state.nome_completo = usuarios_db[cookie_user].get("nome", cookie_user)
 
-if st.session_state.usuario_logado is None:
+if st.session_state.usuario_logado is None and st.session_state.get("role") != "encarregado":
     st.markdown("<br><br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
@@ -723,6 +730,69 @@ if st.session_state.usuario_logado is None:
                 else:
                     st.error("Usuário ou senha incorretos. Verifique espaços em branco ou letras erradas.")
     st.stop() # Bloqueia todo o resto do sistema!
+
+
+# =================================================================
+# MODO ENCARREGADO (Lançamento Nativo)
+# =================================================================
+if st.session_state.get("role") == "encarregado":
+    st.markdown(f"<div class='enesa-header'><h1 style='color: {cor_azul} !important; font-size: 2.2rem;'>📱 Lançamento de RDC</h1><p style='color: {cor_texto_sub};'>Preencha os dados do seu turno abaixo.</p></div>", unsafe_allow_html=True)
+    
+    # Obter lista de encarregados
+    encarregados = ["(Sem Encarregados)"]
+    if st.session_state.df is not None:
+        import pandas as pd
+        df_enc = st.session_state.df.copy()
+        if "ENCARREGADO" in df_enc.columns:
+            enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
+            if enc_list:
+                encarregados = sorted(enc_list)
+
+    with st.form("form_encarregado"):
+        encarregado_sel = st.selectbox("Seu Nome (Encarregado):", encarregados)
+        import datetime
+        data_sel = st.date_input("Data do RDC:", datetime.date.today())
+        turno_sel = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
+        area_sel = st.selectbox("Área:", ["CALDEIRA", "TURBINA", "BOP", "ELÉTRICA", "INSTRUMENTAÇÃO", "CIVIL", "OUTRA"])
+        disc_sel = st.selectbox("Disciplina:", ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA"])
+        dds_sel = st.text_input("Tópico do DDS:")
+        ativ_sel = st.text_area("Atividades Realizadas:")
+        prob_sel = st.text_area("Problemas / Interferências:")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        enviar = st.form_submit_button("🚀 Enviar RDC para a Base", use_container_width=True)
+        
+        if enviar:
+            if not ativ_sel.strip():
+                st.error("⚠️ Descreva pelo menos uma atividade realizada.")
+            else:
+                rdc_json = [{
+                    "ENCARREGADO": encarregado_sel,
+                    "DATA": data_sel.strftime("%Y/%m/%d"),
+                    "TURNO": turno_sel,
+                    "AREA": area_sel,
+                    "DISCIPLINA": disc_sel,
+                    "TOPICO_DDS": dds_sel,
+                    "ATIVIDADES": ativ_sel,
+                    "PROBLEMAS": prob_sel
+                }]
+                
+                import json
+                import requests
+                
+                WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+                
+                try:
+                    with st.spinner("Enviando dados..."):
+                        res = requests.post(WEBHOOK_URL, data={"payload_data": json.dumps(rdc_json)})
+                    if res.status_code == 200:
+                        st.success("✅ RDC enviado com sucesso! Você já pode fechar esta página.")
+                    else:
+                        st.error(f"❌ Erro ao enviar. Servidor retornou: {res.text}")
+                except Exception as e:
+                    st.error(f"❌ Falha de conexão: {e}")
+                    
+    st.stop() # Finaliza o script para não mostrar o restante do site
 
 # =================================================================
 # CABEÇALHO GLOBAL (Mostrado apenas se logado)
@@ -2571,8 +2641,8 @@ if st.session_state.df is not None:
                     st.info("Você pode visualizar todos os lançamentos na aba 'Leitor de RDC (IA)'.")
         
         st.markdown("---")
-        st.markdown("### 📥 Sincronização Offline")
-        st.caption("Se você preencheu RDCs pelo celular sem internet (App Offline), suba o pacote de dados aqui para sincronizar tudo de uma vez.")
+        st.markdown("### 📥 Sincronização de RDCs (Nuvem)")
+        st.caption("Clique no botão abaixo para puxar todos os RDCs lançados pelos encarregados no sistema.")
         
         WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
         
