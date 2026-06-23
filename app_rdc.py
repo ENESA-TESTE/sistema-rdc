@@ -265,6 +265,36 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
+# --- LOGIN / AUTENTICAÇÃO ---
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    col_log1, col_log2, col_log3 = st.columns([1, 2, 1])
+    with col_log2:
+        st.markdown(f"""
+            <div class='enesa-header'>
+                <h1 style='color: {cor_azul} !important; font-size: 2.2rem;'>🔒 Acesso Restrito</h1>
+                <p style='color: {cor_texto_sub};'>Sistema RDC & PDE - {nome_site}</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        with st.form("login_form"):
+            senha_input = st.text_input("Digite a senha de acesso da equipe:", type="password")
+            btn_login = st.form_submit_button("Entrar no Sistema", use_container_width=True)
+            
+            if btn_login:
+                senha_oficial = "Enesa@2026"
+                if "senha_global" in st.secrets:
+                    senha_oficial = st.secrets["senha_global"]
+                    
+                if senha_input == senha_oficial:
+                    st.session_state.logged_in = True
+                    st.rerun()
+                else:
+                    st.error("❌ Senha incorreta! Tente novamente.")
+    st.stop() # Bloqueia a renderização do restante do script
+
 # Removido o header global daqui para aparecer apenas após o login.
 
 # =================================================================
@@ -549,6 +579,55 @@ def preparar_dataframe(df):
     df = df[df["NOME"].str.strip() != ""]
     
     return df
+
+# =================================================================
+# INTEGRAÇÃO GOOGLE DRIVE (BACKUP NUVEM)
+# =================================================================
+def backup_google_drive(file_path, mime_type, file_name):
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
+        
+        # Tentar pegar as credenciais que já usamos pro Sheets
+        if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+            creds_info = st.secrets["connections"]["gsheets"]
+            # Precisamos do escopo do Drive
+            scopes = ['https://www.googleapis.com/auth/drive.file']
+            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
+            
+            drive_service = build('drive', 'v3', credentials=creds)
+            
+            # Buscar pasta "RDO_Backups"
+            pasta_nome = "RDO_Backups"
+            query = f"name='{pasta_nome}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            response = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+            pastas = response.get('files', [])
+            
+            if not pastas:
+                # Criar pasta se não existe
+                folder_metadata = {
+                    'name': pasta_nome,
+                    'mimeType': 'application/vnd.google-apps.folder'
+                }
+                folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
+                folder_id = folder.get('id')
+            else:
+                folder_id = pastas[0].get('id')
+                
+            file_metadata = {
+                'name': file_name,
+                'parents': [folder_id]
+            }
+            media = MediaFileUpload(file_path, mimetype=mime_type, resumable=True)
+            arquivo_salvo = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            return True, f"Backup salvo no Drive com ID: {arquivo_salvo.get('id')}"
+        else:
+            return False, "Credenciais do Google não encontradas no secrets.toml"
+    except ImportError:
+        return False, "Biblioteca google-api-python-client não instalada."
+    except Exception as e:
+        return False, f"Erro no Drive: {e}"
 
 # =================================================================
 # SESSION STATE
@@ -1062,6 +1141,35 @@ if st.session_state.df is not None:
                 
         st.markdown("---")
         
+        st.markdown("**📈 Evolução Diária de Entregas de RDC (Mês Atual)**")
+        if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
+            df_hist_dash = st.session_state.df_historico_f1.copy()
+            df_hist_dash["DATA"] = pd.to_datetime(df_hist_dash["DATA"], errors='coerce')
+            mes_atual = datetime.date.today().strftime("%Y-%m")
+            df_hist_dash = df_hist_dash[df_hist_dash["DATA"].dt.strftime("%Y-%m") == mes_atual]
+            
+            if not df_hist_dash.empty:
+                # Contar quantos RDCs entregues por dia
+                entregas_por_dia = df_hist_dash.groupby(df_hist_dash["DATA"].dt.strftime("%Y-%m-%d")).size().reset_index(name="Entregas")
+                entregas_por_dia.columns = ["Data", "Qtd Entregue"]
+                
+                fig_evolucao = px.line(entregas_por_dia, x="Data", y="Qtd Entregue", markers=True, 
+                                       title="", line_shape="spline", color_discrete_sequence=["#4a9eed"])
+                fig_evolucao.update_layout(
+                    xaxis_title="Dia", yaxis_title="RDCs Entregues",
+                    margin=dict(l=0, r=20, t=10, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e0e4ea"), height=250
+                )
+                fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=8))
+                st.plotly_chart(fig_evolucao, use_container_width=True)
+            else:
+                st.info("Ainda não há entregas registradas para o mês atual.")
+        else:
+            st.info("Base de Histórico de RDCs vazia.")
+
+        st.markdown("---")
+        
         st.markdown(f"**👥 Liderança: Resumo Geral de Encarregados ({filtro_dash_mo})**")
         df_enc_full = df_dash[(df_dash["ENCARREGADO"].str.strip() != "") & (df_dash["ENCARREGADO"].isin(lista_completa_encarregados))]
         if not df_enc_full.empty:
@@ -1089,13 +1197,84 @@ if st.session_state.df is not None:
 
     with tab_resumo:
         st.markdown("### 📅 Resumo Diário")
-        hoje = datetime.date.today().strftime("%Y-%m-%d")
+        
+        # --- FIX: Filtro de data para ver o resumo de qualquer dia ---
+        data_resumo = st.date_input("Selecione a Data do Resumo:", datetime.date.today())
+        data_filtro_str = data_resumo.strftime("%Y-%m-%d")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)", key="toggle_manual_resumo"):
+            with st.form("form_resumo_manual"):
+                st.info("💡 Você pode colar a lista inteira de encarregados aqui (um por linha ou separados por vírgula). O robô vai verificar: se a IA já tiver lido, ele ignora. Se faltou, ele adiciona!")
+                col_m1, col_m2 = st.columns([1, 2])
+                with col_m1:
+                    data_manual_resumo = st.date_input("Data do RDC a lançar:", value=data_resumo, key="data_manual_resumo")
+                with col_m2:
+                    nomes_colados_resumo = st.text_area("Cole os nomes dos Encarregados", height=120, key="nomes_colados_resumo")
+                
+                btn_manual_resumo = st.form_submit_button("Processar Lista e Lançar no Sistema")
+                if btn_manual_resumo and nomes_colados_resumo.strip():
+                    import re
+                    import difflib
+                    data_str_resumo = data_manual_resumo.strftime("%Y-%m-%d")
+                    
+                    lista_suja = [n.strip().upper() for n in re.split(r'[\n,;]', nomes_colados_resumo) if n.strip()]
+                    
+                    novos_registros = []
+                    nomes_ja_existentes = 0
+                    nomes_nao_encontrados = []
+                    
+                    for nome_sujo in lista_suja:
+                        match = difflib.get_close_matches(nome_sujo, lista_completa_encarregados, n=1, cutoff=0.55)
+                        if match:
+                            nome_oficial = match[0]
+                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_str_resumo) & (st.session_state.df_historico_f1["ENCARREGADO"] == nome_oficial)).any()
+                            if ja_existe:
+                                nomes_ja_existentes += 1
+                            else:
+                                novos_registros.append({"DATA": data_str_resumo, "ENCARREGADO": nome_oficial})
+                        else:
+                            nomes_nao_encontrados.append(nome_sujo)
+                            
+                    if novos_registros:
+                        df_novos = pd.DataFrame(novos_registros)
+                        
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                if not df_fresco.empty:
+                                    df_fresco = df_fresco.dropna(how='all')
+                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                else:
+                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                
+                                conn.update(worksheet="Historico_F1", data=df_final)
+                                st.session_state.df_historico_f1 = df_final
+                                st.cache_data.clear()
+                                st.success(f"✅ {len(novos_registros)} novos RDCs adicionados e sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar na nuvem: {e}")
+                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        else:
+                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                            st.success(f"✅ {len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).")
+                    elif nomes_ja_existentes > 0:
+                        st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
+                        
+                    if nomes_nao_encontrados:
+                        st.error(f"❌ Não encontrei na lista oficial (verifique a escrita): {', '.join(nomes_nao_encontrados)}")
+                        
+                    time.sleep(3)
+                    st.rerun()
+                    
+        st.markdown("<hr style='margin-top:0px; margin-bottom:20px'>", unsafe_allow_html=True)
+
         
         df_hoje = pd.DataFrame()
         if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
             df_hist = st.session_state.df_historico_f1.copy()
             df_hist["DATA_STR"] = pd.to_datetime(df_hist["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
-            df_hoje = df_hist[df_hist["DATA_STR"] == hoje]
+            df_hoje = df_hist[df_hist["DATA_STR"] == data_filtro_str]
             
         encarregados_esperados = len(lista_completa_encarregados)
         entregues_hoje_lista = [e for e in df_hoje["ENCARREGADO"].unique() if e in lista_completa_encarregados] if not df_hoje.empty else []
@@ -1143,15 +1322,21 @@ if st.session_state.df is not None:
                         nome_p = str(pendente).encode('latin-1', 'replace').decode('latin-1')
                         pdf.cell(0, 8, f'- {nome_p}', 0, 1, 'L')
                         
+                    nome_pdf = f"Cobranca_RDC_{hoje}.pdf"
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                         pdf.output(tmp.name)
                         with open(tmp.name, "rb") as f:
                             pdf_bytes = f.read()
+                            
+                        # Backup Drive
+                        success, msg = backup_google_drive(tmp.name, "application/pdf", nome_pdf)
+                        if success:
+                            st.toast("☁️ Relatório PDF salvo no Drive!")
                     
                     st.download_button(
                         label="⬇️ Baixar PDF",
                         data=pdf_bytes,
-                        file_name=f"Cobranca_RDC_{hoje}.pdf",
+                        file_name=nome_pdf,
                         mime="application/pdf",
                         type="primary",
                         use_container_width=True
@@ -1188,9 +1373,15 @@ if st.session_state.df is not None:
                             hoje = datetime.datetime.now()
                             pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
                             os.makedirs(pasta_hist, exist_ok=True)
-                            with open(os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}"), "wb") as f:
+                            
+                            caminho_local = os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
+                            with open(caminho_local, "wb") as f:
                                 f.write(buffer.getvalue())
-                        except Exception:
+                                
+                            success, msg = backup_google_drive(caminho_local, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
+                            if success:
+                                st.toast("☁️ Backup salvo no Google Drive!")
+                        except Exception as e:
                             pass
                         buffer.seek(0)
                         st.download_button("⬇️ Baixar Planilha", data=buffer, file_name=nome_arquivo, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
@@ -1225,7 +1416,20 @@ if st.session_state.df is not None:
                                             zf.writestr(f"RDC_{enc.replace(' ', '_')}.xlsx", buf.read())
                                             qtd += 1
                             zip_buffer.seek(0)
-                            st.download_button(f"⬇️ Baixar Todos ({qtd} arquivos)", data=zip_buffer, file_name=f"LOTE_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip", mime="application/zip", use_container_width=True)
+                            nome_zip = f"LOTE_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                            st.download_button(f"⬇️ Baixar Todos ({qtd} arquivos)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
+                            
+                            try:
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip:
+                                    tmp_zip.write(zip_buffer.getvalue())
+                                    tmp_zip_path = tmp_zip.name
+                                success, msg = backup_google_drive(tmp_zip_path, "application/zip", nome_zip)
+                                if success:
+                                    st.toast("☁️ Lote salvo no Google Drive!")
+                                os.remove(tmp_zip_path)
+                            except:
+                                pass
+                                
                             st.success(f"✅ {qtd} planilhas geradas!")
                         except Exception as e:
                             st.error(f"Erro: {e}")
@@ -1507,10 +1711,10 @@ if st.session_state.df is not None:
             
             st.markdown("#### Configuração e Upload")
             if not chave_padrao:
-                chave_padrao = st.text_input("🔑 Cole sua Chave da API Gemini:", type="password", help="Acesse https://aistudio.google.com/apikey para gerar sua chave. Ela fica oculta e protegida.")
+                chave_padrao = st.text_input("🔑 Cole suas Chaves da API Gemini (separadas por vírgula):", type="password", help="Se usar múltiplas chaves, o robô alterna em caso de limite.")
             
             if not chave_padrao:
-                st.info("☝️ Cole a sua chave de API do Gemini acima para ativar o robô de leitura.")
+                st.info("☝️ Cole a(s) sua(s) chave(s) de API do Gemini acima para ativar o robô de leitura.")
             
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
                 
@@ -1520,7 +1724,9 @@ if st.session_state.df is not None:
                 # --- FIX: Evitar que o Gemini tente usar o Service Account do Google Sheets ---
                 old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
                 
-                client = genai.Client(api_key=chave_padrao)
+                lista_chaves = [c.strip() for c in chave_padrao.split(",") if c.strip()]
+                idx_chave_atual = 0
+                client = genai.Client(api_key=lista_chaves[idx_chave_atual])
                 nomes_para_prompt = ", ".join(lista_encarregados_base)
                 
                 prompt_ia = f"""
@@ -1574,7 +1780,7 @@ if st.session_state.df is not None:
                             for tentativa in range(max_tentativas):
                                 try:
                                     resposta = client.models.generate_content(
-                                        model='gemini-1.5-flash',
+                                        model='gemini-2.5-flash',
                                         contents=[arquivo_up, prompt_ia],
                                         config=genai.types.GenerateContentConfig(
                                             response_mime_type="application/json",
@@ -1615,29 +1821,34 @@ if st.session_state.df is not None:
                                             dados['AREA'] = ''
                                         st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
                                     
-                                        # Registro F1
-                                        enc_lido = str(dados.get('ENCARREGADO', '')).strip()
-                                        if enc_lido:
-                                            # Usa a data do formulário RDC extraída pela IA. Se falhar, cai pra data de hoje.
-                                            data_extraida = dados.get('DATA', '').strip()
-                                            try:
-                                                # tenta converter pra garantir que está em YYYY-MM-DD
-                                                data_registro = pd.to_datetime(data_extraida).strftime('%Y-%m-%d')
-                                            except:
-                                                data_registro = datetime.date.today().strftime('%Y-%m-%d')
-                                            
-                                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
-                                            if not ja_existe:
-                                                novo_registro = pd.DataFrame([{"DATA": data_registro, "ENCARREGADO": enc_lido}])
-                                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, novo_registro], ignore_index=True)
-                                                st.session_state.f1_modificado = True
-                                    
-                                        # Apenas extrai os dados, sem atualizar a base principal (a pedido do usuário)
+                                        # Apenas extrai os dados, aguardando validação do usuário.
 
                                     sucesso_arquivo = True
                                     break 
 
                                 except Exception as inner_e:
+                                    erro_str = str(inner_e)
+                                    if '429' in erro_str or 'RESOURCE_EXHAUSTED' in erro_str:
+                                        if tentativa < max_tentativas - 1:
+                                            if idx_chave_atual < len(lista_chaves) - 1:
+                                                idx_chave_atual += 1
+                                                client = genai.Client(api_key=lista_chaves[idx_chave_atual])
+                                                st.warning(f"🔄 Limite atingido na chave atual. Trocando para a chave reserva {idx_chave_atual + 1}/{len(lista_chaves)}...")
+                                                time.sleep(2)
+                                                continue
+                                            else:
+                                                st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                                time.sleep(60)
+                                                continue
+                                            
+                                    msg_erro = f"Erro detalhado na IA: {inner_e}"
+                                    try:
+                                        # Tentar buscar a lista de modelos para debug
+                                        modelos = [m.name for m in client.models.list()]
+                                        msg_erro += f" | Modelos liberados na sua chave: {modelos}"
+                                    except:
+                                        pass
+                                    st.error(msg_erro)
                                     if '503' in str(inner_e):
                                         time.sleep(10)
                                     else:
@@ -1649,34 +1860,21 @@ if st.session_state.df is not None:
                                 st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
                             else:
                                 st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
+                                # Se falhou pelo menos um, mantem expandido
+                                st.session_state.teve_falha_ia = True
                             
                         except Exception as e:
                             st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
+                            st.session_state.teve_falha_ia = True
                         
                         progresso.progress((i + 1) / total_arquivos)
 
-                    status.update(label="🎉 Leitura concluída!", state="complete", expanded=False)
+                    expandir_status = st.session_state.get('teve_falha_ia', False)
+                    status.update(label="🎉 Leitura concluída!" if not expandir_status else "⚠️ Leitura finalizada com erros", state="complete", expanded=expandir_status)
+                    st.session_state.teve_falha_ia = False
                     
-                    # --- FIX: Salvar F1 na Nuvem em Lote ---
-                    if st.session_state.get('f1_modificado', False):
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
-                                if not df_fresco.empty:
-                                    df_fresco = df_fresco.dropna(how='all')
-                                    df_final = pd.concat([df_fresco, st.session_state.df_historico_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                else:
-                                    df_final = st.session_state.df_historico_f1
-                                
-                                conn.update(worksheet="Historico_F1", data=df_final)
-                                st.session_state.df_historico_f1 = df_final
-                                st.cache_data.clear()
-                            except Exception as e:
-                                st.error(f"⚠️ Erro ao salvar histórico da F1 na nuvem: {e}")
-                        st.session_state.f1_modificado = False
-                time.sleep(2)
+                    pass
                 st.session_state.force_use_local = True
-                st.rerun()
                 
             if not st.session_state.df_ia.empty:
                 st.markdown("#### Dados Extraídos")
@@ -1702,7 +1900,51 @@ if st.session_state.df is not None:
                         st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA', 'LOCAL'])
                         st.rerun()
                 
-                st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
+                st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
+                df_editado = st.data_editor(df_filtrado, hide_index=True, use_container_width=True, key="editor_ia_df")
+                
+                if st.button("✅ Confirmar e Salvar no Sistema", type="primary", use_container_width=True):
+                    # Salva no df_ia
+                    st.session_state.df_ia = df_editado
+                    
+                    # Salva no F1
+                    novos_registros = []
+                    for _, row in df_editado.iterrows():
+                        enc_lido = str(row.get('ENCARREGADO', '')).strip()
+                        if enc_lido and enc_lido in lista_encarregados_base:
+                            data_extraida = str(row.get('DATA', '')).strip()
+                            try:
+                                data_registro = pd.to_datetime(data_extraida).strftime('%Y-%m-%d')
+                            except:
+                                data_registro = datetime.date.today().strftime('%Y-%m-%d')
+                            
+                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
+                            if not ja_existe:
+                                novos_registros.append({"DATA": data_registro, "ENCARREGADO": enc_lido})
+                                
+                    if novos_registros:
+                        df_novos = pd.DataFrame(novos_registros)
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                if not df_fresco.empty:
+                                    df_fresco = df_fresco.dropna(how='all')
+                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                else:
+                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                
+                                conn.update(worksheet="Historico_F1", data=df_final)
+                                st.session_state.df_historico_f1 = df_final
+                                st.cache_data.clear()
+                                st.success(f"✅ {len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar na nuvem: {e}")
+                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        else:
+                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                            st.success(f"✅ {len(novos_registros)} RDCs registrados localmente no Resumo Diário!")
+                    else:
+                        st.info("ℹ️ Os dados foram processados, mas os Encarregados dessa lista já haviam sido contabilizados.")
 
     with tab_ia_cc:
         st.markdown("### Robô Atualizador de C.C (Google Gemini)")
@@ -1717,7 +1959,7 @@ if st.session_state.df is not None:
             
             st.markdown("#### Configuração e Upload")
             if not chave_padrao:
-                chave_padrao = st.text_input("🔑 Cole sua Chave da API Gemini:", type="password", help="Chave oculta e protegida.", key="chave_cc")
+                chave_padrao = st.text_input("🔑 Cole suas Chaves da API Gemini (separadas por vírgula):", type="password", help="Chave oculta e protegida.", key="chave_cc")
             
             arquivos_scan_cc = st.file_uploader("Upload de RDCs para atualização de C.C (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True, key="uploader_cc")
                 
@@ -1725,7 +1967,9 @@ if st.session_state.df is not None:
             
             if btn_processar_cc and arquivos_scan_cc and chave_padrao:
                 old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-                client = genai.Client(api_key=chave_padrao)
+                lista_chaves = [c.strip() for c in chave_padrao.split(",") if c.strip()]
+                idx_chave_atual = 0
+                client = genai.Client(api_key=lista_chaves[idx_chave_atual])
                 nomes_para_prompt = ", ".join(lista_encarregados_base)
                 
                 prompt_ia_cc = f"""
@@ -1879,6 +2123,27 @@ if st.session_state.df is not None:
                                 break 
 
                             except Exception as inner_e:
+                                erro_str = str(inner_e)
+                                if '429' in erro_str or 'RESOURCE_EXHAUSTED' in erro_str:
+                                    if tentativa < max_tentativas - 1:
+                                        if idx_chave_atual < len(lista_chaves) - 1:
+                                            idx_chave_atual += 1
+                                            client = genai.Client(api_key=lista_chaves[idx_chave_atual])
+                                            st.warning(f"🔄 Limite atingido na chave atual. Trocando para a chave reserva {idx_chave_atual + 1}/{len(lista_chaves)}...")
+                                            time.sleep(2)
+                                            continue
+                                        else:
+                                            st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                            time.sleep(60)
+                                            continue
+                                        
+                                msg_erro = f"Erro detalhado na IA: {inner_e}"
+                                try:
+                                    modelos = [m.name for m in client.models.list()]
+                                    msg_erro += f" | Modelos liberados na sua chave: {modelos}"
+                                except:
+                                    pass
+                                st.error(msg_erro)
                                 if '503' in str(inner_e):
                                     time.sleep(10)
                                 else:
@@ -1890,12 +2155,18 @@ if st.session_state.df is not None:
                             st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
                         else:
                             st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
+                            st.session_state.teve_falha_ia_cc = True
                             
                     except Exception as e:
                         st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
+                        st.session_state.teve_falha_ia_cc = True
                         
                     progresso.progress((i + 1) / total_arquivos)
 
+                expandir_status = st.session_state.get('teve_falha_ia_cc', False)
+                status.update(label="🎉 Leitura concluída!" if not expandir_status else "⚠️ Leitura finalizada com erros", state="complete", expanded=expandir_status)
+                st.session_state.teve_falha_ia_cc = False
+                
                 if houve_atualizacao_global:
                     try:
                         df_atual = preparar_dataframe(df_atual)
