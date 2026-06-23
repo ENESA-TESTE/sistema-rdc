@@ -2014,6 +2014,14 @@ if st.session_state.df is not None:
                 lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
                 df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
                 
+                # --- NOVO FILTRO DE DATA ---
+                datas_disponiveis = df_filtrado['DATA'].dropna().unique().tolist()
+                if datas_disponiveis:
+                    datas_sel = st.multiselect("📅 Filtrar Tabela por Data (Deixe em branco para ver todos):", sorted(datas_disponiveis, reverse=True), default=None)
+                    if datas_sel:
+                        df_filtrado = df_filtrado[df_filtrado['DATA'].isin(datas_sel)]
+                # ---------------------------
+                
                 col_dw1, col_dw2 = st.columns([1, 1])
                 with col_dw1:
                     buffer_df = io.BytesIO()
