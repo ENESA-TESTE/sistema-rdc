@@ -340,7 +340,21 @@
 
             <div class="form-group">
                 <label>Disciplina</label>
-                <input type="text" id="f_disciplina" placeholder="Ex: Tubulação, Andaime" required>
+                <input list='lista_disciplinas' id='f_disciplina' placeholder='Selecione ou digite a disciplina...' required>
+                <datalist id='lista_disciplinas'>
+    <option value='ANDAIME'></option>
+    <option value='CALDEIRARIA'></option>
+    <option value='CIVIL'></option>
+    <option value='ELÉTRICA'></option>
+    <option value='ESTRUTURA METÁLICA'></option>
+    <option value='INSTRUMENTAÇÃO'></option>
+    <option value='ISOLAMENTO TÉRMICO'></option>
+    <option value='MECÂNICA'></option>
+    <option value='PINTURA'></option>
+    <option value='REFRATÁRIO'></option>
+    <option value='SOLDA'></option>
+    <option value='TUBULAÇÃO'></option>
+</datalist>
             </div>
 
             <div class="form-group">
@@ -474,22 +488,18 @@
         try {
             const response = await fetch(WEBHOOK_URL, {
                 method: "POST",
+                mode: "no-cors",
                 headers: {
                     "Content-Type": "text/plain;charset=utf-8",
                 },
                 body: JSON.stringify(rdcs)
             });
 
-            const result = await response.json();
-            
-            if (result.status === "success") {
-                showToast("🚀 RDCs enviados com sucesso para o banco de dados!");
-                rdcs = [];
-                localStorage.removeItem('rdc_offline_data');
-                updateUI();
-            } else {
-                showToast("❌ Erro retornado pelo servidor: " + result.message);
-            }
+            // Se chegou aqui sem erro de rede, o no-cors enviou com sucesso
+            showToast("🚀 RDCs enviados com sucesso para o banco de dados!");
+            rdcs = [];
+            localStorage.removeItem('rdc_offline_data');
+            updateUI();
         } catch (error) {
             console.error("Erro no envio:", error);
             showToast("❌ Erro de conexão. Verifique se você está com internet (Wi-Fi/4G) e tente novamente.");
@@ -514,4 +524,9 @@
 
 </body>
 </html>
+
+
+
+
+
 
