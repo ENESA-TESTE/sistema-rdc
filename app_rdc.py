@@ -392,7 +392,7 @@ def preencher_excel(equipe, encarregado_selecionado):
             if letra_fun:
                 ws[f"{letra_fun}{linha_atual}"] = str(row.get("FUNÇÃO", ""))
             linha_atual += 1
-        
+            
         ws.print_area = "A1:R61"
         ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
@@ -635,7 +635,7 @@ def backup_google_drive(file_path, mime_type, file_name):
 if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_ia' not in st.session_state:
-    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
 if 'df_historico_f1' not in st.session_state:
     st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
 if 'mostrar_upload' not in st.session_state:
@@ -1052,7 +1052,7 @@ if st.session_state.df is not None:
         'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
     }
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C"])
+    tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_chat_ia = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C", "💬 Chat IA (Gerente)"])
 
     with tab_dashboard:
         st.markdown("### 🎛️ Centro de Comando (Overview)")
@@ -1096,7 +1096,7 @@ if st.session_state.df is not None:
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
         
         # Linha 1: Cartões de KPI
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric(f"👷 Efetivo ({filtro_dash_mo})", len(df_dash))
         
         qtd_encarregados_dash = len([e for e in df_dash["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
@@ -1111,28 +1111,45 @@ if st.session_state.df is not None:
         
         m4.metric("🔧 Funções na Obra", df_dash["FUNÇÃO"].nunique())
         
+        span_control = round(len(df_dash) / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0
+        m5.metric("⚖️ Span of Control", span_control, help="Média de colaboradores por Encarregado")
+        
         st.markdown("---")
         
-        col_dash1, col_dash2 = st.columns([4, 6])
+        col_dash1, col_dash2, col_dash3 = st.columns([3, 3, 4])
         
         with col_dash1:
             st.markdown("**Status Operacional (Global)**")
             if total_mo_g > 0:
                 df_mo_global = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_g, qtd_moi_g]})
                 fig_mo_g = px.pie(df_mo_global, values="Quantidade", names="Tipo", hole=0.6, color_discrete_sequence=["#27ae60", "#e74c3c"])
-                fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                 st.plotly_chart(fig_mo_g, use_container_width=True)
             else:
                 st.info("Classificação de Mão de Obra não encontrada.")
                 
         with col_dash2:
+            st.markdown("**Efetivo por Área**")
+            df_area = df_dash.copy()
+            df_area['ÁREA_RESUMO'] = df_area['C.C'].apply(lambda x: 'PB' if '125.02' in str(x) and '.005' not in str(x) else ('RB' if '125.01' in str(x) and '.005' not in str(x) else ('ESP' if '.005' in str(x) else 'OUTROS')))
+            df_area_count = df_area[df_area['ÁREA_RESUMO'] != 'OUTROS'].groupby('ÁREA_RESUMO').size().reset_index(name='Quantidade')
+            
+            if not df_area_count.empty and df_area_count['Quantidade'].sum() > 0:
+                cores_areas = {'PB': '#3498db', 'RB': '#e67e22', 'ESP': '#9b59b6'}
+                fig_area = px.pie(df_area_count, values="Quantidade", names="ÁREA_RESUMO", hole=0.6, color="ÁREA_RESUMO", color_discrete_map=cores_areas)
+                fig_area.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                st.plotly_chart(fig_area, use_container_width=True)
+            else:
+                st.info("Áreas não identificadas.")
+                
+        with col_dash3:
             st.markdown(f"**Top 10 Maiores Equipes ({filtro_dash_mo})**")
             df_enc_dash = df_dash[(df_dash["ENCARREGADO"].str.strip() != "") & (df_dash["ENCARREGADO"].isin(lista_completa_encarregados))]
             if not df_enc_dash.empty:
                 top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
                 top_enc.columns = ["Encarregado", "Efetivo"]
                 fig_top_enc = px.bar(top_enc, x="Efetivo", y="Encarregado", orientation="h", color="Efetivo", color_continuous_scale="Blues", text="Efetivo")
-                fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300)
+                fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280)
                 fig_top_enc.update_yaxes(categoryorder="total ascending")
                 fig_top_enc.update_xaxes(visible=False)
                 fig_top_enc.update_coloraxes(showscale=False)
@@ -1141,32 +1158,85 @@ if st.session_state.df is not None:
                 
         st.markdown("---")
         
-        st.markdown("**📈 Evolução Diária de Entregas de RDC (Mês Atual)**")
-        if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
-            df_hist_dash = st.session_state.df_historico_f1.copy()
-            df_hist_dash["DATA"] = pd.to_datetime(df_hist_dash["DATA"], errors='coerce')
-            mes_atual = datetime.date.today().strftime("%Y-%m")
-            df_hist_dash = df_hist_dash[df_hist_dash["DATA"].dt.strftime("%Y-%m") == mes_atual]
-            
-            if not df_hist_dash.empty:
-                # Contar quantos RDCs entregues por dia
-                entregas_por_dia = df_hist_dash.groupby(df_hist_dash["DATA"].dt.strftime("%Y-%m-%d")).size().reset_index(name="Entregas")
-                entregas_por_dia.columns = ["Data", "Qtd Entregue"]
+        col_evolucao, col_gauge = st.columns([6, 4])
+        
+        with col_evolucao:
+            st.markdown("**📈 Evolução Diária de Entregas de RDC (Mês Atual)**")
+            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
+                df_hist_dash = st.session_state.df_historico_f1.copy()
+                df_hist_dash["DATA"] = pd.to_datetime(df_hist_dash["DATA"], errors='coerce')
+                mes_atual = datetime.date.today().strftime("%Y-%m")
+                df_hist_dash = df_hist_dash[df_hist_dash["DATA"].dt.strftime("%Y-%m") == mes_atual]
                 
-                fig_evolucao = px.line(entregas_por_dia, x="Data", y="Qtd Entregue", markers=True, 
-                                       title="", line_shape="spline", color_discrete_sequence=["#4a9eed"])
-                fig_evolucao.update_layout(
-                    xaxis_title="Dia", yaxis_title="RDCs Entregues",
-                    margin=dict(l=0, r=20, t=10, b=0),
-                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#e0e4ea"), height=250
-                )
-                fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=8))
-                st.plotly_chart(fig_evolucao, use_container_width=True)
+                if not df_hist_dash.empty:
+                    entregas_por_dia = df_hist_dash.groupby(df_hist_dash["DATA"].dt.strftime("%Y-%m-%d")).size().reset_index(name="Entregas")
+                    entregas_por_dia.columns = ["Data", "Qtd Entregue"]
+                    
+                    fig_evolucao = px.line(entregas_por_dia, x="Data", y="Qtd Entregue", markers=True, 
+                                           title="", line_shape="spline", color_discrete_sequence=["#4a9eed"])
+                    fig_evolucao.update_layout(
+                        xaxis_title="Dia", yaxis_title="RDCs Entregues",
+                        margin=dict(l=0, r=20, t=10, b=0),
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="#e0e4ea"), height=250
+                    )
+                    fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=8))
+                    st.plotly_chart(fig_evolucao, use_container_width=True)
+                else:
+                    st.info("Ainda não há entregas neste mês.")
             else:
-                st.info("Ainda não há entregas registradas para o mês atual.")
-        else:
-            st.info("Base de Histórico de RDCs vazia.")
+                st.info("Sem histórico de F1.")
+                
+        with col_gauge:
+            st.markdown("**🌡️ Termômetro de Engajamento**")
+            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
+                dias_unicos = df_hist_dash["DATA"].nunique()
+                dias_unicos = dias_unicos if dias_unicos > 0 else 1
+                rdcs_esperados = dias_unicos * len(lista_completa_encarregados)
+                rdcs_entregues = len(df_hist_dash)
+                
+                pct_engajamento = round((rdcs_entregues / rdcs_esperados) * 100, 1) if rdcs_esperados > 0 else 0
+                
+                import plotly.graph_objects as go
+                fig_gauge = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = pct_engajamento,
+                    number = {'suffix': "%", 'font': {'size': 30, 'color': '#e0e4ea'}},
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    gauge = {
+                        'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                        'bar': {'color': "#2c3e50"},
+                        'bgcolor': "rgba(0,0,0,0)",
+                        'borderwidth': 2,
+                        'bordercolor': "gray",
+                        'steps': [
+                            {'range': [0, 60], 'color': '#e74c3c'},
+                            {'range': [60, 85], 'color': '#f1c40f'},
+                            {'range': [85, 100], 'color': '#27ae60'}],
+                        'threshold': {
+                            'line': {'color': "white", 'width': 4},
+                            'thickness': 0.75,
+                            'value': pct_engajamento}
+                    }
+                ))
+                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
+                st.plotly_chart(fig_gauge, use_container_width=True)
+            else:
+                st.info("Sem dados suficientes.")
+                
+        st.markdown("---")
+        st.markdown("**📦 Raio-X da Mão de Obra Indireta (MOI)**")
+        col_moi1, col_moi2 = st.columns([5, 5])
+        with col_moi1:
+            df_moi = df_atual[df_atual["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"].copy()
+            if not df_moi.empty:
+                moi_count = df_moi.groupby("DISCIPLINA").size().reset_index(name="Quantidade")
+                moi_count = moi_count.sort_values(by="Quantidade", ascending=False).head(8)
+                fig_moi = px.pie(moi_count, values="Quantidade", names="DISCIPLINA", hole=0.5, color_discrete_sequence=px.colors.sequential.YlOrRd[::-1])
+                fig_moi.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280)
+                st.plotly_chart(fig_moi, use_container_width=True)
+            else:
+                st.info("Nenhuma MOI na base atual.")
 
         st.markdown("---")
         
@@ -1194,6 +1264,7 @@ if st.session_state.df is not None:
             )
             df_exibicao = df_exibicao[mask]
         st.dataframe(df_exibicao, hide_index=True, use_container_width=True)
+        
 
     with tab_resumo:
         st.markdown("### 📅 Resumo Diário")
@@ -1203,6 +1274,56 @@ if st.session_state.df is not None:
         data_filtro_str = data_resumo.strftime("%Y-%m-%d")
         
         st.markdown("<br>", unsafe_allow_html=True)
+        
+        # --- MÓDULO 1: Controle de Chuva / Paradas ---
+        st.markdown("### 🌤️ Clima e Interferências Diárias")
+        
+        if "df_clima" not in st.session_state:
+            if os.path.exists("clima.json"):
+                st.session_state.df_clima = pd.read_json("clima.json")
+            else:
+                st.session_state.df_clima = pd.DataFrame(columns=["Data", "Condição", "Horas_Paradas", "Observação"])
+                
+        clima_hoje = st.session_state.df_clima[st.session_state.df_clima["Data"] == data_filtro_str]
+        cond_atual = "Ensolarado"
+        horas_atual = 0.0
+        obs_atual = ""
+        if not clima_hoje.empty:
+            cond_atual = str(clima_hoje.iloc[0].get("Condição", "Ensolarado"))
+            try:
+                horas_atual = float(clima_hoje.iloc[0].get("Horas_Paradas", 0.0))
+            except:
+                pass
+            obs_atual = str(clima_hoje.iloc[0].get("Observação", ""))
+        
+        with st.form("form_clima"):
+            col_clima1, col_clima2, col_clima3 = st.columns([2, 2, 4])
+            with col_clima1:
+                opcoes_cond = ["Ensolarado", "Nublado", "Chuva Leve", "Chuva Forte (Impeditiva)"]
+                try:
+                    idx_cond = opcoes_cond.index(cond_atual)
+                except:
+                    idx_cond = 0
+                condicao = st.selectbox("Condição Climática", opcoes_cond, index=idx_cond)
+            with col_clima2:
+                horas_paradas = st.number_input("Horas Perdidas", min_value=0.0, max_value=24.0, step=0.5, value=horas_atual)
+            with col_clima3:
+                obs_clima = st.text_input("Observação / Justificativa", value=obs_atual)
+                
+            if st.form_submit_button("💾 Salvar Registro de Clima"):
+                novo_clima = pd.DataFrame([{"Data": data_filtro_str, "Condição": condicao, "Horas_Paradas": horas_paradas, "Observação": obs_clima}])
+                st.session_state.df_clima = st.session_state.df_clima[st.session_state.df_clima["Data"] != data_filtro_str]
+                st.session_state.df_clima = pd.concat([st.session_state.df_clima, novo_clima], ignore_index=True)
+                st.session_state.df_clima.to_json("clima.json", orient="records")
+                st.success(f"Clima para o dia {data_filtro_str} salvo com sucesso!")
+                
+        if not st.session_state.df_clima.empty:
+            with st.expander("Ver Histórico de Clima do Mês (Dossiê de Pleito)"):
+                df_clima_mes = st.session_state.df_clima[st.session_state.df_clima["Data"].str.startswith(datetime.date.today().strftime("%Y-%m"))]
+                st.dataframe(df_clima_mes, use_container_width=True, hide_index=True)
+                
+        st.markdown("---")
+
         if st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)", key="toggle_manual_resumo"):
             with st.form("form_resumo_manual"):
                 st.info("💡 Você pode colar a lista inteira de encarregados aqui (um por linha ou separados por vírgula). O robô vai verificar: se a IA já tiver lido, ele ignora. Se faltou, ele adiciona!")
@@ -1288,7 +1409,7 @@ if st.session_state.df is not None:
         
         st.markdown("---")
         if encarregados_pendentes > 0:
-            st.error(f"**Atenção:** {encarregados_pendentes} encarregados ainda não entregaram o RDC hoje.")
+            st.error(f"**Atenção:** {encarregados_pendentes} encarregados ainda não entregaram o RDC nesta data ({data_filtro_str}).")
             entregues_list = df_hoje["ENCARREGADO"].unique() if not df_hoje.empty else []
             pendentes_list = [e for e in lista_completa_encarregados if e not in entregues_list]
             
@@ -1305,14 +1426,14 @@ if st.session_state.df is not None:
                             self.set_text_color(0, 0, 0)
                             self.cell(0, 10, 'Relatorio de Pendencias - RDC', 0, 1, 'C')
                             self.set_font('Helvetica', 'I', 10)
-                            self.cell(0, 10, f'Data: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 1, 'C')
+                            self.cell(0, 10, f'Data Referencia: {data_filtro_str} (Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
                             self.ln(5)
                     
                     pdf = PDF()
                     pdf.add_page()
                     pdf.set_font('Helvetica', 'B', 12)
                     pdf.set_text_color(200, 0, 0)
-                    pdf.cell(0, 10, f'{len(pendentes_list)} Encarregados nao entregaram o RDC hoje:', 0, 1, 'L')
+                    pdf.cell(0, 10, f'{len(pendentes_list)} Encarregados nao entregaram o RDC nesta data ({data_filtro_str}):', 0, 1, 'L')
                     pdf.ln(2)
                     
                     pdf.set_font('Helvetica', '', 10)
@@ -1322,7 +1443,7 @@ if st.session_state.df is not None:
                         nome_p = str(pendente).encode('latin-1', 'replace').decode('latin-1')
                         pdf.cell(0, 8, f'- {nome_p}', 0, 1, 'L')
                         
-                    nome_pdf = f"Cobranca_RDC_{hoje}.pdf"
+                    nome_pdf = f"Cobranca_RDC_{data_filtro_str}.pdf"
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                         pdf.output(tmp.name)
                         with open(tmp.name, "rb") as f:
@@ -1343,10 +1464,10 @@ if st.session_state.df is not None:
                     )
                     
             st.markdown("<br>", unsafe_allow_html=True)
-            df_pend = pd.DataFrame({"Encarregados Pendentes (Hoje)": sorted(pendentes_list)})
+            df_pend = pd.DataFrame({f"Encarregados Pendentes ({data_filtro_str})": sorted(pendentes_list)})
             st.dataframe(df_pend, hide_index=True, use_container_width=True)
         else:
-            st.success("🎉 Todos os RDCs de hoje já foram entregues!")
+            st.success(f"🎉 Todos os RDCs desta data ({data_filtro_str}) já foram entregues!")
 
     with tab_emissao:
         st.markdown("### Emissão de RDC")
@@ -1359,6 +1480,8 @@ if st.session_state.df is not None:
             st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado:</strong></td><td>{encarregado_sel}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
             st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
             st.markdown("")
+            
+
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 if st.button("🟢 GERAR EXCEL", type="primary", use_container_width=True):
@@ -1740,6 +1863,7 @@ if st.session_state.df is not None:
                     "DISCIPLINA": "...",
                     "ENCARREGADO": "...",
                     "TURNO": "...",
+                    "DDS": "...",
                     "ATIVIDADE": "...",
                     "CALDEIRA": "...",
                     "LOCAL": "...",
@@ -1752,6 +1876,7 @@ if st.session_state.df is not None:
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
                 - ENCARREGADO: FAÇA O MÁXIMO ESFORÇO POSSÍVEL para descobrir quem é o encarregado. Compare o que está escrito à mão com esta lista oficial: [{nomes_para_prompt}]. Se a caligrafia estiver ruim, com erros de ortografia, ou se houver apenas o primeiro e segundo nome (ex: "Jailson Gois"), use dedução lógica e similaridade para encontrar a correspondência exata na lista. Retorne EXATAMENTE o nome completo que consta na lista fornecida. Somente se for 100% impossível deduzir quem é, retorne o texto 'AJUSTAR NOME'.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
+                - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
                 - ATIVIDADE: OBRIGATÓRIO: Crie um ÚNICO RESUMO SUPER CURTO E DIRETO de NO MÁXIMO 20 PALAVRAS sobre o que foi feito na seção 'ATIVIDADES'. Se você usar mais de 20 palavras, será considerado um erro gravíssimo! Extraia a ação principal, corrija a ortografia e escreva TUDO EM MAIÚSCULAS. NUNCA SEPARE EM LINHAS.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
@@ -1897,7 +2022,7 @@ if st.session_state.df is not None:
                     )
                 with col_dw2:
                     if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA', 'LOCAL'])
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
                         st.rerun()
                 
                 st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
@@ -2390,6 +2515,68 @@ if st.session_state.df is not None:
                 st.dataframe(df_cc_filtrado[colunas_exibir].reset_index(drop=True), hide_index=True, use_container_width=True)
             else:
                 st.info("Nenhum colaborador encontrado para este Centro de Custo.")
+
+    with tab_chat_ia:
+        st.markdown("### 💬 Chat IA (Gerente)")
+        st.caption("Pergunte qualquer coisa sobre a obra, efetivo, atividades ou pendências. A Inteligência Artificial cruzará a base de dados em tempo real.")
+        
+        if "chat_messages" not in st.session_state:
+            st.session_state.chat_messages = []
+            
+        # Exibe histórico de mensagens
+        for message in st.session_state.chat_messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+                
+        # Captura novo input
+        if prompt := st.chat_input("Ex: Quais atividades a equipe de Tubulação realizou hoje?"):
+            st.session_state.chat_messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+                
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+                if not chave_api:
+                    message_placeholder.error("Chave da API do Gemini não configurada.")
+                else:
+                    try:
+                        import google.generativeai as genai
+                        genai.configure(api_key=chave_api)
+                        # Usando um modelo menor/rápido ou o pro dependendo da necessidade
+                        model = genai.GenerativeModel("gemini-1.5-flash")
+                        
+                        # Construindo o contexto
+                        contexto = "Você é um Assistente de Gerenciamento de Obras altamente qualificado (ChatGPT da Obra ENESA). Responda às perguntas com base EXCLUSIVAMENTE nos seguintes dados recentes:\n\n"
+                        
+                        if "df_ia" in st.session_state and not st.session_state.df_ia.empty:
+                            contexto += "--- BASE DE ATIVIDADES DOS RDCs DE HOJE ---\n"
+                            contexto += st.session_state.df_ia.to_string(index=False) + "\n\n"
+                        else:
+                            contexto += "[Sem dados recentes de Atividades (RDC). Lembre o gerente de fazer a Leitura dos RDCs.]\n\n"
+                            
+                        # Resumo rápido de efetivo
+                        contexto += "--- RESUMO DE EFETIVO ATUAL (PDE) ---\n"
+                        contexto += f"Total de Colaboradores Cadastrados: {len(df_atual)}\n"
+                        
+                        if 'df_area_count' in locals() and not df_area_count.empty:
+                            contexto += "Distribuição do Efetivo por Área na Obra:\n"
+                            contexto += df_area_count.to_string(index=False) + "\n\n"
+                            
+                        contexto += f"\nUsuário (Gerente) perguntou: {prompt}\n\nResponda em formato de texto Markdown bem formatado. Seja executivo, direto e claro. Se não souber baseado nos dados acima, diga que os dados não contêm a resposta."
+                        
+                        with st.spinner("Analisando a base de dados..."):
+                            response = model.generate_content(contexto, stream=True)
+                            
+                        full_response = ""
+                        for chunk in response:
+                            if chunk.text:
+                                full_response += chunk.text
+                                message_placeholder.markdown(full_response + "▌")
+                        message_placeholder.markdown(full_response)
+                        st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
+                        
+                    except Exception as e:
+                        message_placeholder.error(f"Erro ao processar a resposta na IA: {e}")
 
 else:
     st.markdown(f"""<div style="background-color: {cor_card}; padding: 50px; border-radius: 12px; text-align: center; border: 2px dashed {cor_borda}; margin-top: 50px;"><h2 style="color: {cor_texto} !important; margin-bottom: 10px;">Aguardando base de dados</h2><p style="font-size: 1rem; color: {cor_texto_sub};">Arraste o arquivo de efetivo (.csv ou .xlsx) na barra lateral para começar.</p></div>""", unsafe_allow_html=True)
