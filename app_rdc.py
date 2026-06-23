@@ -738,23 +738,42 @@ if st.session_state.usuario_logado is None and st.session_state.get("role") != "
 if st.session_state.get("role") == "encarregado":
     st.markdown(f"<div class='enesa-header'><h1 style='color: {cor_azul} !important; font-size: 2.2rem;'>📱 Lançamento de RDC</h1><p style='color: {cor_texto_sub};'>Preencha os dados do seu turno abaixo.</p></div>", unsafe_allow_html=True)
     
-    # Obter lista de encarregados
+    # Obter lista de encarregados carregando direto do arquivo
     encarregados = ["(Sem Encarregados)"]
-    if st.session_state.df is not None:
-        import pandas as pd
-        df_enc = st.session_state.df.copy()
-        if "ENCARREGADO" in df_enc.columns:
-            enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
-            if enc_list:
-                encarregados = sorted(enc_list)
+    try:
+        import os, pandas as pd
+        # Os caminhos globais jã estão definidos acima
+        if os.path.exists(caminho_base_salva_csv):
+            df_enc = pd.read_csv(caminho_base_salva_csv)
+            if "ENCARREGADO" in df_enc.columns:
+                enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
+                if enc_list:
+                    encarregados = sorted(enc_list)
+        elif os.path.exists(caminho_base_salva_xlsx):
+            df_enc = pd.read_excel(caminho_base_salva_xlsx)
+            if "ENCARREGADO" in df_enc.columns:
+                enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
+                if enc_list:
+                    encarregados = sorted(enc_list)
+    except Exception as e:
+        st.error(f"Erro ao carregar encarregados: {e}")
 
     with st.form("form_encarregado"):
         encarregado_sel = st.selectbox("Seu Nome (Encarregado):", encarregados)
         import datetime
         data_sel = st.date_input("Data do RDC:", datetime.date.today())
         turno_sel = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
-        area_sel = st.selectbox("Área:", ["CALDEIRA", "TURBINA", "BOP", "ELÉTRICA", "INSTRUMENTAÇÃO", "CIVIL", "OUTRA"])
-        disc_sel = st.selectbox("Disciplina:", ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA"])
+        
+        area_sel = st.text_input("Área / Local de Trabalho (Deixe em branco se não houver):")
+        
+        st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
+        disc_options = ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA (DIGITAR)"]
+        disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
+        
+        disc_final = disc_sel
+        if disc_sel == "OUTRA (DIGITAR)":
+            disc_final = st.text_input("Qual Disciplina?", placeholder="Ex: Tubulação, Solda...")
+            
         dds_sel = st.text_input("Tópico do DDS:")
         ativ_sel = st.text_area("Atividades Realizadas:")
         prob_sel = st.text_area("Problemas / Interferências:")
@@ -765,16 +784,18 @@ if st.session_state.get("role") == "encarregado":
         if enviar:
             if not ativ_sel.strip():
                 st.error("⚠️ Descreva pelo menos uma atividade realizada.")
+            elif disc_sel == "OUTRA (DIGITAR)" and not disc_final.strip():
+                st.error("⚠️ Digite a disciplina na caixa 'Qual Disciplina?'.")
             else:
                 rdc_json = [{
                     "ENCARREGADO": encarregado_sel,
                     "DATA": data_sel.strftime("%Y/%m/%d"),
                     "TURNO": turno_sel,
-                    "AREA": area_sel,
-                    "DISCIPLINA": disc_sel,
-                    "TOPICO_DDS": dds_sel,
-                    "ATIVIDADES": ativ_sel,
-                    "PROBLEMAS": prob_sel
+                    "AREA": area_sel.strip(),
+                    "DISCIPLINA": disc_final.strip().upper(),
+                    "TOPICO_DDS": dds_sel.strip(),
+                    "ATIVIDADES": ativ_sel.strip(),
+                    "PROBLEMAS": prob_sel.strip()
                 }]
                 
                 import json
