@@ -1052,7 +1052,7 @@ if st.session_state.df is not None:
         'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
     }
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_chat_ia = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C", "💬 Chat IA (Gerente)"])
+    tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C", "📱 RDC Digital"])
 
     with tab_dashboard:
         st.markdown("### 🎛️ Centro de Comando (Overview)")
@@ -2516,67 +2516,59 @@ if st.session_state.df is not None:
             else:
                 st.info("Nenhum colaborador encontrado para este Centro de Custo.")
 
-    with tab_chat_ia:
-        st.markdown("### 💬 Chat IA (Gerente)")
-        st.caption("Pergunte qualquer coisa sobre a obra, efetivo, atividades ou pendências. A Inteligência Artificial cruzará a base de dados em tempo real.")
+    with tab_rdc_digital:
+        st.markdown("### 📱 Lançamento de RDC Digital")
+        st.caption("Preencha as informações do seu dia de trabalho abaixo. O relatório será unificado com os escaneamentos da IA na base de dados principal.")
         
-        if "chat_messages" not in st.session_state:
-            st.session_state.chat_messages = []
+        with st.form("form_rdc_digital"):
+            col1, col2 = st.columns(2)
+            with col1:
+                rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
+                rdc_turno = st.selectbox("Turno:", ["DIURNO", "NOTURNO"])
+                rdc_disciplina = st.text_input("Disciplina Principal (Ex: Mecânica, Elétrica, Andaime):")
+            with col2:
+                rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
+                rdc_area = st.text_input("Área / Local de Trabalho (Ex: PB, RB, Caldeira):")
+                
+            rdc_dds = st.text_area("Tópico do DDS do dia:", height=68)
+            rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
+            rdc_problemas = st.text_area("Problemas / Interrupções / Ocorrências (Opcional):", height=68)
             
-        # Exibe histórico de mensagens
-        for message in st.session_state.chat_messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-                
-        # Captura novo input
-        if prompt := st.chat_input("Ex: Quais atividades a equipe de Tubulação realizou hoje?"):
-            st.session_state.chat_messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-                
-            with st.chat_message("assistant"):
-                message_placeholder = st.empty()
-                if not chave_api:
-                    message_placeholder.error("Chave da API do Gemini não configurada.")
+            submit_rdc = st.form_submit_button("🚀 Salvar RDC Digital", use_container_width=True, type="primary")
+            
+            if submit_rdc:
+                if not rdc_encarregado:
+                    st.error("⚠️ Por favor, selecione o nome do Encarregado.")
+                elif not rdc_atividades.strip():
+                    st.error("⚠️ Por favor, preencha as Atividades Executadas.")
                 else:
-                    try:
-                        import google.generativeai as genai
-                        genai.configure(api_key=chave_api)
-                        # Usando um modelo menor/rápido ou o pro dependendo da necessidade
-                        model = genai.GenerativeModel("gemini-1.5-flash")
+                    # Garantir que df_ia existe na sessão
+                    if 'df_ia' not in st.session_state:
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
                         
-                        # Construindo o contexto
-                        contexto = "Você é um Assistente de Gerenciamento de Obras altamente qualificado (ChatGPT da Obra ENESA). Responda às perguntas com base EXCLUSIVAMENTE nos seguintes dados recentes:\n\n"
-                        
-                        if "df_ia" in st.session_state and not st.session_state.df_ia.empty:
-                            contexto += "--- BASE DE ATIVIDADES DOS RDCs DE HOJE ---\n"
-                            contexto += st.session_state.df_ia.to_string(index=False) + "\n\n"
-                        else:
-                            contexto += "[Sem dados recentes de Atividades (RDC). Lembre o gerente de fazer a Leitura dos RDCs.]\n\n"
-                            
-                        # Resumo rápido de efetivo
-                        contexto += "--- RESUMO DE EFETIVO ATUAL (PDE) ---\n"
-                        contexto += f"Total de Colaboradores Cadastrados: {len(df_atual)}\n"
-                        
-                        if 'df_area_count' in locals() and not df_area_count.empty:
-                            contexto += "Distribuição do Efetivo por Área na Obra:\n"
-                            contexto += df_area_count.to_string(index=False) + "\n\n"
-                            
-                        contexto += f"\nUsuário (Gerente) perguntou: {prompt}\n\nResponda em formato de texto Markdown bem formatado. Seja executivo, direto e claro. Se não souber baseado nos dados acima, diga que os dados não contêm a resposta."
-                        
-                        with st.spinner("Analisando a base de dados..."):
-                            response = model.generate_content(contexto, stream=True)
-                            
-                        full_response = ""
-                        for chunk in response:
-                            if chunk.text:
-                                full_response += chunk.text
-                                message_placeholder.markdown(full_response + "▌")
-                        message_placeholder.markdown(full_response)
-                        st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
-                        
-                    except Exception as e:
-                        message_placeholder.error(f"Erro ao processar a resposta na IA: {e}")
+                    ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+                    novo_item = ultimo_item + 1
+                    
+                    texto_atividade = rdc_atividades.strip()
+                    if rdc_problemas.strip():
+                        texto_atividade += f"\n[Problemas Registrados]: {rdc_problemas.strip()}"
+                    
+                    dados_novos = {
+                        'ITEM': novo_item,
+                        'DATA': rdc_data.strftime("%d/%m/%Y"),
+                        'DISCIPLINA': rdc_disciplina.strip().upper(),
+                        'ENCARREGADO': rdc_encarregado,
+                        'TURNO': rdc_turno,
+                        'DDS': rdc_dds.strip(),
+                        'ATIVIDADE': texto_atividade,
+                        'CALDEIRA': '',
+                        'LOCAL': rdc_area.strip().upper(),
+                        'AREA': rdc_area.strip().upper()
+                    }
+                    
+                    st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados_novos])], ignore_index=True)
+                    st.success(f"✅ RDC Digital de {rdc_encarregado} salvo com sucesso para a data {rdc_data.strftime('%d/%m/%Y')}!")
+                    st.info("Você pode visualizar todos os lançamentos na aba 'Leitor de RDC (IA)'.")
 
 else:
     st.markdown(f"""<div style="background-color: {cor_card}; padding: 50px; border-radius: 12px; text-align: center; border: 2px dashed {cor_borda}; margin-top: 50px;"><h2 style="color: {cor_texto} !important; margin-bottom: 10px;">Aguardando base de dados</h2><p style="font-size: 1rem; color: {cor_texto_sub};">Arraste o arquivo de efetivo (.csv ou .xlsx) na barra lateral para começar.</p></div>""", unsafe_allow_html=True)
