@@ -2569,6 +2569,49 @@ if st.session_state.df is not None:
                     st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados_novos])], ignore_index=True)
                     st.success(f"✅ RDC Digital de {rdc_encarregado} salvo com sucesso para a data {rdc_data.strftime('%d/%m/%Y')}!")
                     st.info("Você pode visualizar todos os lançamentos na aba 'Leitor de RDC (IA)'.")
+        
+        st.markdown("---")
+        st.markdown("### 📥 Sincronização Offline")
+        st.caption("Se você preencheu RDCs pelo celular sem internet (App Offline), suba o pacote de dados aqui para sincronizar tudo de uma vez.")
+        
+        arquivo_sync = st.file_uploader("Arraste o arquivo .json gerado pelo seu celular", type=["json"])
+        
+        if arquivo_sync is not None:
+            try:
+                import json
+                dados_offline = json.load(arquivo_sync)
+                
+                if isinstance(dados_offline, list) and len(dados_offline) > 0:
+                    if 'df_ia' not in st.session_state:
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+                        
+                    ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+                    
+                    novos_registros = []
+                    for r in dados_offline:
+                        ultimo_item += 1
+                        novo_reg = {
+                            'ITEM': ultimo_item,
+                            'DATA': r.get('DATA', ''),
+                            'DISCIPLINA': str(r.get('DISCIPLINA', '')).strip().upper(),
+                            'ENCARREGADO': r.get('ENCARREGADO', ''),
+                            'TURNO': r.get('TURNO', ''),
+                            'DDS': r.get('DDS', ''),
+                            'ATIVIDADE': r.get('ATIVIDADE', ''),
+                            'CALDEIRA': '',
+                            'LOCAL': str(r.get('LOCAL', '')).strip().upper(),
+                            'AREA': str(r.get('AREA', '')).strip().upper()
+                        }
+                        novos_registros.append(novo_reg)
+                        
+                    st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame(novos_registros)], ignore_index=True)
+                    st.success(f"📦 Sincronização concluída! {len(novos_registros)} RDCs inseridos na base de dados com sucesso.")
+                    st.balloons()
+                else:
+                    st.warning("⚠️ O arquivo enviado parece estar vazio ou inválido.")
+            except Exception as e:
+                st.error(f"❌ Erro ao ler o arquivo de sincronização: {e}")
+
 
 else:
     st.markdown(f"""<div style="background-color: {cor_card}; padding: 50px; border-radius: 12px; text-align: center; border: 2px dashed {cor_borda}; margin-top: 50px;"><h2 style="color: {cor_texto} !important; margin-bottom: 10px;">Aguardando base de dados</h2><p style="font-size: 1rem; color: {cor_texto_sub};">Arraste o arquivo de efetivo (.csv ou .xlsx) na barra lateral para começar.</p></div>""", unsafe_allow_html=True)
