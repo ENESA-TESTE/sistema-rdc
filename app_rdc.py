@@ -2574,43 +2574,49 @@ if st.session_state.df is not None:
         st.markdown("### 📥 Sincronização Offline")
         st.caption("Se você preencheu RDCs pelo celular sem internet (App Offline), suba o pacote de dados aqui para sincronizar tudo de uma vez.")
         
-        arquivo_sync = st.file_uploader("Arraste o arquivo .json gerado pelo seu celular", type=["json"])
+        WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
         
-        if arquivo_sync is not None:
-            try:
-                import json
-                dados_offline = json.load(arquivo_sync)
-                
-                if isinstance(dados_offline, list) and len(dados_offline) > 0:
-                    if 'df_ia' not in st.session_state:
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
-                        
-                    ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+        if st.button("🔄 Puxar Dados Automáticos (Google Sheets)", type="primary", use_container_width=True):
+            with st.spinner("Conectando ao Banco de Dados na Nuvem..."):
+                try:
+                    import requests
+                    response = requests.get(WEBHOOK_URL, timeout=15)
                     
-                    novos_registros = []
-                    for r in dados_offline:
-                        ultimo_item += 1
-                        novo_reg = {
-                            'ITEM': ultimo_item,
-                            'DATA': r.get('DATA', ''),
-                            'DISCIPLINA': str(r.get('DISCIPLINA', '')).strip().upper(),
-                            'ENCARREGADO': r.get('ENCARREGADO', ''),
-                            'TURNO': r.get('TURNO', ''),
-                            'DDS': r.get('DDS', ''),
-                            'ATIVIDADE': r.get('ATIVIDADE', ''),
-                            'CALDEIRA': '',
-                            'LOCAL': str(r.get('LOCAL', '')).strip().upper(),
-                            'AREA': str(r.get('AREA', '')).strip().upper()
-                        }
-                        novos_registros.append(novo_reg)
+                    if response.status_code == 200:
+                        dados_offline = response.json()
                         
-                    st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame(novos_registros)], ignore_index=True)
-                    st.success(f"📦 Sincronização concluída! {len(novos_registros)} RDCs inseridos na base de dados com sucesso.")
-                    st.balloons()
-                else:
-                    st.warning("⚠️ O arquivo enviado parece estar vazio ou inválido.")
-            except Exception as e:
-                st.error(f"❌ Erro ao ler o arquivo de sincronização: {e}")
+                        if isinstance(dados_offline, list) and len(dados_offline) > 0:
+                            if 'df_ia' not in st.session_state:
+                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+                                
+                            ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+                            
+                            novos_registros = []
+                            for r in dados_offline:
+                                ultimo_item += 1
+                                novo_reg = {
+                                    'ITEM': ultimo_item,
+                                    'DATA': r.get('DATA', ''),
+                                    'DISCIPLINA': str(r.get('DISCIPLINA', '')).strip().upper(),
+                                    'ENCARREGADO': r.get('ENCARREGADO', ''),
+                                    'TURNO': r.get('TURNO', ''),
+                                    'DDS': r.get('DDS', ''),
+                                    'ATIVIDADE': r.get('ATIVIDADE', ''),
+                                    'CALDEIRA': '',
+                                    'LOCAL': str(r.get('AREA', '')).strip().upper(),
+                                    'AREA': str(r.get('AREA', '')).strip().upper()
+                                }
+                                novos_registros.append(novo_reg)
+                                
+                            st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame(novos_registros)], ignore_index=True)
+                            st.success(f"📦 Sincronização Automática concluída! {len(novos_registros)} RDCs puxados do Google Sheets com sucesso.")
+                            st.balloons()
+                        else:
+                            st.info("👍 Nenhum RDC novo pendente no Google Sheets no momento.")
+                    else:
+                        st.error(f"❌ Erro de conexão. Código HTTP: {response.status_code}")
+                except Exception as e:
+                    st.error(f"❌ Falha de rede ao tentar conectar com a nuvem: {e}")
 
 
 else:
