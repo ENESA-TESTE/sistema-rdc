@@ -331,89 +331,7 @@ celula_matricula = "B9"
 celula_nome = "C9"
 celula_funcao = "H9"
 
-# =================================================================
-# MODO ENCARREGADO (Lançamento Isolado via QR Code ou Senha)
-# =================================================================
-if st.session_state.get("role") == "encarregado":
-    st.markdown(f"<div class='enesa-header'><h1 style='color: {cor_azul} !important; font-size: 2.2rem;'>📱 Lançamento de RDC</h1><p style='color: {cor_texto_sub};'>Preencha os dados do seu turno abaixo.</p></div>", unsafe_allow_html=True)
-    
-    encarregados = ["(Sem Encarregados)"]
-    try:
-        import os, pandas as pd
-        df_enc = None
-        if os.path.exists(caminho_base_salva_csv):
-            df_enc = pd.read_csv(caminho_base_salva_csv)
-        elif os.path.exists(caminho_base_salva_xlsx):
-            df_enc = pd.read_excel(caminho_base_salva_xlsx)
-        elif os.path.exists(caminho_pde_padrao):
-            try:
-                df_enc = pd.read_csv(caminho_pde_padrao, sep=";", encoding="latin-1")
-            except:
-                df_enc = pd.read_csv(caminho_pde_padrao)
-                
-        if df_enc is not None and "ENCARREGADO" in df_enc.columns:
-            enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
-            if enc_list:
-                encarregados = sorted(enc_list)
-    except Exception:
-        pass
 
-    with st.form("form_encarregado_isolado"):
-        encarregado_sel = st.selectbox("Seu Nome (Encarregado):", encarregados)
-        import datetime
-        data_sel = st.date_input("Data do RDC:", datetime.date.today())
-        turno_sel = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
-        
-        area_sel = st.text_input("Área / Local de Trabalho (Ex: PB, RB, Caldeira):")
-        
-        st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
-        disc_options = ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA (DIGITAR)"]
-        disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
-        
-        disc_final = disc_sel
-        if disc_sel == "OUTRA (DIGITAR)":
-            disc_final = st.text_input("Qual Disciplina?", placeholder="Ex: Tubulação, Solda...")
-            
-        dds_sel = st.text_input("Tópico do DDS:")
-        ativ_sel = st.text_area("Atividades Realizadas:", height=150)
-        prob_sel = st.text_area("Problemas / Interferências:", height=68)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        enviar = st.form_submit_button("🚀 Enviar RDC para a Base", use_container_width=True)
-        
-        if enviar:
-            if not ativ_sel.strip():
-                st.error("⚠️ Descreva pelo menos uma atividade realizada.")
-            elif disc_sel == "OUTRA (DIGITAR)" and not disc_final.strip():
-                st.error("⚠️ Digite a disciplina na caixa 'Qual Disciplina?'.")
-            else:
-                rdc_json = [{
-                    "ENCARREGADO": encarregado_sel,
-                    "DATA": data_sel.strftime("%Y/%m/%d"),
-                    "TURNO": turno_sel,
-                    "AREA": area_sel.strip().upper(),
-                    "DISCIPLINA": disc_final.strip().upper(),
-                    "TOPICO_DDS": dds_sel.strip(),
-                    "ATIVIDADES": ativ_sel.strip(),
-                    "PROBLEMAS": prob_sel.strip()
-                }]
-                
-                import json
-                import requests
-                
-                WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
-                
-                try:
-                    with st.spinner("Enviando dados..."):
-                        res = requests.post(WEBHOOK_URL, json=rdc_json, allow_redirects=True)
-                    if res.status_code == 200:
-                        st.success("✅ RDC enviado com sucesso! Você já pode fechar esta página.")
-                    else:
-                        st.error(f"❌ Erro ao enviar. Servidor retornou: {res.text}")
-                except Exception as e:
-                    st.error(f"❌ Falha de conexão: {e}")
-                    
-    st.stop() # Finaliza o script para não mostrar o restante do site
 
 # =================================================================
 # FUNÇÕES UTILITÁRIAS
@@ -1135,6 +1053,75 @@ if st.session_state.df is not None:
         "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
     ]
     lista_completa_encarregados = sorted([e.upper() for e in encarregados_f1_oficial])
+
+    # =================================================================
+    # MODO ENCARREGADO (Lançamento Nativo com Formatação Original)
+    # =================================================================
+    if st.session_state.get("role") == "encarregado":
+        st.markdown("### 📱 Lançamento de RDC Digital")
+        st.caption("Preencha as informações do seu dia de trabalho abaixo. Os dados serão salvos na nuvem.")
+        
+        with st.form("form_rdc_digital_encarregado"):
+            col1, col2 = st.columns(2)
+            with col1:
+                rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
+                import datetime
+                rdc_turno = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
+                
+                st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
+                disc_options = ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA (DIGITAR)"]
+                disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
+                
+                rdc_disciplina = disc_sel
+                if disc_sel == "OUTRA (DIGITAR)":
+                    rdc_disciplina = st.text_input("Qual Disciplina?", placeholder="Ex: Tubulação, Solda...")
+                    
+            with col2:
+                rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
+                rdc_area = st.text_input("Área / Local de Trabalho (Ex: PB, RB, Caldeira):")
+                
+            rdc_dds = st.text_input("Tópico do DDS do dia:")
+            rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
+            rdc_problemas = st.text_area("Problemas / Interrupções / Ocorrências (Opcional):", height=68)
+            
+            submit_rdc = st.form_submit_button("🚀 Salvar RDC na Nuvem", use_container_width=True, type="primary")
+            
+            if submit_rdc:
+                if not rdc_encarregado:
+                    st.error("⚠️ Por favor, selecione o nome do Encarregado.")
+                elif not rdc_atividades.strip():
+                    st.error("⚠️ Por favor, preencha as Atividades Executadas.")
+                elif disc_sel == "OUTRA (DIGITAR)" and not rdc_disciplina.strip():
+                    st.error("⚠️ Digite a disciplina na caixa 'Qual Disciplina?'.")
+                else:
+                    rdc_json = [{
+                        "ENCARREGADO": rdc_encarregado,
+                        "DATA": rdc_data.strftime("%Y/%m/%d"),
+                        "TURNO": rdc_turno,
+                        "AREA": rdc_area.strip().upper(),
+                        "DISCIPLINA": rdc_disciplina.strip().upper(),
+                        "TOPICO_DDS": rdc_dds.strip(),
+                        "ATIVIDADES": rdc_atividades.strip(),
+                        "PROBLEMAS": rdc_problemas.strip()
+                    }]
+                    
+                    import json
+                    import requests
+                    
+                    WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+                    
+                    try:
+                        with st.spinner("Enviando dados para a nuvem..."):
+                            res = requests.post(WEBHOOK_URL, json=rdc_json, allow_redirects=True)
+                        if res.status_code == 200:
+                            st.success(f"✅ RDC Digital de {rdc_encarregado} salvo com sucesso na Nuvem!")
+                            st.info("O relatório já foi enviado. Você pode fechar esta página.")
+                        else:
+                            st.error(f"❌ Erro ao enviar. Servidor retornou: {res.text}")
+                    except Exception as e:
+                        st.error(f"❌ Falha de conexão: {e}")
+                        
+        st.stop() # Finaliza o script para não mostrar as abas do admin
 
     mapa_area_sufixo = {
         'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
