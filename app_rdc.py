@@ -2693,28 +2693,17 @@ if st.session_state.df is not None:
                         link_final += "/"
                     link_final += "?pwd=Campo@2026"
                 
-                try:
-                    import qrcode
-                    from PIL import Image
-                    import io
-                    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-                    qr.add_data(link_final)
-                    qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
-                    
-                    buf = io.BytesIO()
-                    img.save(buf, format="PNG")
-                    byte_im = buf.getvalue()
-                    
-                    col_qr1, col_qr2 = st.columns([1, 2])
-                    with col_qr1:
-                        st.image(byte_im, caption="Escaneie para logar", use_column_width=True)
-                    with col_qr2:
-                        st.success("QR Code gerado!")
-                        st.markdown(f"**Link de acesso rápido:**\n[{link_final}]({link_final})")
-                        st.download_button("📥 Baixar QR Code (PNG)", byte_im, file_name="qrcode_encarregados.png", mime="image/png")
-                except ImportError:
-                    st.error("⚠️ Biblioteca 'qrcode' não está instalada. O sistema já tentou instalá-la no requirements.txt.")
+                import urllib.parse
+                link_encoded = urllib.parse.quote(link_final)
+                qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={link_encoded}"
+                
+                col_qr1, col_qr2 = st.columns([1, 2])
+                with col_qr1:
+                    st.image(qr_url, caption="Escaneie para logar", use_container_width=True)
+                with col_qr2:
+                    st.success("QR Code gerado com sucesso!")
+                    st.markdown(f"**Link de acesso rápido:**\n[{link_final}]({link_final})")
+                    st.markdown(f"**[📥 Clique aqui para abrir a imagem do QR Code e Salvar]({qr_url})**")
         
         st.markdown("---")
         st.markdown("### 📥 Sincronização de RDCs (Nuvem)")
