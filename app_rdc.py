@@ -265,6 +265,14 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
+# --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
+try:
+    if "pwd" in st.query_params and st.query_params["pwd"] == "Campo@2026":
+        st.session_state.logged_in = True
+        st.session_state.role = "encarregado"
+except Exception:
+    pass
+
 # --- LOGIN / AUTENTICAÇÃO ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -294,6 +302,10 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.session_state.role = "admin"
                     st.rerun()
+                elif senha_input == senha_encarregado:
+                    st.session_state.logged_in = True
+                    st.session_state.role = "encarregado"
+                    st.rerun()
                 else:
                     st.error("❌ Senha incorreta! Tente novamente.")
     st.stop() # Bloqueia a renderização do restante do script
@@ -318,6 +330,90 @@ celula_encarregado = "I4"
 celula_matricula = "B9"
 celula_nome = "C9"
 celula_funcao = "H9"
+
+# =================================================================
+# MODO ENCARREGADO (Lançamento Isolado via QR Code ou Senha)
+# =================================================================
+if st.session_state.get("role") == "encarregado":
+    st.markdown(f"<div class='enesa-header'><h1 style='color: {cor_azul} !important; font-size: 2.2rem;'>📱 Lançamento de RDC</h1><p style='color: {cor_texto_sub};'>Preencha os dados do seu turno abaixo.</p></div>", unsafe_allow_html=True)
+    
+    encarregados = ["(Sem Encarregados)"]
+    try:
+        import os, pandas as pd
+        df_enc = None
+        if os.path.exists(caminho_base_salva_csv):
+            df_enc = pd.read_csv(caminho_base_salva_csv)
+        elif os.path.exists(caminho_base_salva_xlsx):
+            df_enc = pd.read_excel(caminho_base_salva_xlsx)
+        elif os.path.exists(caminho_pde_padrao):
+            try:
+                df_enc = pd.read_csv(caminho_pde_padrao, sep=";", encoding="latin-1")
+            except:
+                df_enc = pd.read_csv(caminho_pde_padrao)
+                
+        if df_enc is not None and "ENCARREGADO" in df_enc.columns:
+            enc_list = [str(e).strip() for e in df_enc["ENCARREGADO"].unique() if pd.notna(e) and str(e).strip() != ""]
+            if enc_list:
+                encarregados = sorted(enc_list)
+    except Exception:
+        pass
+
+    with st.form("form_encarregado_isolado"):
+        encarregado_sel = st.selectbox("Seu Nome (Encarregado):", encarregados)
+        import datetime
+        data_sel = st.date_input("Data do RDC:", datetime.date.today())
+        turno_sel = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
+        
+        area_sel = st.text_input("Área / Local de Trabalho (Ex: PB, RB, Caldeira):")
+        
+        st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
+        disc_options = ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA (DIGITAR)"]
+        disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
+        
+        disc_final = disc_sel
+        if disc_sel == "OUTRA (DIGITAR)":
+            disc_final = st.text_input("Qual Disciplina?", placeholder="Ex: Tubulação, Solda...")
+            
+        dds_sel = st.text_input("Tópico do DDS:")
+        ativ_sel = st.text_area("Atividades Realizadas:", height=150)
+        prob_sel = st.text_area("Problemas / Interferências:", height=68)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        enviar = st.form_submit_button("🚀 Enviar RDC para a Base", use_container_width=True)
+        
+        if enviar:
+            if not ativ_sel.strip():
+                st.error("⚠️ Descreva pelo menos uma atividade realizada.")
+            elif disc_sel == "OUTRA (DIGITAR)" and not disc_final.strip():
+                st.error("⚠️ Digite a disciplina na caixa 'Qual Disciplina?'.")
+            else:
+                rdc_json = [{
+                    "ENCARREGADO": encarregado_sel,
+                    "DATA": data_sel.strftime("%Y/%m/%d"),
+                    "TURNO": turno_sel,
+                    "AREA": area_sel.strip().upper(),
+                    "DISCIPLINA": disc_final.strip().upper(),
+                    "TOPICO_DDS": dds_sel.strip(),
+                    "ATIVIDADES": ativ_sel.strip(),
+                    "PROBLEMAS": prob_sel.strip()
+                }]
+                
+                import json
+                import requests
+                
+                WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+                
+                try:
+                    with st.spinner("Enviando dados..."):
+                        res = requests.post(WEBHOOK_URL, json=rdc_json, allow_redirects=True)
+                    if res.status_code == 200:
+                        st.success("✅ RDC enviado com sucesso! Você já pode fechar esta página.")
+                    else:
+                        st.error(f"❌ Erro ao enviar. Servidor retornou: {res.text}")
+                except Exception as e:
+                    st.error(f"❌ Falha de conexão: {e}")
+                    
+    st.stop() # Finaliza o script para não mostrar o restante do site
 
 # =================================================================
 # FUNÇÕES UTILITÁRIAS
@@ -2594,6 +2690,46 @@ if st.session_state.df is not None:
                     except Exception as e:
                         st.error(f"❌ Falha de conexão: {e}")
         
+        st.markdown("---")
+        st.markdown("### 📲 Gerar Acesso Rápido (QR Code)")
+        st.caption("Gere um QR Code para os encarregados escanearem e entrarem direto no formulário sem digitar senha.")
+        url_site = st.text_input("Qual o link do seu site?", placeholder="Ex: https://rdo-enesa.streamlit.app")
+        if st.button("Gerar QR Code", type="primary"):
+            if not url_site.strip():
+                st.warning("⚠️ Cole o link do site primeiro!")
+            else:
+                link_final = url_site.strip()
+                if "?" in link_final:
+                    link_final += "&pwd=Campo@2026"
+                else:
+                    if not link_final.endswith("/"):
+                        link_final += "/"
+                    link_final += "?pwd=Campo@2026"
+                
+                try:
+                    import qrcode
+                    from PIL import Image
+                    import io
+                    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+                    qr.add_data(link_final)
+                    qr.make(fit=True)
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    
+                    buf = io.BytesIO()
+                    img.save(buf, format="PNG")
+                    byte_im = buf.getvalue()
+                    
+                    col_qr1, col_qr2 = st.columns([1, 2])
+                    with col_qr1:
+                        st.image(byte_im, caption="Escaneie para logar", use_column_width=True)
+                    with col_qr2:
+                        st.success("QR Code gerado!")
+                        st.markdown(f"**Link de acesso rápido:**\n[{link_final}]({link_final})")
+                        st.download_button("📥 Baixar QR Code (PNG)", byte_im, file_name="qrcode_encarregados.png", mime="image/png")
+                except ImportError:
+                    st.error("⚠️ Biblioteca 'qrcode' não está instalada. O sistema já tentou instalá-la no requirements.txt.")
+        
+        st.markdown("---")
         st.markdown("### 📥 Sincronização de RDCs (Nuvem)")
         st.caption("Clique no botão abaixo para puxar todos os RDCs lançados pelos encarregados no sistema.")
         
