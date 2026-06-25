@@ -1136,8 +1136,12 @@ if st.session_state.df is not None:
         pass # Falha silenciosa para não quebrar o app
     # ==================================================
 
-
-    encarregados_f1_oficial = [
+    # === LISTA DINÂMICA DE ENCARREGADOS (Carrega do JSON ou cria com a lista padrão) ===
+    import json
+    caminho_f1_json = os.path.join(os.path.dirname(__file__), "encarregados_f1.json")
+    caminho_f1_excecoes = os.path.join(os.path.dirname(__file__), "f1_excecoes.csv")
+    
+    encarregados_f1_padrao = [
         "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
         "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
         "SANDRO LIMA DE SOUZA", "ALOISIO FERREIRA SOUZA", "ARLINDO PEREIRA DA SILVA", "FAUZE CELIS RODRIGUES COSTA",
@@ -1170,7 +1174,30 @@ if st.session_state.df is not None:
         "SEBASTIAO CARLOS DE OLIVEIRA", "MANOEL NEPOMUCENO DOS SANTOS", "LUIZ RAMOS DE LIMA",
         "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
     ]
+    
+    # Carregar ou criar o JSON
+    if os.path.exists(caminho_f1_json):
+        try:
+            with open(caminho_f1_json, "r", encoding="utf-8") as f:
+                encarregados_f1_oficial = json.load(f)
+        except Exception:
+            encarregados_f1_oficial = encarregados_f1_padrao
+    else:
+        encarregados_f1_oficial = encarregados_f1_padrao
+        with open(caminho_f1_json, "w", encoding="utf-8") as f:
+            json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
+    
     lista_completa_encarregados = sorted([e.upper() for e in encarregados_f1_oficial])
+    
+    # Carregar exceções (Abonos)
+    if "df_f1_excecoes" not in st.session_state:
+        if os.path.exists(caminho_f1_excecoes):
+            try:
+                st.session_state.df_f1_excecoes = pd.read_csv(caminho_f1_excecoes)
+            except Exception:
+                st.session_state.df_f1_excecoes = pd.DataFrame(columns=["DATA", "ENCARREGADO", "MOTIVO"])
+        else:
+            st.session_state.df_f1_excecoes = pd.DataFrame(columns=["DATA", "ENCARREGADO", "MOTIVO"])
 
     # =================================================================
     # MODO ENCARREGADO (Lançamento Nativo com Formatação Original)
@@ -1796,6 +1823,107 @@ if st.session_state.df is not None:
         st.markdown("Acompanhamento mensal da entrega dos Relatórios Diários de Campo (RDC).")
         
         # A lista completa foi movida para cima para ser compartilhada com a aba de Resumo Diário
+        
+        # === PAINEL: GERENCIAR LISTA DE ENCARREGADOS ===
+        if st.toggle("👥 Gerenciar Lista de Encarregados do F1", key="toggle_gerenciar_lista_f1"):
+            st.markdown("""
+            <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                <p style="margin: 0; color: #94a3b8; font-size: 14px;">⚙️ Aqui você pode <b style="color: #0ea5e9;">adicionar</b> ou <b style="color: #ef4444;">remover</b> encarregados do controle F1. As alterações são salvas automaticamente.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col_add, col_rem = st.columns(2)
+            
+            with col_add:
+                with st.form("form_add_enc_f1"):
+                    st.markdown("**➕ Adicionar Encarregado**")
+                    novo_nome = st.text_input("Nome completo do Encarregado:", placeholder="Ex: JOÃO DA SILVA SOUZA")
+                    btn_add = st.form_submit_button("Adicionar à Lista", type="primary", use_container_width=True)
+                    if btn_add and novo_nome.strip():
+                        nome_upper = novo_nome.strip().upper()
+                        if nome_upper in lista_completa_encarregados:
+                            st.warning(f"⚠️ '{nome_upper}' já está na lista!")
+                        else:
+                            encarregados_f1_oficial.append(nome_upper)
+                            with open(caminho_f1_json, "w", encoding="utf-8") as f:
+                                json.dump(encarregados_f1_oficial, f, ensure_ascii=False, indent=2)
+                            st.success(f"✅ '{nome_upper}' adicionado com sucesso!")
+                            time.sleep(2)
+                            st.rerun()
+            
+            with col_rem:
+                with st.form("form_rem_enc_f1"):
+                    st.markdown("**🗑️ Remover Encarregado**")
+                    enc_remover = st.multiselect("Selecione quem remover:", lista_completa_encarregados)
+                    btn_rem = st.form_submit_button("Remover da Lista", type="primary", use_container_width=True)
+                    if btn_rem and enc_remover:
+                        lista_atualizada = [e for e in encarregados_f1_oficial if e.upper() not in enc_remover]
+                        with open(caminho_f1_json, "w", encoding="utf-8") as f:
+                            json.dump(lista_atualizada, f, ensure_ascii=False, indent=2)
+                        st.success(f"✅ {len(enc_remover)} encarregado(s) removido(s)!")
+                        time.sleep(2)
+                        st.rerun()
+            
+            st.caption(f"📋 Total atual na lista: **{len(lista_completa_encarregados)}** encarregados")
+        
+        # === PAINEL: ABONAR FALTAS ===
+        if st.toggle("⏸️ Abonar Faltas (Folga / Atestado / Feriado)", key="toggle_abono_f1"):
+            st.markdown("""
+            <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                <p style="margin: 0; color: #94a3b8; font-size: 14px;">📝 Marque os dias em que o encarregado <b style="color: #f59e0b;">não precisava</b> entregar o RDC. Esses dias aparecerão como <b style="color: #f59e0b;">⏸️</b> na tabela em vez de ❌.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            with st.form("form_abono_f1"):
+                col_ab1, col_ab2 = st.columns(2)
+                with col_ab1:
+                    datas_abono = st.date_input("📅 Data(s) do Abono:", value=datetime.date.today(), key="datas_abono_input")
+                with col_ab2:
+                    motivo_abono = st.selectbox("Motivo:", ["FOLGA", "ATESTADO MÉDICO", "FERIADO", "CHUVA / INTEMPÉRIE", "FALTA JUSTIFICADA", "OUTRO"])
+                
+                encs_abono = st.multiselect("Selecione os Encarregados para abonar:", lista_completa_encarregados, key="encs_abono_multi")
+                
+                btn_abono = st.form_submit_button("✅ Registrar Abono", type="primary", use_container_width=True)
+                if btn_abono and encs_abono:
+                    novos_abonos = []
+                    # datas_abono pode ser uma data única ou uma tupla de datas
+                    if isinstance(datas_abono, (list, tuple)):
+                        lista_datas = [d.strftime("%Y-%m-%d") for d in datas_abono]
+                    else:
+                        lista_datas = [datas_abono.strftime("%Y-%m-%d")]
+                    
+                    for data_ab in lista_datas:
+                        for enc_ab in encs_abono:
+                            ja_existe = False
+                            if not st.session_state.df_f1_excecoes.empty:
+                                ja_existe = ((st.session_state.df_f1_excecoes["DATA"] == data_ab) & (st.session_state.df_f1_excecoes["ENCARREGADO"] == enc_ab)).any()
+                            if not ja_existe:
+                                novos_abonos.append({"DATA": data_ab, "ENCARREGADO": enc_ab, "MOTIVO": motivo_abono})
+                    
+                    if novos_abonos:
+                        df_novos_ab = pd.DataFrame(novos_abonos)
+                        st.session_state.df_f1_excecoes = pd.concat([st.session_state.df_f1_excecoes, df_novos_ab], ignore_index=True)
+                        st.session_state.df_f1_excecoes.to_csv(caminho_f1_excecoes, index=False)
+                        st.success(f"✅ {len(novos_abonos)} abono(s) registrado(s) com sucesso!")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.info("ℹ️ Todos os abonos selecionados já estavam cadastrados.")
+            
+            # Mostrar abonos existentes do mês atual
+            if not st.session_state.df_f1_excecoes.empty:
+                st.markdown("**Abonos registrados:**")
+                df_exc_show = st.session_state.df_f1_excecoes.copy()
+                df_exc_show = df_exc_show.sort_values("DATA", ascending=False).head(20)
+                st.dataframe(df_exc_show, hide_index=True, use_container_width=True)
+                
+                if st.button("🗑️ Limpar Todos os Abonos", key="btn_limpar_abonos"):
+                    st.session_state.df_f1_excecoes = pd.DataFrame(columns=["DATA", "ENCARREGADO", "MOTIVO"])
+                    if os.path.exists(caminho_f1_excecoes):
+                        os.remove(caminho_f1_excecoes)
+                    st.success("✅ Todos os abonos foram removidos!")
+                    time.sleep(2)
+                    st.rerun()
         
         # --- LANÇAMENTO MANUAL ---
         if st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)"):
