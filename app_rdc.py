@@ -1878,7 +1878,6 @@ if st.session_state.df is not None:
         
         if not df_hist.empty:
             df_mes = df_hist[df_hist["MES_ANO"] == mes_selecionado]
-            df_mes = df_mes[df_mes["ENCARREGADO"].isin(lista_completa_encarregados)]
         else:
             df_mes = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
             
@@ -1886,7 +1885,10 @@ if st.session_state.df is not None:
         ano, mes = map(int, mes_selecionado.split('-'))
         num_dias = calendar.monthrange(ano, mes)[1]
         
-        # Montar a Matriz
+        # Montar a Matriz com a lista oficial + qualquer outro nome que já tenha entregue no mês
+        nomes_no_mes = df_mes["ENCARREGADO"].dropna().unique().tolist() if not df_mes.empty else []
+        todos_encarregados_matriz = sorted(list(set(lista_completa_encarregados + nomes_no_mes)))
+        
         dias_str = [str(d) for d in range(1, num_dias + 1)]
         
         # Identificar sábados e domingos
@@ -1898,7 +1900,7 @@ if st.session_state.df is not None:
         
         dias_uteis = [d for d in dias_str if d not in dias_fim_de_semana]
         
-        matriz = pd.DataFrame(index=lista_completa_encarregados, columns=dias_str)
+        matriz = pd.DataFrame(index=todos_encarregados_matriz, columns=dias_str)
         # Preencher dias úteis com ❌ e fins de semana com ➖
         for col in dias_str:
             if col in dias_fim_de_semana:
