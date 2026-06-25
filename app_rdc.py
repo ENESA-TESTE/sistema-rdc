@@ -166,16 +166,18 @@ st.markdown(f"""
     
     /* === SIDEBAR === */
     [data-testid="stSidebar"] {{
-        background-color: rgba(15, 23, 42, 0.7) !important;
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
-        border-right: 1px solid {cor_borda};
+        background-color: rgba(15, 23, 42, 0.8) !important;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-right: 1px solid rgba(14, 165, 233, 0.2);
+        box-shadow: 4px 0 25px rgba(14, 165, 233, 0.15);
     }}
     [data-testid="stSidebar"] h1,
     [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3 {{
         color: {cor_texto} !important;
         font-family: 'Outfit', sans-serif !important;
+        text-shadow: 0 0 15px rgba(14, 165, 233, 0.5);
     }}
     
     /* === INPUTS & CONTAINERS === */
@@ -1287,24 +1289,30 @@ if st.session_state.df is not None:
         elif filtro_dash_local == "ESP":
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
         
-        # Linha 1: Cartões de KPI
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric(f"👷 Efetivo ({filtro_dash_mo})", len(df_dash))
-        
+        # Linha 1: Cartões de KPI Customizados (Premium)
         qtd_encarregados_dash = len([e for e in df_dash["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
-        m2.metric("👔 Encarregados Ativos", qtd_encarregados_dash)
-        
-        # Calcular MOD vs MOI global (Mantendo a visão global para a pizza e o KPI %)
         qtd_mod_g = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOD"])
         qtd_moi_g = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOI"])
         total_mo_g = qtd_mod_g + qtd_moi_g
         pct_mod_g = round((qtd_mod_g / total_mo_g * 100), 1) if total_mo_g > 0 else 0
-        m3.metric("⚙️ % MOD Global", f"{pct_mod_g}%")
-        
-        m4.metric("🔧 Funções na Obra", df_dash["FUNÇÃO"].nunique())
-        
         span_control = round(len(df_dash) / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0
-        m5.metric("⚖️ Span of Control", span_control, help="Média de colaboradores por Encarregado")
+        
+        def card_kpi(titulo, valor, icone, cor):
+            return f"""
+            <div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0px)'">
+                <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p>
+                <h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2>
+                <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div>
+            </div>
+            """
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        m1, m2, m3, m4, m5 = st.columns(5)
+        with m1: st.markdown(card_kpi(f"Efetivo ({filtro_dash_mo})", len(df_dash), "engineering", "#3b82f6"), unsafe_allow_html=True)
+        with m2: st.markdown(card_kpi("Encarregados", qtd_encarregados_dash, "shield_person", "#10b981"), unsafe_allow_html=True)
+        with m3: st.markdown(card_kpi("% MOD Global", f"{pct_mod_g}%", "pie_chart", "#0ea5e9"), unsafe_allow_html=True)
+        with m4: st.markdown(card_kpi("Funções", df_dash["FUNÇÃO"].nunique(), "build", "#f59e0b"), unsafe_allow_html=True)
+        with m5: st.markdown(card_kpi("Span Control", span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
         
         st.markdown("---")
         
@@ -1314,7 +1322,7 @@ if st.session_state.df is not None:
             st.markdown("**Status Operacional (Global)**")
             if total_mo_g > 0:
                 df_mo_global = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_g, qtd_moi_g]})
-                fig_mo_g = px.pie(df_mo_global, values="Quantidade", names="Tipo", hole=0.6, color_discrete_sequence=["#27ae60", "#e74c3c"])
+                fig_mo_g = px.pie(df_mo_global, values="Quantidade", names="Tipo", hole=0.6, color_discrete_sequence=["#10b981", "#ef4444"])
                 fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                 st.plotly_chart(fig_mo_g, use_container_width=True)
             else:
@@ -1340,7 +1348,7 @@ if st.session_state.df is not None:
             if not df_enc_dash.empty:
                 top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
                 top_enc.columns = ["Encarregado", "Efetivo"]
-                fig_top_enc = px.bar(top_enc, x="Efetivo", y="Encarregado", orientation="h", color="Efetivo", color_continuous_scale="Blues", text="Efetivo")
+                fig_top_enc = px.bar(top_enc, x="Efetivo", y="Encarregado", orientation="h", color="Efetivo", color_continuous_scale=[(0, "#0f172a"), (1, "#0ea5e9")], text="Efetivo")
                 fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280)
                 fig_top_enc.update_yaxes(categoryorder="total ascending")
                 fig_top_enc.update_xaxes(visible=False)
@@ -1365,7 +1373,7 @@ if st.session_state.df is not None:
                     entregas_por_dia.columns = ["Data", "Qtd Entregue"]
                     
                     fig_evolucao = px.line(entregas_por_dia, x="Data", y="Qtd Entregue", markers=True, 
-                                           title="", line_shape="spline", color_discrete_sequence=["#4a9eed"])
+                                           title="", line_shape="spline", color_discrete_sequence=["#0ea5e9"])
                     fig_evolucao.update_layout(
                         xaxis_title="Dia", yaxis_title="RDCs Entregues",
                         margin=dict(l=0, r=20, t=10, b=0),
@@ -1402,9 +1410,9 @@ if st.session_state.df is not None:
                         'borderwidth': 2,
                         'bordercolor': "gray",
                         'steps': [
-                            {'range': [0, 60], 'color': '#e74c3c'},
-                            {'range': [60, 85], 'color': '#f1c40f'},
-                            {'range': [85, 100], 'color': '#27ae60'}],
+                            {'range': [0, 60], 'color': '#ef4444'},
+                            {'range': [60, 85], 'color': '#f59e0b'},
+                            {'range': [85, 100], 'color': '#10b981'}],
                         'threshold': {
                             'line': {'color': "white", 'width': 4},
                             'thickness': 0.75,
@@ -2560,18 +2568,27 @@ if st.session_state.df is not None:
                 elif local: return f"{cc_code} ({local})"
                 else: return str(cc_code)
             
-            # Métricas gerais
+            # Métricas gerais Customizadas
+            def card_kpi_cc(titulo, valor, cor):
+                return f"""
+                <div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0px)'">
+                    <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p>
+                    <h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2>
+                    <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div>
+                </div>
+                """
+                
             mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-            mc1.metric("🏢 Centros de Custo", len(lista_cc))
-            mc2.metric("👷 Total Alocados", len(df_cc_aba))
-            mc3.metric("🔧 Funções Distintas", df_cc_aba["FUNÇÃO"].nunique())
+            with mc1: st.markdown(card_kpi_cc("Centros de Custo", len(lista_cc), "#8b5cf6"), unsafe_allow_html=True)
+            with mc2: st.markdown(card_kpi_cc("Total Alocados", len(df_cc_aba), "#3b82f6"), unsafe_allow_html=True)
+            with mc3: st.markdown(card_kpi_cc("Funções Distintas", df_cc_aba["FUNÇÃO"].nunique(), "#f59e0b"), unsafe_allow_html=True)
             
             qtd_encarregados = len([e for e in df_cc_aba["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
-            mc4.metric("👨‍💼 Encarregados", qtd_encarregados)
+            with mc4: st.markdown(card_kpi_cc("Encarregados", qtd_encarregados, "#10b981"), unsafe_allow_html=True)
             
             span_of_control = round(len(df_cc_aba) / qtd_encarregados, 1) if qtd_encarregados > 0 else 0
-            mc5.metric("👥 Span of Control", span_of_control)
-            st.markdown("")
+            with mc5: st.markdown(card_kpi_cc("Span of Control", span_of_control, "#0ea5e9"), unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
 
             # Gráficos lado a lado
             col_graf1, col_graf2 = st.columns([6, 4])
@@ -2585,7 +2602,7 @@ if st.session_state.df is not None:
                 cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
                 
                 if len(cc_contagem) > 0:
-                    fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale="Blues", text="Quantidade")
+                    fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale=[(0, "#0f172a"), (1, "#8b5cf6")], text="Quantidade")
                     fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
                     fig_cc.update_yaxes(categoryorder="total ascending")
                     fig_cc.update_xaxes(visible=False)
@@ -2618,12 +2635,22 @@ if st.session_state.df is not None:
                     df_hist = pd.read_csv(caminho_hist_cc)
                     if not df_hist.empty and "DATA" in df_hist.columns:
                         st.markdown("**📈 Máquina do Tempo: Evolução do Efetivo**")
-                        # Filtro para escolher o CC
-                        cc_selecionado = st.selectbox("Selecione a equipe para analisar o crescimento:", ["Geral (Todos)"] + lista_cc)
+                        # Filtro para escolher o CC ou Área
+                        opcoes_historico = ["Geral (Todos)", "Resumo: PB (Caldeira)", "Resumo: RB (Retorta)", "Resumo: ESP (Precipitador)"] + lista_cc
+                        cc_selecionado = st.selectbox("Selecione a equipe ou área para analisar o crescimento:", opcoes_historico)
                         
                         if cc_selecionado == "Geral (Todos)":
                             df_plot = df_hist.groupby("DATA")["Efetivo"].sum().reset_index()
                             titulo_graf = "Crescimento Geral da Obra"
+                        elif cc_selecionado == "Resumo: PB (Caldeira)":
+                            df_plot = df_hist[df_hist["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))].groupby("DATA")["Efetivo"].sum().reset_index()
+                            titulo_graf = "Crescimento - Área PB (Caldeira)"
+                        elif cc_selecionado == "Resumo: RB (Retorta)":
+                            df_plot = df_hist[df_hist["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))].groupby("DATA")["Efetivo"].sum().reset_index()
+                            titulo_graf = "Crescimento - Área RB (Retorta)"
+                        elif cc_selecionado == "Resumo: ESP (Precipitador)":
+                            df_plot = df_hist[df_hist["C.C"].apply(lambda x: ".005" in str(x))].groupby("DATA")["Efetivo"].sum().reset_index()
+                            titulo_graf = "Crescimento - Área ESP (Precipitador)"
                         else:
                             df_plot = df_hist[df_hist["C.C"] == cc_selecionado].copy()
                             titulo_graf = f"Evolução - C.C {cc_selecionado}"
@@ -2636,7 +2663,7 @@ if st.session_state.df is not None:
                             fig_hist.update_layout(xaxis_title="", yaxis_title="Quantidade de Colaboradores", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300)
                             fig_hist.update_xaxes(type='category')
                             fig_hist.update_yaxes(tickformat="d")
-                            fig_hist.update_traces(line=dict(width=3, color="#00d2ff"), marker=dict(size=8, color="#ff4b4b"))
+                            fig_hist.update_traces(line=dict(width=3, color="#0ea5e9"), marker=dict(size=8, color="#10b981"))
                             st.plotly_chart(fig_hist, use_container_width=True)
                         else:
                             st.info("Aguardando acumular mais dias de dados para gerar a curva.")
