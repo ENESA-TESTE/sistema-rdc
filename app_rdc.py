@@ -131,6 +131,15 @@ st.markdown(f"""
         transform: translateY(-2px);
     }}
     
+    /* === FUNDO === */
+    .stApp {{
+        background: radial-gradient(circle at top, {cor_fundo} 0%, #020617 100%) !important;
+        background-image: 
+            linear-gradient(rgba(14, 165, 233, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(14, 165, 233, 0.03) 1px, transparent 1px) !important;
+        background-size: 30px 30px !important;
+    }}
+    
     /* === TIPOGRAFIA === */
     h1, h2, h3 {{
         color: {cor_texto} !important;
@@ -178,6 +187,18 @@ st.markdown(f"""
         color: {cor_texto} !important;
         font-family: 'Outfit', sans-serif !important;
         text-shadow: 0 0 15px rgba(14, 165, 233, 0.5);
+    }}
+    
+    /* === ADMIN AVATAR GLOW === */
+    .admin-avatar {{
+        width: 60px; height: 60px;
+        border-radius: 50%;
+        background: {cor_azul};
+        display: flex; align-items: center; justify-content: center;
+        margin: 20px auto;
+        box-shadow: 0 0 20px {cor_azul};
+        color: white; font-weight: bold; font-size: 20px;
+        border: 2px solid white;
     }}
     
     /* === INPUTS & CONTAINERS === */
@@ -849,6 +870,19 @@ with st.sidebar:
             st.image(caminho_logo, use_container_width=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
+    html_avatar = """
+    <div style="display: flex; align-items: center; gap: 15px; padding: 15px; background: rgba(14, 165, 233, 0.1); border-radius: 12px; border: 1px solid rgba(14, 165, 233, 0.3); margin-bottom: 25px; box-shadow: 0 0 20px rgba(14, 165, 233, 0.2); transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        <div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); display: flex; justify-content: center; align-items: center; font-size: 24px; color: white; box-shadow: 0 0 15px rgba(14, 165, 233, 0.5);">
+            👨‍💻
+        </div>
+        <div>
+            <div style="font-size: 14px; font-weight: 800; color: #f8fafc; text-shadow: 0 0 10px rgba(255,255,255,0.3); letter-spacing: 0.5px;">ADMINISTRADOR</div>
+            <div style="font-size: 12px; color: #0ea5e9; font-weight: bold; margin-top: 2px; text-shadow: 0 0 5px rgba(14,165,233,0.5);">Acesso Supremo</div>
+        </div>
+    </div>
+    """
+    st.markdown(html_avatar, unsafe_allow_html=True)
+    
     st.header("📂 Arquivos Base")
     
     if st.button("➕ Enviar Nova Base (PDE)", use_container_width=True):
@@ -1958,11 +1992,44 @@ if st.session_state.df is not None:
         ranking = matriz[["Total"]].sort_values(by="Total", ascending=False).reset_index()
         ranking.columns = ["ENCARREGADO", "ENTREGAS"]
         
-        st.success("🥇 Os 3 que MAIS entregaram")
+        st.success("🥇 Os 3 que MAIS entregaram RDCs")
         top3 = ranking.head(3)
-        for i, row in top3.iterrows():
-            medalha = "🥇" if i == 0 else ("🥈" if i == 1 else "🥉")
-            st.markdown(f"**{medalha} {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
+        
+        if len(top3) >= 3:
+            n1 = top3.iloc[0]["ENCARREGADO"].split()[0] + " " + (top3.iloc[0]["ENCARREGADO"].split()[-1] if len(top3.iloc[0]["ENCARREGADO"].split())>1 else "")
+            t1 = top3.iloc[0]["ENTREGAS"]
+            n2 = top3.iloc[1]["ENCARREGADO"].split()[0] + " " + (top3.iloc[1]["ENCARREGADO"].split()[-1] if len(top3.iloc[1]["ENCARREGADO"].split())>1 else "")
+            t2 = top3.iloc[1]["ENTREGAS"]
+            n3 = top3.iloc[2]["ENCARREGADO"].split()[0] + " " + (top3.iloc[2]["ENCARREGADO"].split()[-1] if len(top3.iloc[2]["ENCARREGADO"].split())>1 else "")
+            t3 = top3.iloc[2]["ENTREGAS"]
+            
+            html_podio = f"""
+            <div style="display: flex; justify-content: center; align-items: flex-end; height: 190px; gap: 15px; margin-top: 30px; margin-bottom: 20px;">
+                <!-- 2 Lugar -->
+                <div style="display: flex; flex-direction: column; align-items: center; width: 130px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                    <div style="font-size: 13px; color: #cbd5e1; font-weight: bold; text-align: center; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n2}</div>
+                    <div style="font-size: 28px; margin-bottom: -5px;">🥈</div>
+                    <div style="background: linear-gradient(180deg, rgba(148,163,184,0.8), rgba(71,85,105,0.8)); backdrop-filter: blur(5px); width: 100%; height: 90px; border-radius: 12px 12px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 15px; color: white; font-weight: 900; font-size: 22px; box-shadow: 0 -5px 20px rgba(148,163,184,0.3); border: 1px solid rgba(255,255,255,0.3); border-bottom: none;">{t2}</div>
+                </div>
+                <!-- 1 Lugar -->
+                <div style="display: flex; flex-direction: column; align-items: center; width: 140px; transform: translateY(-15px); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-20px)'" onmouseout="this.style.transform='translateY(-15px)'">
+                    <div style="font-size: 15px; color: #fbbf24; font-weight: bold; text-align: center; margin-bottom: 5px; text-shadow: 0 0 10px rgba(251, 191, 36, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n1}</div>
+                    <div style="font-size: 38px; margin-bottom: -5px;">👑</div>
+                    <div style="background: linear-gradient(180deg, rgba(251,191,36,0.9), rgba(180,83,9,0.9)); backdrop-filter: blur(5px); width: 100%; height: 130px; border-radius: 12px 12px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 15px; color: white; font-weight: 900; font-size: 26px; box-shadow: 0 -5px 25px rgba(251,191,36,0.5); border: 1px solid rgba(255,255,255,0.5); border-bottom: none;">{t1}</div>
+                </div>
+                <!-- 3 Lugar -->
+                <div style="display: flex; flex-direction: column; align-items: center; width: 130px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                    <div style="font-size: 13px; color: #d97706; font-weight: bold; text-align: center; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n3}</div>
+                    <div style="font-size: 28px; margin-bottom: -5px;">🥉</div>
+                    <div style="background: linear-gradient(180deg, rgba(217,119,6,0.8), rgba(120,53,15,0.8)); backdrop-filter: blur(5px); width: 100%; height: 70px; border-radius: 12px 12px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 15px; color: white; font-weight: 900; font-size: 20px; box-shadow: 0 -5px 20px rgba(217,119,6,0.3); border: 1px solid rgba(255,255,255,0.2); border-bottom: none;">{t3}</div>
+                </div>
+            </div>
+            """
+            st.markdown(html_podio, unsafe_allow_html=True)
+        else:
+            for i, row in top3.iterrows():
+                medalha = "🥇" if i == 0 else ("🥈" if i == 1 else "🥉")
+                st.markdown(f"**{medalha} {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
                 
         st.markdown("---")
         st.markdown("#### 📈 Evolução Mensal")
