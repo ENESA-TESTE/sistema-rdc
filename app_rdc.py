@@ -77,36 +77,37 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Paleta suave — escura mas não agressiva
-cor_fundo = "#1a1d23"
-cor_card = "#22262e"
-cor_borda = "#2d323b"
-cor_texto = "#e0e4ea"
-cor_texto_sub = "#8b919e"
-cor_azul = "#4a9eed"
-cor_azul_hover = "#3a85d6"
-cor_verde = "#4ade80"
-cor_laranja = "#f59e42"
-cor_destaque = "#6366f1"
+# Paleta Premium Dark Mode (Glassmorphism & Neon Subtle)
+cor_fundo = "#020617" # Slate 950
+cor_fundo_grad = "linear-gradient(135deg, #020617 0%, #0f172a 100%)"
+cor_card = "rgba(30, 41, 59, 0.45)" # Slate 800 glass
+cor_borda = "rgba(255, 255, 255, 0.08)"
+cor_texto = "#f8fafc"
+cor_texto_sub = "#94a3b8"
+cor_azul = "#3b82f6"
+cor_azul_hover = "#2563eb"
+cor_destaque = "#0ea5e9" # Light blue neon
+cor_verde = "#10b981"
 
 st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
     
     @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(8px); }}
+        from {{ opacity: 0; transform: translateY(15px); }}
         to {{ opacity: 1; transform: translateY(0); }}
     }}
     
     /* === BASE === */
     .stApp {{
         font-family: 'Inter', sans-serif !important;
-        background-color: {cor_fundo};
+        background: {cor_fundo_grad};
+        background-attachment: fixed;
         color: {cor_texto};
     }}
     
     .block-container {{
-        animation: fadeIn 0.6s ease-out;
+        animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         max-width: 1200px;
         padding-top: 1rem;
     }}
@@ -116,118 +117,173 @@ st.markdown(f"""
         text-align: center;
         margin-top: -30px;
         margin-bottom: 28px;
-        padding: 28px 20px;
+        padding: 32px 20px;
         background: {cor_card};
-        border-radius: 14px;
-        border-left: 4px solid {cor_azul};
-        box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 16px;
+        border: 1px solid {cor_borda};
+        border-left: 5px solid {cor_destaque};
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        transition: transform 0.3s ease;
+    }}
+    .enesa-header:hover {{
+        transform: translateY(-2px);
     }}
     
     /* === TIPOGRAFIA === */
     h1, h2, h3 {{
         color: {cor_texto} !important;
-        font-family: 'Inter', sans-serif !important;
+        font-family: 'Outfit', sans-serif !important;
         font-weight: 600 !important;
-        letter-spacing: -0.3px;
+        letter-spacing: -0.5px;
     }}
     p, span, label, div {{
         font-family: 'Inter', sans-serif !important;
     }}
     
-    /* === BOTÃO PRINCIPAL (verde suave) === */
+    /* === BOTÃO PRINCIPAL === */
     div.stButton > button[data-baseweb="button"] {{
-        background: {cor_azul};
+        background: linear-gradient(135deg, {cor_azul} 0%, {cor_destaque} 100%);
         color: white;
         border: none;
-        font-weight: 500;
-        font-size: 0.9rem;
-        border-radius: 8px;
-        padding: 10px 24px;
-        transition: all 0.25s ease;
-        box-shadow: 0 2px 8px rgba(74, 158, 237, 0.2);
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 600;
+        font-size: 0.95rem;
+        letter-spacing: 0.5px;
+        border-radius: 10px;
+        padding: 12px 24px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
     }}
     div.stButton > button[data-baseweb="button"]:hover {{
-        background: {cor_azul_hover};
-        transform: translateY(-1px);
-        box-shadow: 0 4px 14px rgba(74, 158, 237, 0.35);
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
+    }}
+    div.stButton > button[data-baseweb="button"]:active {{
+        transform: translateY(1px) scale(0.98);
     }}
     
     /* === SIDEBAR === */
     [data-testid="stSidebar"] {{
-        background-color: {cor_card};
+        background-color: rgba(15, 23, 42, 0.7) !important;
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
         border-right: 1px solid {cor_borda};
     }}
     [data-testid="stSidebar"] h1,
     [data-testid="stSidebar"] h2,
     [data-testid="stSidebar"] h3 {{
         color: {cor_texto} !important;
+        font-family: 'Outfit', sans-serif !important;
     }}
     
-    /* === INPUTS === */
-    .stTextInput input, .stSelectbox > div > div {{
-        border-radius: 8px;
-        border: 1px solid {cor_borda};
-        background-color: {cor_fundo};
-        color: {cor_texto};
-        transition: border-color 0.2s;
+    /* === INPUTS & CONTAINERS === */
+    .stTextInput input, .stSelectbox > div > div, .stTextArea textarea {{
+        border-radius: 10px !important;
+        border: 1px solid {cor_borda} !important;
+        background-color: rgba(15, 23, 42, 0.5) !important;
+        color: {cor_texto} !important;
+        transition: all 0.3s ease !important;
+        backdrop-filter: blur(4px);
     }}
-    .stTextInput input:focus {{
-        border-color: {cor_azul};
-        box-shadow: 0 0 0 2px rgba(74, 158, 237, 0.15);
+    .stTextInput input:focus, .stSelectbox > div > div:focus-within, .stTextArea textarea:focus {{
+        border-color: {cor_destaque} !important;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2) !important;
+        background-color: rgba(30, 41, 59, 0.8) !important;
     }}
     
     /* === ABAS === */
     .stTabs [data-baseweb="tab-list"] {{
-        gap: 4px;
+        gap: 8px;
         background-color: {cor_card};
-        border-radius: 10px;
-        padding: 4px;
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        padding: 6px;
         border: 1px solid {cor_borda};
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }}
     .stTabs [data-baseweb="tab"] {{
         border-radius: 8px;
+        font-family: 'Outfit', sans-serif !important;
         font-weight: 500;
-        font-size: 0.9rem;
-        font-family: 'Inter', sans-serif !important;
-        padding: 10px 18px;
+        font-size: 0.95rem;
+        padding: 10px 20px;
         color: {cor_texto_sub};
-        transition: all 0.2s ease;
+        transition: all 0.3s ease;
+        border: 1px solid transparent;
     }}
     .stTabs [data-baseweb="tab"]:hover {{
         color: {cor_texto};
-        background-color: rgba(74, 158, 237, 0.08);
+        background-color: rgba(255, 255, 255, 0.05);
     }}
     .stTabs [aria-selected="true"] {{
-        background-color: {cor_azul} !important;
+        background: linear-gradient(135deg, {cor_azul} 0%, {cor_destaque} 100%) !important;
         color: white !important;
-        box-shadow: 0 2px 8px rgba(74, 158, 237, 0.25);
+        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+        border: 1px solid rgba(255,255,255,0.1);
     }}
     
-    /* === MÉTRICAS === */
+    /* === MÉTRICAS (GLASS CARDS) === */
     [data-testid="stMetric"] {{
-        background-color: {cor_card};
+        background: {cor_card};
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border: 1px solid {cor_borda};
-        border-radius: 10px;
-        padding: 16px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }}
+    [data-testid="stMetric"]::before {{
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+        pointer-events: none;
+    }}
+    [data-testid="stMetric"]:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 12px 25px rgba(0,0,0,0.3);
+        border-color: rgba(14, 165, 233, 0.3);
     }}
     [data-testid="stMetricLabel"] {{
         color: {cor_texto_sub} !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 500 !important;
+        letter-spacing: 0.5px;
     }}
     [data-testid="stMetricValue"] {{
         color: {cor_texto} !important;
-        font-weight: 600 !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 2.2rem !important;
+        background: linear-gradient(to right, #fff, #94a3b8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }}
     
     /* === DATAFRAMES === */
     .stDataFrame {{
-        border-radius: 10px;
+        border-radius: 12px;
         overflow: hidden;
+        border: 1px solid {cor_borda};
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }}
     
-    /* === FILE UPLOADER FIX PARA TRADUTOR DO CHROME === */
+    /* === FILE UPLOADER === */
     [data-testid="stFileUploader"] {{
-        border-radius: 10px;
+        border-radius: 12px;
+        background: {cor_card};
+        border: 1px dashed rgba(14, 165, 233, 0.4);
+        padding: 10px;
+        transition: all 0.3s ease;
+    }}
+    [data-testid="stFileUploader"]:hover {{
+        border-color: {cor_destaque};
+        background: rgba(30, 41, 59, 0.6);
     }}
     [data-testid="stFileUploaderDropzone"] button {{
         color: transparent !important;
@@ -241,26 +297,46 @@ st.markdown(f"""
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        font-family: 'Inter', sans-serif !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 600;
         font-size: 14px;
         white-space: nowrap;
     }}
     
+    /* === EXPANDERS === */
+    [data-testid="stExpander"] {{
+        background: {cor_card};
+        backdrop-filter: blur(10px);
+        border-radius: 12px !important;
+        border: 1px solid {cor_borda} !important;
+        overflow: hidden;
+    }}
+    [data-testid="stExpander"] summary {{
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 500;
+    }}
+    
     /* === ALERTAS === */
     .stAlert {{
-        border-radius: 10px;
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
     }}
     
     /* === SCROLLBAR SUAVE === */
     ::-webkit-scrollbar {{
-        width: 6px;
+        width: 8px;
+        height: 8px;
     }}
     ::-webkit-scrollbar-track {{
         background: {cor_fundo};
     }}
     ::-webkit-scrollbar-thumb {{
-        background: {cor_borda};
-        border-radius: 3px;
+        background: rgba(14, 165, 233, 0.5);
+        border-radius: 4px;
+    }}
+    ::-webkit-scrollbar-thumb:hover {{
+        background: {cor_destaque};
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -708,12 +784,17 @@ if st.session_state.usuario_logado is None:
                 st.image(caminho_logo, use_container_width=True)
             st.markdown("<br>", unsafe_allow_html=True)
             
-        with st.container(border=True):
-            st.markdown(f"<h3 style='text-align: center; color: {cor_azul}; margin-bottom: 0px; font-weight: 600;'>{nome_site}</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center; color: #8b919e; margin-bottom: 25px; font-size: 14px;'>Acesso Restrito ao Sistema</p>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown(f"""
+            <div style="text-align: center; margin-bottom: 20px;">
+                <span class="material-symbols-rounded" style="font-size: 54px; color: {cor_destaque}; text-shadow: 0 0 20px rgba(14, 165, 233, 0.6);">rocket_launch</span>
+                <h3 style='color: {cor_texto}; margin-bottom: 0px; font-weight: 700; font-size: 26px; letter-spacing: -0.5px;'>{nome_site}</h3>
+                <p style='color: {cor_azul}; margin-bottom: 5px; font-size: 13px; font-weight: 600; letter-spacing: 3px;'>ACESSO RESTRITO</p>
+            </div>
+            """, unsafe_allow_html=True)
             
-            user_input = st.text_input("Usuário (Login):")
-            pass_input = st.text_input("Senha:", type="password")
+            user_input = st.text_input("Usuário (Login):", placeholder="Digite sua credencial")
+            pass_input = st.text_input("Senha:", type="password", placeholder="••••••••")
             lembrar_me = st.checkbox("Manter conectado", value=True)
             
             st.markdown("<br>", unsafe_allow_html=True)
@@ -750,8 +831,9 @@ if st.session_state.usuario_logado is None:
 # =================================================================
 st.markdown(f"""
     <div class="enesa-header">
-        <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">Sistema de Gestão RDC & PDE</h1>
-        <p style="color: {cor_texto_sub}; font-size: 0.95rem; margin: 6px 0 0 0;">{nome_site} - Controle Operacional de Efetivo</p>
+        <span class="material-symbols-rounded" style="font-size: 38px; color: {cor_destaque}; vertical-align: middle; margin-right: 12px; text-shadow: 0 0 15px rgba(14, 165, 233, 0.4);">dashboard</span>
+        <h1 style="margin: 0; font-size: 2rem; font-weight: 700; display: inline-block; vertical-align: middle;">Sistema de Gestão RDC & PDE</h1>
+        <p style="color: {cor_texto_sub}; font-size: 0.95rem; margin: 6px 0 0 0; letter-spacing: 0.5px;">{nome_site} - Controle Operacional de Efetivo</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -1058,17 +1140,29 @@ if st.session_state.df is not None:
     # MODO ENCARREGADO (Lançamento Nativo com Formatação Original)
     # =================================================================
     if st.session_state.get("role") == "encarregado":
-        st.markdown("### 📱 Lançamento de RDC Digital")
-        st.caption("Preencha as informações do seu dia de trabalho abaixo. Os dados serão salvos na nuvem.")
+        st.markdown("### <span class='material-symbols-rounded' style='vertical-align: middle; color: #0ea5e9; font-size: 32px;'>edit_document</span> Lançamento de RDC Digital", unsafe_allow_html=True)
+        st.caption("Preencha as informações do seu dia de trabalho seguindo as 3 etapas abaixo. Os dados serão salvos na nuvem.")
         
         with st.form("form_rdc_digital_encarregado"):
-            col1, col2 = st.columns(2)
-            with col1:
+            tab_id, tab_local, tab_ativ = st.tabs(["1️⃣ Identificação", "2️⃣ Localização", "3️⃣ Atividades e Envio"])
+            
+            with tab_id:
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Quem é você e qual seu turno?</p>", unsafe_allow_html=True)
                 rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
-                import datetime
-                rdc_turno = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
+                rdc_turno = st.selectbox("Turno de Trabalho:", ["DIURNO", "NOTURNO", "MISTO"])
                 
-                st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
+            with tab_local:
+                import datetime
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Onde você trabalhou hoje?</p>", unsafe_allow_html=True)
+                
+                rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
+                
+                area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
+                area_sel = st.selectbox("Área / Local de Trabalho:", area_options)
+                rdc_area = area_sel
+                if area_sel == "OUTRO (DIGITAR)":
+                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
+                
                 disc_options = [
                     "EQUIPAMENTOS", "DUTOS", "TUBULACAO", "ESTRUTURA METALICA", "PRECIPITADOR", 
                     "PRESSAO - MECANICA", "PRESSAO - TUBULACAO", "PRESSAO - FORNALHA", "PINTURA", 
@@ -1078,26 +1172,20 @@ if st.session_state.df is not None:
                     "ALMOXARIFADO ENESA", "ALMOXARIFADO MATERIAIS", "MANUT. ELETRICA PROVISORIA", 
                     "TOPOGRAFIA", "MOVIMENTACAO DE CARGAS", "MEDICAO/CUSTO/CONTRATOS", "CIVIL", "MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ISOLAMENTO", "OUTRA (DIGITAR)"
                 ]
-                disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
+                disc_sel = st.selectbox("Disciplina Principal:", disc_options)
                 
                 rdc_disciplina = disc_sel
                 if disc_sel == "OUTRA (DIGITAR)":
                     rdc_disciplina = st.text_input("Qual Disciplina?", placeholder="Ex: Tubulação, Solda...")
                     
-            with col2:
-                rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
-                st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Área / Local de Trabalho:</p>", unsafe_allow_html=True)
-                area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
-                area_sel = st.selectbox("Área / Local de Trabalho:", area_options, label_visibility="collapsed")
-                rdc_area = area_sel
-                if area_sel == "OUTRO (DIGITAR)":
-                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
+            with tab_ativ:
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>O que foi executado?</p>", unsafe_allow_html=True)
+                rdc_dds = st.text_input("Tópico do DDS do dia:")
+                rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
+                rdc_problemas = st.text_area("Problemas / Interrupções / Ocorrências (Opcional):", height=68)
                 
-            rdc_dds = st.text_input("Tópico do DDS do dia:")
-            rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
-            rdc_problemas = st.text_area("Problemas / Interrupções / Ocorrências (Opcional):", height=68)
-            
-            submit_rdc = st.form_submit_button("🚀 Salvar RDC na Nuvem", use_container_width=True, type="primary")
+                st.markdown("<br>", unsafe_allow_html=True)
+                submit_rdc = st.form_submit_button("🚀 Salvar e Enviar RDC na Nuvem", use_container_width=True, type="primary")
             
             if submit_rdc:
                 if not rdc_encarregado:
@@ -2009,7 +2097,7 @@ if st.session_state.df is not None:
                             for tentativa in range(max_tentativas):
                                 try:
                                     resposta = client.models.generate_content(
-                                        model='gemini-2.5-flash',
+                                        model='gemini-3.5-flash',
                                         contents=[arquivo_up, prompt_ia],
                                         config=genai.types.GenerateContentConfig(
                                             response_mime_type="application/json",
@@ -2253,7 +2341,7 @@ if st.session_state.df is not None:
                         for tentativa in range(max_tentativas):
                             try:
                                 resposta = client.models.generate_content(
-                                    model='gemini-2.5-flash',
+                                    model='gemini-3.5-flash',
                                     contents=[arquivo_up, prompt_ia_cc]
                                 )
                                 
@@ -2629,16 +2717,29 @@ if st.session_state.df is not None:
                 st.info("Nenhum colaborador encontrado para este Centro de Custo.")
 
     with tab_rdc_digital:
-        st.markdown("### 📱 Lançamento de RDC Digital")
-        st.caption("Preencha as informações do seu dia de trabalho abaixo. Os dados serão salvos na nuvem.")
+        st.markdown("### <span class='material-symbols-rounded' style='vertical-align: middle; color: #0ea5e9; font-size: 32px;'>edit_document</span> Lançamento de RDC Digital", unsafe_allow_html=True)
+        st.caption("Preencha as informações do seu dia de trabalho seguindo as 3 etapas abaixo. Os dados serão salvos na nuvem.")
         
         with st.form("form_rdc_digital"):
-            col1, col2 = st.columns(2)
-            with col1:
+            tab_id, tab_local, tab_ativ = st.tabs(["1️⃣ Identificação", "2️⃣ Localização", "3️⃣ Atividades e Envio"])
+            
+            with tab_id:
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Quem é você e qual seu turno?</p>", unsafe_allow_html=True)
                 rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
-                rdc_turno = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
+                rdc_turno = st.selectbox("Turno de Trabalho:", ["DIURNO", "NOTURNO", "MISTO"])
                 
-                st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
+            with tab_local:
+                import datetime
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Onde você trabalhou hoje?</p>", unsafe_allow_html=True)
+                
+                rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
+                
+                area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
+                area_sel = st.selectbox("Área / Local de Trabalho:", area_options)
+                rdc_area = area_sel
+                if area_sel == "OUTRO (DIGITAR)":
+                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
+                
                 disc_options = [
                     "EQUIPAMENTOS", "DUTOS", "TUBULACAO", "ESTRUTURA METALICA", "PRECIPITADOR", 
                     "PRESSAO - MECANICA", "PRESSAO - TUBULACAO", "PRESSAO - FORNALHA", "PINTURA", 
@@ -2648,26 +2749,20 @@ if st.session_state.df is not None:
                     "ALMOXARIFADO ENESA", "ALMOXARIFADO MATERIAIS", "MANUT. ELETRICA PROVISORIA", 
                     "TOPOGRAFIA", "MOVIMENTACAO DE CARGAS", "MEDICAO/CUSTO/CONTRATOS", "CIVIL", "MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ISOLAMENTO", "OUTRA (DIGITAR)"
                 ]
-                disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
+                disc_sel = st.selectbox("Disciplina Principal:", disc_options)
                 
                 rdc_disciplina = disc_sel
                 if disc_sel == "OUTRA (DIGITAR)":
                     rdc_disciplina = st.text_input("Qual Disciplina?", placeholder="Ex: Tubulação, Solda...")
                     
-            with col2:
-                rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
-                st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Área / Local de Trabalho:</p>", unsafe_allow_html=True)
-                area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
-                area_sel = st.selectbox("Área / Local de Trabalho:", area_options, label_visibility="collapsed")
-                rdc_area = area_sel
-                if area_sel == "OUTRO (DIGITAR)":
-                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
+            with tab_ativ:
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>O que foi executado?</p>", unsafe_allow_html=True)
+                rdc_dds = st.text_input("Tópico do DDS do dia:")
+                rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
+                rdc_problemas = st.text_area("Problemas / Interrupções / Ocorrências (Opcional):", height=68)
                 
-            rdc_dds = st.text_input("Tópico do DDS do dia:")
-            rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
-            rdc_problemas = st.text_area("Problemas / Interrupções / Ocorrências (Opcional):", height=68)
-            
-            submit_rdc = st.form_submit_button("🚀 Salvar RDC na Nuvem", use_container_width=True, type="primary")
+                st.markdown("<br>", unsafe_allow_html=True)
+                submit_rdc = st.form_submit_button("🚀 Salvar e Enviar RDC na Nuvem", use_container_width=True, type="primary")
             
             if submit_rdc:
                 if not rdc_encarregado:
