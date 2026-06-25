@@ -652,7 +652,7 @@ def backup_google_drive(file_path, mime_type, file_name):
 if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_ia' not in st.session_state:
-    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
 if 'df_historico_f1' not in st.session_state:
     st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
 if 'mostrar_upload' not in st.session_state:
@@ -1069,7 +1069,15 @@ if st.session_state.df is not None:
                 rdc_turno = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
                 
                 st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
-                disc_options = ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA (DIGITAR)"]
+                disc_options = [
+                    "EQUIPAMENTOS", "DUTOS", "TUBULACAO", "ESTRUTURA METALICA", "PRECIPITADOR", 
+                    "PRESSAO - MECANICA", "PRESSAO - TUBULACAO", "PRESSAO - FORNALHA", "PINTURA", 
+                    "COMISSIONAMENTO", "OP. ASSISTIDA", "LAVAGEM QUIMICA", "SOPRAGEM", "ANDAIME", 
+                    "OPERADORES", "FORA DE ESCOPO", "GERENCIA", "PRODUCAO", "GARANTIA DA QUALIDADE", 
+                    "PLANEJAMENTO", "ADMINISTRACAO", "SEGURANCA E MEDICINA DO TRABALHO", "INFRAESTRUTURA", 
+                    "ALMOXARIFADO ENESA", "ALMOXARIFADO MATERIAIS", "MANUT. ELETRICA PROVISORIA", 
+                    "TOPOGRAFIA", "MOVIMENTACAO DE CARGAS", "MEDICAO/CUSTO/CONTRATOS", "CIVIL", "MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ISOLAMENTO", "OUTRA (DIGITAR)"
+                ]
                 disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
                 
                 rdc_disciplina = disc_sel
@@ -1078,7 +1086,12 @@ if st.session_state.df is not None:
                     
             with col2:
                 rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
-                rdc_area = st.text_input("Área / Local de Trabalho (Ex: PB, RB, Caldeira):")
+                st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Área / Local de Trabalho:</p>", unsafe_allow_html=True)
+                area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
+                area_sel = st.selectbox("Área / Local de Trabalho:", area_options, label_visibility="collapsed")
+                rdc_area = area_sel
+                if area_sel == "OUTRO (DIGITAR)":
+                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
                 
             rdc_dds = st.text_input("Tópico do DDS do dia:")
             rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
@@ -1100,8 +1113,9 @@ if st.session_state.df is not None:
                         "TURNO": rdc_turno,
                         "AREA": rdc_area.strip().upper(),
                         "DISCIPLINA": rdc_disciplina.strip().upper(),
-                        "TOPICO_DDS": rdc_dds.strip(),
-                        "ATIVIDADES": rdc_atividades.strip(),
+                        "DDS": rdc_dds.strip(),
+                        "ATIVIDADE": rdc_atividades.strip(),
+                        "CALDEIRA": rdc_problemas.strip(),
                         "PROBLEMAS": rdc_problemas.strip()
                     }]
                     
@@ -1955,7 +1969,7 @@ if st.session_state.df is not None:
                     "TURNO": "...",
                     "DDS": "...",
                     "ATIVIDADE": "...",
-                    "CALDEIRA": "...",
+                    "PROBLEMAS": "...",
                     "LOCAL": "...",
                     "AREA": "..."
                   }}
@@ -2120,7 +2134,7 @@ if st.session_state.df is not None:
                     )
                 with col_dw2:
                     if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
                         st.rerun()
                 
                 st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
@@ -2203,7 +2217,7 @@ if st.session_state.df is not None:
                   {{
                     "DISCIPLINA": "...",
                     "ENCARREGADO": "...",
-                    "CALDEIRA": "...",
+                    "PROBLEMAS": "...",
                     "LOCAL": "...",
                     "AREA": "..."
                   }}
@@ -2625,7 +2639,15 @@ if st.session_state.df is not None:
                 rdc_turno = st.selectbox("Turno:", ["DIURNO", "NOTURNO", "MISTO"])
                 
                 st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Disciplina Principal:</p>", unsafe_allow_html=True)
-                disc_options = ["MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ANDAIME", "PINTURA", "ISOLAMENTO", "CIVIL", "OUTRA (DIGITAR)"]
+                disc_options = [
+                    "EQUIPAMENTOS", "DUTOS", "TUBULACAO", "ESTRUTURA METALICA", "PRECIPITADOR", 
+                    "PRESSAO - MECANICA", "PRESSAO - TUBULACAO", "PRESSAO - FORNALHA", "PINTURA", 
+                    "COMISSIONAMENTO", "OP. ASSISTIDA", "LAVAGEM QUIMICA", "SOPRAGEM", "ANDAIME", 
+                    "OPERADORES", "FORA DE ESCOPO", "GERENCIA", "PRODUCAO", "GARANTIA DA QUALIDADE", 
+                    "PLANEJAMENTO", "ADMINISTRACAO", "SEGURANCA E MEDICINA DO TRABALHO", "INFRAESTRUTURA", 
+                    "ALMOXARIFADO ENESA", "ALMOXARIFADO MATERIAIS", "MANUT. ELETRICA PROVISORIA", 
+                    "TOPOGRAFIA", "MOVIMENTACAO DE CARGAS", "MEDICAO/CUSTO/CONTRATOS", "CIVIL", "MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ISOLAMENTO", "OUTRA (DIGITAR)"
+                ]
                 disc_sel = st.selectbox("Disciplina Principal:", disc_options, label_visibility="collapsed")
                 
                 rdc_disciplina = disc_sel
@@ -2634,7 +2656,12 @@ if st.session_state.df is not None:
                     
             with col2:
                 rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
-                rdc_area = st.text_input("Área / Local de Trabalho (Ex: PB, RB, Caldeira):")
+                st.markdown("<p style='font-size: 14px; margin-bottom: 0px;'>Área / Local de Trabalho:</p>", unsafe_allow_html=True)
+                area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
+                area_sel = st.selectbox("Área / Local de Trabalho:", area_options, label_visibility="collapsed")
+                rdc_area = area_sel
+                if area_sel == "OUTRO (DIGITAR)":
+                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
                 
             rdc_dds = st.text_input("Tópico do DDS do dia:")
             rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
@@ -2656,8 +2683,9 @@ if st.session_state.df is not None:
                         "TURNO": rdc_turno,
                         "AREA": rdc_area.strip().upper(),
                         "DISCIPLINA": rdc_disciplina.strip().upper(),
-                        "TOPICO_DDS": rdc_dds.strip(),
-                        "ATIVIDADES": rdc_atividades.strip(),
+                        "DDS": rdc_dds.strip(),
+                        "ATIVIDADE": rdc_atividades.strip(),
+                        "CALDEIRA": rdc_problemas.strip(),
                         "PROBLEMAS": rdc_problemas.strip()
                     }]
                     
@@ -2722,7 +2750,7 @@ if st.session_state.df is not None:
                         
                         if isinstance(dados_offline, list) and len(dados_offline) > 0:
                             if 'df_ia' not in st.session_state:
-                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'CALDEIRA', 'LOCAL', 'AREA'])
+                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
                                 
                             ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                             
@@ -2735,9 +2763,9 @@ if st.session_state.df is not None:
                                     'DISCIPLINA': str(r.get('DISCIPLINA', '')).strip().upper(),
                                     'ENCARREGADO': r.get('ENCARREGADO', ''),
                                     'TURNO': r.get('TURNO', ''),
-                                    'DDS': r.get('DDS', ''),
-                                    'ATIVIDADE': r.get('ATIVIDADE', ''),
-                                    'CALDEIRA': '',
+                                    'DDS': r.get('TOPICO_DDS', r.get('DDS', '')),
+                                    'ATIVIDADE': r.get('ATIVIDADES', r.get('ATIVIDADE', '')),
+                                    'PROBLEMAS': r.get('PROBLEMAS', r.get('CALDEIRA', '')),
                                     'LOCAL': str(r.get('AREA', '')).strip().upper(),
                                     'AREA': str(r.get('AREA', '')).strip().upper()
                                 }
