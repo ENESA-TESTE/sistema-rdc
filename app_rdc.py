@@ -909,33 +909,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# =================================================================
-# TRACKING DE USUÁRIOS ONLINE
-# =================================================================
-import time
-import json
-arquivo_online = os.path.join(pasta_base, "usuarios_online.json")
-try:
-    if os.path.exists(arquivo_online):
-        with open(arquivo_online, "r") as f:
-            usuarios_online = json.load(f)
-    else:
-        usuarios_online = {}
-except:
-    usuarios_online = {}
 
-usuario_atual = st.session_state.get("nome_completo", "Desconhecido")
-usuarios_online[usuario_atual] = time.time()
-
-# Remove inativos (mais de 15 min)
-agora = time.time()
-usuarios_online = {u: t for u, t in usuarios_online.items() if agora - t < 900}
-
-try:
-    with open(arquivo_online, "w") as f:
-        json.dump(usuarios_online, f)
-except:
-    pass
 
 # =================================================================
 # BARRA LATERAL
@@ -1073,13 +1047,7 @@ with st.sidebar:
             use_container_width=True
         )
 
-        st.markdown("---")
-        st.markdown("#### 🟢 Usuários Online")
-        if usuarios_online:
-            for u in sorted(usuarios_online.keys()):
-                st.markdown(f"<div style='margin-bottom: 5px; font-size: 14px;'>🟢 <b>{u}</b> <span style='color:#888; font-size: 12px;'>(Ativo)</span></div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<span style='color:#888; font-size: 14px;'>Ninguém online.</span>", unsafe_allow_html=True)
+
 
         st.markdown("---")
         st.markdown("#### 👥 Gestão de Usuários")
