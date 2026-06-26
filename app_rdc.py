@@ -1052,7 +1052,7 @@ with st.sidebar:
             novo_user = st.text_input("Usuário (Login):")
             nova_senha = st.text_input("Senha:")
             novo_nome = st.text_input("Nome Completo:")
-            nova_role = st.selectbox("Nível de Acesso:", ["user", "admin"])
+            nova_role = st.selectbox("Nível de Acesso:", ["encarregado", "visualizador", "admin"], help="Admin (Tudo), Visualizador (Dashboard), Encarregado (Apenas preenche RDC)")
             submit_user = st.form_submit_button("Salvar Usuário")
             if submit_user and novo_user and nova_senha:
                 usuarios_db[novo_user] = {"senha": nova_senha, "nome": novo_nome, "role": nova_role}
@@ -1063,9 +1063,28 @@ with st.sidebar:
         
         st.markdown("**Usuários Cadastrados:**")
         for u, dados in sorted(usuarios_db.items()):
-            col_u, col_del = st.columns([3, 1])
-            col_u.text(f"👤 {u} ({dados.get('role', 'user')})")
-            if u != "admin":
+            role_atual = dados.get('role', 'encarregado')
+            if role_atual == 'user': role_atual = 'encarregado'
+            
+            if u == "admin":
+                st.markdown(f"<div style='margin-top: 5px; margin-bottom: 5px; font-size: 14px;'>👤 <b>{u}</b> <span style='color:#888; font-size:12px;'>(admin)</span></div>", unsafe_allow_html=True)
+            else:
+                col_u, col_role, col_del = st.columns([4, 3, 1])
+                col_u.markdown(f"<div style='margin-top: 5px; font-size: 14px;'>👤 <b>{u}</b></div>", unsafe_allow_html=True)
+                
+                novo_role = col_role.selectbox(
+                    "Acesso", 
+                    ["encarregado", "visualizador", "admin"], 
+                    index=["encarregado", "visualizador", "admin"].index(role_atual) if role_atual in ["encarregado", "visualizador", "admin"] else 0,
+                    key=f"role_sel_{u}",
+                    label_visibility="collapsed"
+                )
+                
+                if novo_role != role_atual:
+                    usuarios_db[u]["role"] = novo_role
+                    salvar_usuarios(usuarios_db)
+                    st.rerun()
+                    
                 if col_del.button("❌", key=f"del_{u}"):
                     del usuarios_db[u]
                     salvar_usuarios(usuarios_db)
@@ -1277,10 +1296,52 @@ if st.session_state.df is not None:
         else:
             st.session_state.df_f1_excecoes = pd.DataFrame(columns=["DATA", "ENCARREGADO", "MOTIVO"])
 
+    def obter_saudacao():
+        import datetime
+        hora = datetime.datetime.now().hour
+        if 5 <= hora < 12:
+            return "Bom dia"
+        elif 12 <= hora < 18:
+            return "Boa tarde"
+        else:
+            return "Boa noite"
+
+    def exibir_apresentacao(nome):
+        if st.session_state.get("saudacao_vista", False):
+            return
+            
+        st.session_state.saudacao_vista = True
+        
+        saudacao = obter_saudacao()
+        primeiro_nome = nome.split()[0].title() if nome else "Equipe"
+        
+        st.markdown(f"""
+        <style>
+        @keyframes autoHideBanner {{
+            0% {{ opacity: 1; max-height: 200px; padding: 20px; margin-bottom: 25px; border-left-width: 5px; }}
+            70% {{ opacity: 1; max-height: 200px; padding: 20px; margin-bottom: 25px; border-left-width: 5px; }}
+            90% {{ opacity: 0; max-height: 200px; padding: 20px; margin-bottom: 25px; border-left-width: 5px; }}
+            100% {{ opacity: 0; max-height: 0px; padding: 0px; margin-bottom: 0px; border-left-width: 0px; overflow: hidden; }}
+        }}
+        .greeting-box {{
+            background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(139,92,246,0.1)); 
+            border-radius: 12px; 
+            border-left: 5px solid #0ea5e9; 
+            animation: autoHideBanner 5s forwards;
+            overflow: hidden;
+        }}
+        </style>
+        <div class='greeting-box'>
+            <h2 style='margin-top: 0; margin-bottom: 5px; color: #f8fafc;'>{saudacao}, {primeiro_nome}! 👋</h2>
+            <p style='margin: 0; color: #94a3b8; font-size: 16px;'>Em que posso ajudar hoje?</p>
+        </div>
+        """, unsafe_allow_html=True)
+
     # =================================================================
     # MODO ENCARREGADO (Lançamento Nativo com Formatação Original)
     # =================================================================
     if st.session_state.get("role") == "encarregado":
+        exibir_apresentacao(st.session_state.get("nome_completo", "Encarregado"))
         st.markdown("### <span class='material-symbols-rounded' style='vertical-align: middle; color: #0ea5e9; font-size: 32px;'>edit_document</span> Lançamento de RDC Digital", unsafe_allow_html=True)
         st.caption("Preencha as informações do seu dia de trabalho seguindo as 3 etapas abaixo. Os dados serão salvos na nuvem.")
         
@@ -1398,6 +1459,8 @@ if st.session_state.df is not None:
         tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C", "📱 RDC Digital"])
 
     with tab_dashboard:
+        exibir_apresentacao(st.session_state.get("nome_completo", "Usuário"))
+        
         # === RELÓGIO DIGITAL ===
         import streamlit.components.v1 as components
         html_relogio = """
