@@ -1,1 +1,82 @@
-{"admin": {"senha": "123", "nome": "Administrador", "role": "admin"}, "THIAGO BERNARDES": {"senha": "Enesa@123", "nome": "THIAGO PEREIRA BERNARDES", "role": "user"}, "MARCOS VASQUES": {"senha": "Enesa@123", "nome": "MARCOS ROBERTO DE ALBUQUERQUE VASQUES", "role": "user"}, "BRAULIO GOMES": {"senha": "Enesa@123", "nome": "BRAULIO MARCIO RABELO GOMES", "role": "user"}, "RITA PAGOTTO": {"senha": "Enesa@123", "nome": "RITA DE CASSIA PAGOTTO", "role": "user"}, "ADALBERTO JUNIOR": {"senha": "Enesa@123", "nome": "ADALBERTO ALMEIDA ALVES JUNIOR", "role": "user"}, "EDUARDO BATISTA": {"senha": "Enesa@123", "nome": "EDUARDO VINICIUS NUNES BATISTA", "role": "user"}, "JEFFERSON SILVA": {"senha": "Enesa@123", "nome": "JEFFERSON MAGNO CHAVES SILVA", "role": "user"}, "LUIS CANDIDO": {"senha": "Enesa@123", "nome": "LUIS OTAVIO CANDIDO", "role": "user"}, "FERNANDO SANTOS": {"senha": "Enesa@123", "nome": "FERNANDO DE CASTRO SANTOS", "role": "user"}, "EDSON ARAUJO": {"senha": "Enesa@123", "nome": "EDSON GARCIA DE ARAUJO", "role": "user"}, "JOAO GOMES": {"senha": "Enesa@123", "nome": "JOAO GOMES", "role": "user"}, "campo": {"senha": "campo123", "nome": "encarregados", "role": "user"}, "WESLLEY CANIBA": {"senha": "Enesa@123", "nome": "WESLLEY GONCALVES CANIBA", "role": "user"}, "Radyson Matheus": {"senha": "Enesa@123", "nome": "Radyson Matheus", "role": "user"}}
+{
+  "admin": {
+    "senha": "123",
+    "nome": "Administrador",
+    "role": "admin"
+  },
+  "THIAGO BERNARDES": {
+    "senha": "Enesa@123",
+    "nome": "THIAGO PEREIRA BERNARDES",
+    "role": "user"
+  },
+  "MARCOS VASQUES": {
+    "senha": "Enesa@123",
+    "nome": "MARCOS ROBERTO DE ALBUQUERQUE VASQUES",
+    "role": "user"
+  },
+  "BRAULIO GOMES": {
+    "senha": "Enesa@123",
+    "nome": "BRAULIO MARCIO RABELO GOMES",
+    "role": "user"
+  },
+  "RITA PAGOTTO": {
+    "senha": "Enesa@123",
+    "nome": "RITA DE CASSIA PAGOTTO",
+    "role": "user"
+  },
+  "ADALBERTO JUNIOR": {
+    "senha": "Enesa@123",
+    "nome": "ADALBERTO ALMEIDA ALVES JUNIOR",
+    "role": "user"
+  },
+  "EDUARDO BATISTA": {
+    "senha": "Enesa@123",
+    "nome": "EDUARDO VINICIUS NUNES BATISTA",
+    "role": "user"
+  },
+  "JEFFERSON SILVA": {
+    "senha": "Enesa@123",
+    "nome": "JEFFERSON MAGNO CHAVES SILVA",
+    "role": "user"
+  },
+  "LUIS CANDIDO": {
+    "senha": "Enesa@123",
+    "nome": "LUIS OTAVIO CANDIDO",
+    "role": "user"
+  },
+  "FERNANDO SANTOS": {
+    "senha": "Enesa@123",
+    "nome": "FERNANDO DE CASTRO SANTOS",
+    "role": "user"
+  },
+  "EDSON ARAUJO": {
+    "senha": "Enesa@123",
+    "nome": "EDSON GARCIA DE ARAUJO",
+    "role": "user"
+  },
+  "JOAO GOMES": {
+    "senha": "Enesa@123",
+    "nome": "JOAO GOMES",
+    "role": "user"
+  },
+  "campo": {
+    "senha": "campo123",
+    "nome": "encarregados",
+    "role": "user"
+  },
+  "WESLLEY CANIBA": {
+    "senha": "Enesa@123",
+    "nome": "WESLLEY GONCALVES CANIBA",
+    "role": "user"
+  },
+  "Radyson Matheus": {
+    "senha": "Enesa@123",
+    "nome": "Radyson Matheus",
+    "role": "user"
+  },
+  "visualizador": {
+    "senha": "ver123",
+    "nome": "Visualizador",
+    "role": "visualizador"
+  }
+}

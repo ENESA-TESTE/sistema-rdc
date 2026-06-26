@@ -388,12 +388,13 @@ if not st.session_state.logged_in:
         """, unsafe_allow_html=True)
         
         with st.form("login_form"):
-            senha_input = st.text_input("Digite a senha de acesso (Admin ou Encarregado):", type="password")
+            senha_input = st.text_input("Digite a senha de acesso:", type="password")
             btn_login = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if btn_login:
                 senha_admin = "Enesa@2026"
                 senha_encarregado = "Campo@2026"
+                senha_visualizador = "Visualizar@2026"
                 if "senha_global" in st.secrets:
                     senha_admin = st.secrets["senha_global"]
                     
@@ -405,9 +406,57 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.session_state.role = "encarregado"
                     st.rerun()
+                elif senha_input == senha_visualizador:
+                    st.session_state.logged_in = True
+                    st.session_state.role = "visualizador"
+                    st.rerun()
                 else:
                     st.error("❌ Senha incorreta! Tente novamente.")
     st.stop() # Bloqueia a renderização do restante do script
+
+# === ANIMAÇÃO DE BOAS-VINDAS ===
+if "welcome_shown" not in st.session_state:
+    st.session_state.welcome_shown = True
+    _hora = datetime.datetime.now().hour
+    if _hora < 12:
+        _saudacao = "Bom dia"
+        _emoji_hora = "☀️"
+    elif _hora < 18:
+        _saudacao = "Boa tarde"
+        _emoji_hora = "🌤️"
+    else:
+        _saudacao = "Boa noite"
+        _emoji_hora = "🌙"
+    
+    _role_nome = {"admin": "Administrador", "visualizador": "Visualizador", "user": "Encarregado", "encarregado": "Encarregado"}
+    _nome_display = st.session_state.get("nome_completo", _role_nome.get(st.session_state.get("role_usuario", st.session_state.get("role", "user")), "Usuário"))
+    
+    # Tentar contar efetivo
+    _efetivo_msg = ""
+    try:
+        _pasta = os.path.dirname(os.path.abspath(__file__))
+        _csv_path = os.path.join(_pasta, "BASE_ATUAL.csv")
+        if os.path.exists(_csv_path):
+            _df_temp = pd.read_csv(_csv_path)
+            _total = len(_df_temp)
+            _efetivo_msg = f"<br><span style='font-size: 16px; color: #94a3b8;'>📊 Hoje temos <b style=\"color: #0ea5e9;\">{_total:,}</b> colaboradores na base ativa</span>"
+    except Exception:
+        pass
+    
+    st.markdown(f"""
+    <div id="welcome-card" style="text-align: center; padding: 30px; background: linear-gradient(145deg, rgba(14, 165, 233, 0.15), rgba(139, 92, 246, 0.15)); border: 1px solid rgba(14, 165, 233, 0.4); border-radius: 16px; margin: 20px auto; max-width: 600px; box-shadow: 0 0 40px rgba(14, 165, 233, 0.2); animation: welcomeSlide 0.8s ease-out;">
+        <div style="font-size: 48px; margin-bottom: 10px;">{_emoji_hora}</div>
+        <div style="font-size: 28px; font-weight: 800; color: #f8fafc; text-shadow: 0 0 15px rgba(255,255,255,0.2);">{_saudacao}, {_nome_display}!</div>
+        <div style="font-size: 14px; color: #64748b; margin-top: 5px;">{datetime.datetime.now().strftime('%A, %d de %B de %Y').capitalize()}</div>
+        {_efetivo_msg}
+    </div>
+    <style>
+        @keyframes welcomeSlide {{
+            0% {{ opacity: 0; transform: translateY(-30px); }}
+            100% {{ opacity: 1; transform: translateY(0); }}
+        }}
+    </style>
+    """, unsafe_allow_html=True)
 
 # Removido o header global daqui para aparecer apenas após o login.
 
@@ -795,6 +844,31 @@ if st.session_state.usuario_logado is None and cookie_user and cookie_user in us
     st.session_state.role_usuario = usuarios_db[cookie_user].get("role", "user")
     st.session_state.nome_completo = usuarios_db[cookie_user].get("nome", cookie_user)
 
+# === MODO MANUTENÇÃO ===
+caminho_manutencao = os.path.join(pasta_base, "manutencao.flag")
+em_manutencao = os.path.exists(caminho_manutencao)
+
+if em_manutencao and (st.session_state.usuario_logado is None or st.session_state.get("role_usuario") != "admin"):
+    st.markdown("""
+    <div style="display: flex; justify-content: center; align-items: center; min-height: 70vh;">
+        <div style="text-align: center; padding: 50px; background: linear-gradient(145deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1)); border: 2px solid rgba(245, 158, 11, 0.5); border-radius: 24px; max-width: 550px; box-shadow: 0 0 60px rgba(245, 158, 11, 0.15);">
+            <div style="font-size: 80px; margin-bottom: 15px; animation: gear-spin 3s linear infinite;">⚙️</div>
+            <h1 style="color: #f59e0b; font-size: 32px; margin-bottom: 10px; text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);">Sistema em Manutenção</h1>
+            <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">Estamos realizando atualizações para melhorar sua experiência.<br>Voltamos em breve!</p>
+            <div style="margin-top: 25px; padding: 12px 20px; background: rgba(245, 158, 11, 0.15); border-radius: 10px; display: inline-block;">
+                <span style="color: #f59e0b; font-size: 14px; font-weight: bold;">🔒 Acesso temporariamente bloqueado</span>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes gear-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    st.stop()
+
 if st.session_state.usuario_logado is None:
     st.markdown("<br><br>", unsafe_allow_html=True)
     
@@ -870,18 +944,52 @@ with st.sidebar:
             st.image(caminho_logo, use_container_width=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
-    html_avatar = """
-    <div style="display: flex; align-items: center; gap: 15px; padding: 15px; background: rgba(14, 165, 233, 0.1); border-radius: 12px; border: 1px solid rgba(14, 165, 233, 0.3); margin-bottom: 25px; box-shadow: 0 0 20px rgba(14, 165, 233, 0.2); transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-        <div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); display: flex; justify-content: center; align-items: center; font-size: 24px; color: white; box-shadow: 0 0 15px rgba(14, 165, 233, 0.5);">
-            👨‍💻
+    # === BADGE DINÂMICO POR NÍVEL DE ACESSO ===
+    _role = st.session_state.get("role_usuario", st.session_state.get("role", "user"))
+    if _role == "admin":
+        _avatar_emoji = "👨‍💻"
+        _avatar_nome = "ADMINISTRADOR"
+        _avatar_sub = "Acesso Total"
+        _avatar_cor = "#0ea5e9"
+    elif _role == "visualizador":
+        _avatar_emoji = "👁️"
+        _avatar_nome = "VISUALIZADOR"
+        _avatar_sub = "Somente Leitura"
+        _avatar_cor = "#8b5cf6"
+    else:
+        _avatar_emoji = "📋"
+        _avatar_nome = "ENCARREGADO"
+        _avatar_sub = "Acesso de Campo"
+        _avatar_cor = "#10b981"
+    
+    html_avatar = f"""
+    <div style="display: flex; align-items: center; gap: 15px; padding: 15px; background: rgba({14 if _role=='admin' else (139 if _role=='visualizador' else 16)}, {165 if _role=='admin' else (92 if _role=='visualizador' else 185)}, {233 if _role=='admin' else (246 if _role=='visualizador' else 129)}, 0.1); border-radius: 12px; border: 1px solid {_avatar_cor}40; margin-bottom: 25px; box-shadow: 0 0 20px {_avatar_cor}30; transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        <div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, {_avatar_cor}, #8b5cf6); display: flex; justify-content: center; align-items: center; font-size: 24px; color: white; box-shadow: 0 0 15px {_avatar_cor}80;">
+            {_avatar_emoji}
         </div>
         <div>
-            <div style="font-size: 14px; font-weight: 800; color: #f8fafc; text-shadow: 0 0 10px rgba(255,255,255,0.3); letter-spacing: 0.5px;">ADMINISTRADOR</div>
-            <div style="font-size: 12px; color: #0ea5e9; font-weight: bold; margin-top: 2px; text-shadow: 0 0 5px rgba(14,165,233,0.5);">Acesso Supremo</div>
+            <div style="font-size: 14px; font-weight: 800; color: #f8fafc; text-shadow: 0 0 10px rgba(255,255,255,0.3); letter-spacing: 0.5px;">{_avatar_nome}</div>
+            <div style="font-size: 12px; color: {_avatar_cor}; font-weight: bold; margin-top: 2px; text-shadow: 0 0 5px {_avatar_cor}80;">{_avatar_sub}</div>
         </div>
     </div>
     """
     st.markdown(html_avatar, unsafe_allow_html=True)
+    
+    # === TOGGLE MODO MANUTENÇÃO (SÓ ADMIN) ===
+    if st.session_state.get("role_usuario") == "admin":
+        _em_manut = os.path.exists(caminho_manutencao)
+        manut_toggle = st.toggle("🔧 Modo Manutenção", value=_em_manut, key="toggle_manutencao", help="Bloqueia o acesso de TODOS os usuários (exceto Admin)")
+        if manut_toggle and not _em_manut:
+            with open(caminho_manutencao, "w") as f:
+                f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            st.warning("🔧 Modo Manutenção **ATIVADO**. Ninguém além de Admin consegue acessar.")
+            st.rerun()
+        elif not manut_toggle and _em_manut:
+            os.remove(caminho_manutencao)
+            st.success("✅ Modo Manutenção **DESATIVADO**. Sistema liberado para todos.")
+            st.rerun()
+        if _em_manut:
+            st.caption("⚠️ Sistema bloqueado para outros usuários agora.")
     
     st.header("📂 Arquivos Base")
     
@@ -1005,6 +1113,17 @@ with st.sidebar:
                     st.rerun()
 
     st.markdown("---")
+    # === BOTÃO DE LOGOUT ===
+    st.divider()
+    if st.button("🚪 Sair do Sistema", use_container_width=True, type="secondary", key="btn_logout_sidebar"):
+        try:
+            cookie_manager.delete("rdc_user_session")
+        except Exception:
+            pass
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+    
     st.markdown(
         f"""
         <div style='text-align: center; margin-top: 20px; font-size: 12px; color: #888;'>
@@ -1307,9 +1426,41 @@ if st.session_state.df is not None:
         'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
     }
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C", "📱 RDC Digital"])
+    # === CONTROLE DE ABAS POR NÍVEL DE ACESSO ===
+    user_role = st.session_state.get("role_usuario", st.session_state.get("role", "user"))
+    
+    if user_role == "admin":
+        tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C", "📱 RDC Digital"])
+    elif user_role == "visualizador":
+        tab_dashboard, tab_cc, tab_f1 = st.tabs(["📊 Dashboard", "💰 Controle de C.C", "🏎️ Competição F1"])
+        # Criar variáveis dummy para evitar erros em blocos condicionais
+        tab_resumo = tab_emissao = tab_ia = tab_ia_cc = tab_rdc_digital = None
+    else:
+        tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs(["📊 Dashboard", "📅 Resumo Diário", "📝 Emissão de RDC", "💰 Controle de C.C", "🏎️ Competição F1", "🤖 Leitor de RDC (IA)", "🤖 IA - Atualizador de C.C", "📱 RDC Digital"])
 
     with tab_dashboard:
+        # === RELÓGIO DIGITAL ===
+        import streamlit.components.v1 as components
+        html_relogio = """
+        <div id="clock_container" style="font-family: 'Courier New', Courier, monospace; font-size: 28px; color: #0ea5e9; font-weight: bold; text-shadow: 0 0 10px rgba(14, 165, 233, 0.8); text-align: center; background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9)); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(14, 165, 233, 0.4); width: fit-content; margin: 0 auto 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(14,165,233,0.1);">
+            <div id="time" style="letter-spacing: 2px;">--:--:--</div>
+            <div id="date" style="font-size: 14px; color: #94a3b8; font-weight: normal; text-shadow: none; font-family: 'Inter', sans-serif; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Carregando...</div>
+        </div>
+        <script>
+            function updateClock() {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('pt-BR');
+                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                let dateStr = now.toLocaleDateString('pt-BR', dateOptions);
+                document.getElementById('time').innerText = timeStr;
+                document.getElementById('date').innerText = dateStr;
+            }
+            setInterval(updateClock, 1000);
+            updateClock();
+        </script>
+        """
+        components.html(html_relogio, height=110)
+        
         st.markdown("### 🎛️ Centro de Comando (Overview)")
         
         # Filtro de MOI / MOD e Local
@@ -1526,8 +1677,143 @@ if st.session_state.df is not None:
             df_exibicao = df_exibicao[mask]
         st.dataframe(df_exibicao, hide_index=True, use_container_width=True)
         
+        # === RELATÓRIO SEMANAL EM PDF ===
+        st.markdown("---")
+        st.markdown("### 📄 Relatório Semanal")
+        if st.button("📄 Gerar Relatório PDF da Semana", use_container_width=True, key="btn_gerar_pdf_semanal"):
+            try:
+                from fpdf import FPDF
+                
+                class RelatorioPDF(FPDF):
+                    def header(self):
+                        self.set_font('Helvetica', 'B', 18)
+                        self.set_text_color(14, 165, 233)
+                        self.cell(0, 12, 'ENESA - Relatorio Semanal', align='C', new_x="LMARGIN", new_y="NEXT")
+                        self.set_font('Helvetica', '', 10)
+                        self.set_text_color(100, 116, 139)
+                        self.cell(0, 6, f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y as %H:%M")}', align='C', new_x="LMARGIN", new_y="NEXT")
+                        self.ln(5)
+                        self.set_draw_color(14, 165, 233)
+                        self.line(10, self.get_y(), 200, self.get_y())
+                        self.ln(8)
+                    
+                    def footer(self):
+                        self.set_y(-15)
+                        self.set_font('Helvetica', 'I', 8)
+                        self.set_text_color(128, 128, 128)
+                        self.cell(0, 10, f'Pagina {self.page_no()}/{{nb}} | Sistema RDC & PDE - ENESA', align='C')
+                
+                pdf = RelatorioPDF()
+                pdf.alias_nb_pages()
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=20)
+                
+                # KPIs Gerais
+                pdf.set_font('Helvetica', 'B', 14)
+                pdf.set_text_color(248, 250, 252)
+                pdf.set_fill_color(30, 41, 59)
+                pdf.cell(0, 10, '  INDICADORES GERAIS (KPIs)', fill=True, new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(5)
+                
+                total_geral = len(df_atual)
+                total_pb = len(df_atual[df_atual["C.C"].astype(str).str.contains("125.02", na=False)]) if "C.C" in df_atual.columns else 0
+                total_rb = len(df_atual[df_atual["C.C"].astype(str).str.contains("125.01", na=False)]) if "C.C" in df_atual.columns else 0
+                total_mod = len(df_atual[df_atual["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]) if "MÃO DE OBRA" in df_atual.columns else 0
+                total_moi = len(df_atual[df_atual["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]) if "MÃO DE OBRA" in df_atual.columns else 0
+                
+                pdf.set_font('Helvetica', '', 11)
+                pdf.set_text_color(50, 50, 50)
+                kpis = [
+                    ("Efetivo Total", str(total_geral)),
+                    ("PB (Caldeira de Potencia)", str(total_pb)),
+                    ("RB (Caldeira de Recuperacao)", str(total_rb)),
+                    ("MOD (Mao de Obra Direta)", str(total_mod)),
+                    ("MOI (Mao de Obra Indireta)", str(total_moi)),
+                ]
+                for label, valor in kpis:
+                    pdf.set_font('Helvetica', '', 11)
+                    pdf.cell(120, 8, f'  {label}:', border=0)
+                    pdf.set_font('Helvetica', 'B', 11)
+                    pdf.set_text_color(14, 165, 233)
+                    pdf.cell(0, 8, valor, new_x="LMARGIN", new_y="NEXT")
+                    pdf.set_text_color(50, 50, 50)
+                
+                # Disciplinas
+                pdf.ln(8)
+                pdf.set_font('Helvetica', 'B', 14)
+                pdf.set_text_color(248, 250, 252)
+                pdf.set_fill_color(30, 41, 59)
+                pdf.cell(0, 10, '  DISTRIBUICAO POR DISCIPLINA', fill=True, new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(5)
+                
+                if "DISCIPLINA" in df_atual.columns:
+                    disc_count = df_atual.groupby("DISCIPLINA").size().reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10)
+                    pdf.set_font('Helvetica', 'B', 10)
+                    pdf.set_text_color(255, 255, 255)
+                    pdf.set_fill_color(14, 165, 233)
+                    pdf.cell(130, 8, '  Disciplina', fill=True, border=1)
+                    pdf.cell(50, 8, '  Quantidade', fill=True, border=1, new_x="LMARGIN", new_y="NEXT")
+                    
+                    pdf.set_font('Helvetica', '', 10)
+                    pdf.set_text_color(50, 50, 50)
+                    for _, row in disc_count.iterrows():
+                        pdf.set_fill_color(241, 245, 249)
+                        pdf.cell(130, 7, f'  {str(row["DISCIPLINA"])[:40]}', border=1, fill=True)
+                        pdf.cell(50, 7, f'  {row["Qtd"]}', border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+                
+                # F1 Ranking
+                pdf.ln(8)
+                pdf.set_font('Helvetica', 'B', 14)
+                pdf.set_text_color(248, 250, 252)
+                pdf.set_fill_color(30, 41, 59)
+                pdf.cell(0, 10, '  RANKING F1 - COMPETICAO DE ENTREGAS', fill=True, new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(5)
+                
+                try:
+                    hist_f1 = st.session_state.get("df_historico_f1", pd.DataFrame())
+                    if not hist_f1.empty and "DATA" in hist_f1.columns and "ENCARREGADO" in hist_f1.columns:
+                        mes_atual = datetime.datetime.now().strftime("%Y-%m")
+                        hist_mes = hist_f1[hist_f1["DATA"].astype(str).str.startswith(mes_atual)]
+                        if not hist_mes.empty:
+                            rank = hist_mes.groupby("ENCARREGADO").size().reset_index(name="Entregas").sort_values("Entregas", ascending=False).head(10)
+                            
+                            pdf.set_font('Helvetica', 'B', 10)
+                            pdf.set_text_color(255, 255, 255)
+                            pdf.set_fill_color(139, 92, 246)
+                            pdf.cell(20, 8, '  #', fill=True, border=1)
+                            pdf.cell(110, 8, '  Encarregado', fill=True, border=1)
+                            pdf.cell(50, 8, '  Entregas', fill=True, border=1, new_x="LMARGIN", new_y="NEXT")
+                            
+                            pdf.set_font('Helvetica', '', 10)
+                            pdf.set_text_color(50, 50, 50)
+                            medalhas = {0: '[OURO]', 1: '[PRATA]', 2: '[BRONZE]'}
+                            for idx, (_, row) in enumerate(rank.iterrows()):
+                                medal = medalhas.get(idx, f'  {idx+1}')
+                                pdf.set_fill_color(241, 245, 249)
+                                pdf.cell(20, 7, f'  {medal}', border=1, fill=True)
+                                pdf.cell(110, 7, f'  {row["ENCARREGADO"][:35]}', border=1, fill=True)
+                                pdf.cell(50, 7, f'  {row["Entregas"]}', border=1, fill=True, new_x="LMARGIN", new_y="NEXT")
+                except Exception:
+                    pass
+                
+                pdf_output = pdf.output()
+                nome_pdf = f"Relatorio_Semanal_ENESA_{datetime.datetime.now().strftime('%d_%m_%Y')}.pdf"
+                
+                st.download_button(
+                    label="⬇️ Baixar Relatório PDF",
+                    data=pdf_output,
+                    file_name=nome_pdf,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                st.success(f"✅ Relatório gerado com sucesso! Clique acima para baixar.")
+            except ImportError:
+                st.error("⚠️ Biblioteca `fpdf2` não encontrada. Rode: `pip install fpdf2`")
+            except Exception as e:
+                st.error(f"❌ Erro ao gerar PDF: {e}")
 
-    with tab_resumo:
+    if tab_resumo is not None:
+      with tab_resumo:
         st.markdown("### 📅 Resumo Diário")
         
         # --- FIX: Filtro de data para ver o resumo de qualquer dia ---
@@ -1730,7 +2016,8 @@ if st.session_state.df is not None:
         else:
             st.success(f"🎉 Todos os RDCs desta data ({data_filtro_str}) já foram entregues!")
 
-    with tab_emissao:
+    if tab_emissao is not None:
+      with tab_emissao:
         st.markdown("### Emissão de RDC")
         if not lista_encarregados_base:
             st.warning("Nenhum encarregado encontrado na base.")
@@ -2016,6 +2303,8 @@ if st.session_state.df is not None:
         # Montar a Matriz com a lista oficial + qualquer outro nome que já tenha entregue no mês
         nomes_no_mes = df_mes["ENCARREGADO"].dropna().unique().tolist() if not df_mes.empty else []
         todos_encarregados_matriz = sorted(list(set(lista_completa_encarregados + nomes_no_mes)))
+        # Remover nomes inválidos da matriz
+        todos_encarregados_matriz = [e for e in todos_encarregados_matriz if e.strip() != "" and e.upper() != "AJUSTAR NOME"]
         
         dias_str = [str(d) for d in range(1, num_dias + 1)]
         
@@ -2041,8 +2330,22 @@ if st.session_state.df is not None:
             enc = row["ENCARREGADO"]
             if enc in matriz.index and dia not in dias_fim_de_semana:
                 matriz.loc[enc, dia] = "✅"
+        
+        # Aplicar Abonos (substituir ❌ por ⏸️ para dias com exceção cadastrada)
+        if not st.session_state.df_f1_excecoes.empty:
+            df_exc_mes = st.session_state.df_f1_excecoes.copy()
+            df_exc_mes["DATA"] = pd.to_datetime(df_exc_mes["DATA"], errors='coerce')
+            df_exc_mes = df_exc_mes.dropna(subset=["DATA"])
+            df_exc_mes = df_exc_mes[df_exc_mes["DATA"].dt.strftime("%Y-%m") == mes_selecionado]
+            
+            for _, row_exc in df_exc_mes.iterrows():
+                dia_exc = str(row_exc["DATA"].day)
+                enc_exc = row_exc["ENCARREGADO"]
+                if enc_exc in matriz.index and dia_exc not in dias_fim_de_semana:
+                    if matriz.loc[enc_exc, dia_exc] == "❌":
+                        matriz.loc[enc_exc, dia_exc] = "⏸️"
                 
-        # Total conta apenas dias úteis (ignora fins de semana)
+        # Total conta apenas dias úteis (ignora fins de semana e abonos)
         matriz["Total"] = (matriz[dias_uteis] == "✅").sum(axis=1)
         
         # Adicionar o total do dia no próprio cabeçalho da coluna (em cima dos dias)
@@ -2091,6 +2394,8 @@ if st.session_state.df is not None:
                 return "background-color: rgba(74, 222, 128, 0.2); color: #4ade80;"
             elif valor == "❌":
                 return "background-color: rgba(255, 75, 75, 0.2); color: #ff4b4b;"
+            elif valor == "⏸️":
+                return "background-color: rgba(245, 158, 11, 0.2); color: #f59e0b;"
             elif valor == "➖":
                 return "background-color: rgba(128, 128, 128, 0.2); color: #888;"
             return ""
@@ -2101,6 +2406,72 @@ if st.session_state.df is not None:
             matriz_estilizada = matriz.style.applymap(cor_fundo)
             
         st.dataframe(matriz_estilizada, use_container_width=True)
+        
+        # === MARCAR / DESMARCAR ENTREGA MANUALMENTE ===
+        if st.toggle("✏️ Marcar ou Desmarcar Entrega de um Dia", key="toggle_marcar_dia_f1"):
+            st.markdown("""
+            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
+                <p style="margin: 0; color: #94a3b8; font-size: 14px;">Selecione os encarregados e o dia para colocar <b style="color: #10b981;">✅</b> ou tirar (voltar para <b style="color: #ef4444;">❌</b>).</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col_mk1, col_mk2, col_mk3 = st.columns([3, 1, 1])
+            with col_mk1:
+                encs_marcar = st.multiselect("Encarregado(s):", todos_encarregados_matriz, key="encs_marcar_dia")
+            with col_mk2:
+                dia_marcar = st.selectbox("Dia:", [int(d) for d in dias_uteis], key="dia_marcar_sel")
+            with col_mk3:
+                acao_marcar = st.selectbox("Ação:", ["✅ Marcar Entregue", "❌ Desmarcar"], key="acao_marcar_sel")
+            
+            if st.button("Aplicar", type="primary", use_container_width=True, key="btn_aplicar_marcar"):
+                if encs_marcar:
+                    data_str = f"{ano}-{str(mes).zfill(2)}-{str(dia_marcar).zfill(2)}"
+                    
+                    if "✅" in acao_marcar:
+                        # Adicionar ao histórico F1
+                        novos = []
+                        for enc_mk in encs_marcar:
+                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_mk)).any()
+                            if not ja_existe:
+                                novos.append({"DATA": data_str, "ENCARREGADO": enc_mk})
+                        if novos:
+                            df_novos_mk = pd.DataFrame(novos)
+                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos_mk], ignore_index=True)
+                            
+                            if conn and not st.session_state.get('force_use_local', False):
+                                try:
+                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                    st.cache_data.clear()
+                                except Exception:
+                                    pass
+                            
+                            st.success(f"✅ {len(novos)} entrega(s) marcada(s) no dia {dia_marcar}!")
+                        else:
+                            st.info("ℹ️ Todos já estavam marcados nesse dia.")
+                    else:
+                        # Remover do histórico F1
+                        removidos = 0
+                        for enc_mk in encs_marcar:
+                            mask = (st.session_state.df_historico_f1["DATA"] == data_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_mk)
+                            if mask.any():
+                                st.session_state.df_historico_f1 = st.session_state.df_historico_f1[~mask]
+                                removidos += 1
+                        
+                        if removidos > 0:
+                            if conn and not st.session_state.get('force_use_local', False):
+                                try:
+                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                    st.cache_data.clear()
+                                except Exception:
+                                    pass
+                            st.success(f"❌ {removidos} entrega(s) desmarcada(s) no dia {dia_marcar}!")
+                        else:
+                            st.info("ℹ️ Nenhum deles estava marcado nesse dia.")
+                    
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Selecione pelo menos um encarregado.")
         
         # --- EXPORTAR PARA RH ---
         buffer_rh = io.BytesIO()
@@ -2209,7 +2580,8 @@ if st.session_state.df is not None:
         
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-    with tab_ia:
+    if tab_ia is not None:
+      with tab_ia:
         st.markdown("### 🤖 Robô de Extração Inteligente (Google Gemini)")
         st.markdown("<p style='margin-top: -15px; font-size: 14px; color: #888;'>Uma ideia original por <b>Caio Farisco</b></p>", unsafe_allow_html=True)
         st.markdown("Arraste os formulários RDC físicos escaneados abaixo. A inteligência artificial irá extrair as informações e padronizar com a sua base de Encarregados.")
@@ -2282,6 +2654,28 @@ if st.session_state.df is not None:
                 Não inclua crases, formatação markdown ou texto adicional, apenas o JSON puro começando com [ e terminando com ].
                 """
 
+                # === ANIMAÇÃO PREMIUM DE LOADING ===
+                animacao_html = """
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; background: rgba(15,23,42,0.9); border: 1px solid #0ea5e9; border-radius: 15px; box-shadow: 0 0 30px rgba(14, 165, 233, 0.3); margin-bottom: 20px;">
+                    <div class="radar" style="position: relative; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(14,165,233,0.5); overflow: hidden; background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, rgba(15,23,42,0) 100%);">
+                        <div style="position: absolute; width: 50%; height: 50%; top: 0; left: 50%; transform-origin: bottom left; background: linear-gradient(45deg, rgba(14,165,233,0.9) 0%, transparent 50%); animation: radar-spin 1.5s linear infinite;"></div>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 14px; letter-spacing: 2px; text-shadow: 0 0 10px #0ea5e9; background: #0f172a; padding: 5px; border-radius: 5px;">ENESA</div>
+                        <div style="position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(14,165,233,0.4);"></div>
+                        <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(14,165,233,0.4);"></div>
+                        <div style="position: absolute; top: 20%; left: 20%; width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite;"></div>
+                        <div style="position: absolute; top: 70%; left: 60%; width: 4px; height: 4px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite 0.7s;"></div>
+                    </div>
+                    <p style="color: #0ea5e9; margin-top: 20px; font-weight: bold; font-size: 16px; animation: pulse 1s infinite; margin-bottom: 0;">🤖 IA Processando Documentos...</p>
+                    <style>
+                        @keyframes radar-spin { 100% { transform: rotate(360deg); } }
+                        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+                        @keyframes blip { 0%, 100% { opacity: 0; } 10% { opacity: 1; } }
+                    </style>
+                </div>
+                """
+                animacao_placeholder = st.empty()
+                animacao_placeholder.markdown(animacao_html, unsafe_allow_html=True)
+                
                 with st.status("🤖 Robô iniciando análise...", expanded=True) as status:
                     progresso = st.progress(0)
                     total_arquivos = len(arquivos_scan)
@@ -2396,6 +2790,7 @@ if st.session_state.df is not None:
                     st.session_state.teve_falha_ia = False
                     
                     pass
+                animacao_placeholder.empty()
                 st.session_state.force_use_local = True
                 
             if not st.session_state.df_ia.empty:
@@ -2476,7 +2871,8 @@ if st.session_state.df is not None:
                     else:
                         st.info("ℹ️ Os dados foram processados, mas os Encarregados dessa lista já haviam sido contabilizados.")
 
-    with tab_ia_cc:
+    if tab_ia_cc is not None:
+      with tab_ia_cc:
         st.markdown("### Robô Atualizador de C.C (Google Gemini)")
         st.markdown("Faça o upload dos PDFs aqui para o robô identificar o Local (PB/RB) e a Área (Estrutura, Tubulação, etc) e atualizar automaticamente o C.C. das equipes na base global do Google Sheets.")
         
@@ -2525,6 +2921,28 @@ if st.session_state.df is not None:
 
                 Apenas o JSON puro começando com [ e terminando com ].
                 """
+
+                # === ANIMAÇÃO PREMIUM DE LOADING ===
+                animacao_html = """
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; background: rgba(15,23,42,0.9); border: 1px solid #0ea5e9; border-radius: 15px; box-shadow: 0 0 30px rgba(14, 165, 233, 0.3); margin-bottom: 20px;">
+                    <div class="radar" style="position: relative; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(14,165,233,0.5); overflow: hidden; background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, rgba(15,23,42,0) 100%);">
+                        <div style="position: absolute; width: 50%; height: 50%; top: 0; left: 50%; transform-origin: bottom left; background: linear-gradient(45deg, rgba(14,165,233,0.9) 0%, transparent 50%); animation: radar-spin 1.5s linear infinite;"></div>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 14px; letter-spacing: 2px; text-shadow: 0 0 10px #0ea5e9; background: #0f172a; padding: 5px; border-radius: 5px;">ENESA</div>
+                        <div style="position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(14,165,233,0.4);"></div>
+                        <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(14,165,233,0.4);"></div>
+                        <div style="position: absolute; top: 20%; left: 20%; width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite;"></div>
+                        <div style="position: absolute; top: 70%; left: 60%; width: 4px; height: 4px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite 0.7s;"></div>
+                    </div>
+                    <p style="color: #0ea5e9; margin-top: 20px; font-weight: bold; font-size: 16px; animation: pulse 1s infinite; margin-bottom: 0;">🤖 IA Atualizando Centros de Custo...</p>
+                    <style>
+                        @keyframes radar-spin { 100% { transform: rotate(360deg); } }
+                        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+                        @keyframes blip { 0%, 100% { opacity: 0; } 10% { opacity: 1; } }
+                    </style>
+                </div>
+                """
+                animacao_placeholder_cc = st.empty()
+                animacao_placeholder_cc.markdown(animacao_html, unsafe_allow_html=True)
 
                 with st.status("🤖 Atualizando C.C das equipes...", expanded=True) as status_cc:
                     progresso = st.progress(0)
@@ -2694,7 +3112,8 @@ if st.session_state.df is not None:
                     progresso.progress((i + 1) / total_arquivos)
 
                 expandir_status = st.session_state.get('teve_falha_ia_cc', False)
-                status.update(label="🎉 Leitura concluída!" if not expandir_status else "⚠️ Leitura finalizada com erros", state="complete", expanded=expandir_status)
+                status_cc.update(label="✅ Atualização de C.Cs concluída!" if not expandir_status else "⚠️ Leitura finalizada com erros", state="complete", expanded=expandir_status)
+                animacao_placeholder_cc.empty()
                 st.session_state.teve_falha_ia_cc = False
                 
                 if houve_atualizacao_global:
@@ -2719,9 +3138,75 @@ if st.session_state.df is not None:
     with tab_cc:
         st.markdown("### 💰 Controle de Centro de Custo (C.C)")
         
+        # === ÚLTIMA ATUALIZAÇÃO ===
+        ultima_base = ""
+        ultima_cc = ""
+        try:
+            if os.path.exists(caminho_base_salva_csv):
+                ts_base = os.path.getmtime(caminho_base_salva_csv)
+                ultima_base = datetime.datetime.fromtimestamp(ts_base).strftime("%d/%m/%Y às %H:%M")
+            elif os.path.exists(caminho_base_salva_xlsx):
+                ts_base = os.path.getmtime(caminho_base_salva_xlsx)
+                ultima_base = datetime.datetime.fromtimestamp(ts_base).strftime("%d/%m/%Y às %H:%M")
+        except Exception:
+            pass
+        try:
+            if os.path.exists(caminho_hist_cc):
+                ts_cc = os.path.getmtime(caminho_hist_cc)
+                ultima_cc = datetime.datetime.fromtimestamp(ts_cc).strftime("%d/%m/%Y às %H:%M")
+        except Exception:
+            pass
+        
+        html_update = f"""
+        <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 10px 18px; display: flex; align-items: center; gap: 10px;">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; animation: pulse_dot 2s infinite;"></div>
+                <span style="font-size: 13px; color: #94a3b8;">Base PDE atualizada em: <b style="color: #10b981;">{ultima_base if ultima_base else 'N/A'}</b></span>
+            </div>
+            <div style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 10px; padding: 10px 18px; display: flex; align-items: center; gap: 10px;">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: #8b5cf6; box-shadow: 0 0 8px #8b5cf6; animation: pulse_dot 2s infinite;"></div>
+                <span style="font-size: 13px; color: #94a3b8;">Histórico C.C salvo em: <b style="color: #8b5cf6;">{ultima_cc if ultima_cc else 'N/A'}</b></span>
+            </div>
+        </div>
+        <style>
+            @keyframes pulse_dot {{
+                0%, 100% {{ opacity: 1; }}
+                50% {{ opacity: 0.3; }}
+            }}
+        </style>
+        """
+        st.markdown(html_update, unsafe_allow_html=True)
+        
         if "C.C" not in df_atual.columns or df_atual["C.C"].str.strip().eq("").all():
             st.warning("⚠️ A coluna de Centro de Custo (C.C) não foi encontrada na base de dados atual. Verifique se a planilha possui essa coluna.")
         else:
+            # === ALERTA DE C.C INVÁLIDO ===
+            df_em_branco = df_atual[df_atual["C.C"].isna() | df_atual["C.C"].str.strip().eq("")]
+            if not df_em_branco.empty:
+                st.error(f"⚠️ **ALERTA DE SISTEMA:** Existem **{len(df_em_branco)} colaboradores** na base atual **sem Centro de Custo** (C.C em branco). Eles não aparecerão nos cálculos de custo!")
+            
+            valid_prefixes = ["125.01.", "125.02."]
+            valid_suffixes = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113']
+            
+            invalid_cc_list = []
+            df_preenchido = df_atual[~df_atual["C.C"].isna() & (df_atual["C.C"].str.strip() != "")]
+            for _, row in df_preenchido.iterrows():
+                cc_val = str(row["C.C"]).strip()
+                is_valid = False
+                for prefix in valid_prefixes:
+                    if cc_val.startswith(prefix):
+                        suf = cc_val.replace(prefix, "")
+                        if suf in valid_suffixes:
+                            is_valid = True
+                            break
+                if not is_valid:
+                    invalid_cc_list.append(cc_val)
+                    
+            if invalid_cc_list:
+                invalid_cc_count = len(invalid_cc_list)
+                unique_invalids = list(set(invalid_cc_list))
+                st.warning(f"⚠️ **ATENÇÃO:** Foram encontrados **{invalid_cc_count} colaboradores** com C.C **inválido** (não existe no mapa oficial). Exemplos: {', '.join(unique_invalids[:5])}")
+
             # Filtro PB/RB/ESP Global para a aba C.C
             filtro_local = st.segmented_control(
                 "Filtrar Dados por Local:", 
@@ -2940,7 +3425,8 @@ if st.session_state.df is not None:
             else:
                 st.info("Nenhum colaborador encontrado para este Centro de Custo.")
 
-    with tab_rdc_digital:
+    if tab_rdc_digital is not None:
+      with tab_rdc_digital:
         st.markdown("### <span class='material-symbols-rounded' style='vertical-align: middle; color: #0ea5e9; font-size: 32px;'>edit_document</span> Lançamento de RDC Digital", unsafe_allow_html=True)
         st.caption("Preencha as informações do seu dia de trabalho seguindo as 3 etapas abaixo. Os dados serão salvos na nuvem.")
         
