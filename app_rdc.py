@@ -914,7 +914,7 @@ st.markdown(f"""
 # =================================================================
 import time
 import json
-arquivo_online = os.path.join(PASTA_BASE, "usuarios_online.json")
+arquivo_online = os.path.join(pasta_base, "usuarios_online.json")
 try:
     if os.path.exists(arquivo_online):
         with open(arquivo_online, "r") as f:
