@@ -1420,6 +1420,85 @@ if st.session_state.df is not None:
         """
         components.html(html_relogio, height=110)
         
+        # === MÓDULO CLIMA-OBRA ===
+        st.markdown("### 🌦️ Clima e Impacto Operacional")
+        col_cidade, col_clima = st.columns([1, 2])
+        
+        if "cidade_obra" not in st.session_state:
+            st.session_state.cidade_obra = "Lençóis Paulista"
+            
+        with col_cidade:
+            nova_cidade = st.text_input("📍 Local da Obra (Cidade):", value=st.session_state.cidade_obra)
+            if nova_cidade != st.session_state.cidade_obra:
+                st.session_state.cidade_obra = nova_cidade
+                st.rerun()
+                
+        with col_clima:
+            try:
+                import urllib.request, json
+                from urllib.parse import quote
+                # Pegar Coordenadas
+                city_encoded = quote(st.session_state.cidade_obra)
+                url_geo = f"https://geocoding-api.open-meteo.com/v1/search?name={city_encoded}&count=1&language=pt&format=json"
+                req_geo = urllib.request.Request(url_geo, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req_geo, timeout=5) as response:
+                    geo_data = json.loads(response.read().decode())
+                
+                if geo_data.get("results"):
+                    lat = geo_data["results"][0]["latitude"]
+                    lon = geo_data["results"][0]["longitude"]
+                    cidade_nome = geo_data["results"][0]["name"]
+                    
+                    # Pegar Clima
+                    url_weather = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code&hourly=precipitation_probability,temperature_2m&timezone=America%2FSao_Paulo"
+                    req_w = urllib.request.Request(url_weather, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req_w, timeout=5) as response:
+                        weather_data = json.loads(response.read().decode())
+                        
+                    temp_atual = weather_data["current"]["temperature_2m"]
+                    code = weather_data["current"]["weather_code"]
+                    
+                    # Interpretar Weather Code (WMO)
+                    icon = "☀️"
+                    desc = "Ensolarado"
+                    if code in [1, 2, 3]: icon, desc = "⛅", "Parcialmente Nublado"
+                    elif code in [45, 48]: icon, desc = "🌫️", "Neblina"
+                    elif code in [51, 53, 55, 61, 63, 65, 80, 81, 82]: icon, desc = "🌧️", "Chuva"
+                    elif code in [71, 73, 75, 77, 85, 86]: icon, desc = "❄️", "Frio extremo"
+                    elif code in [95, 96, 99]: icon, desc = "⛈️", "Tempestade"
+                    
+                    # Verificar risco de chuva nas próximas 12 horas
+                    import datetime
+                    agora = datetime.datetime.now().hour
+                    chuva_probs = weather_data["hourly"]["precipitation_probability"][agora:agora+12]
+                    risco_chuva = max(chuva_probs) if chuva_probs else 0
+                    
+                    # Layout
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(90deg, #1e293b, #0f172a); padding: 15px; border-radius: 12px; border-left: 5px solid #0ea5e9; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+                        <div>
+                            <div style="font-size: 14px; color: #94a3b8;">{cidade_nome}</div>
+                            <div style="font-size: 28px; font-weight: bold; color: white;">{icon} {temp_atual}°C</div>
+                            <div style="font-size: 14px; color: #cbd5e1;">{desc}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 5px;">PROBABILIDADE DE CHUVA (12h)</div>
+                            <div style="font-size: 22px; font-weight: bold; color: {'#ef4444' if risco_chuva > 50 else '#f59e0b' if risco_chuva > 20 else '#10b981'};">{risco_chuva}%</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if risco_chuva > 50:
+                        st.error(f"⚠️ **ALERTA CLIMÁTICO:** Alta probabilidade de chuva ({risco_chuva}%) nas próximas horas. Considere replanejar frentes de trabalho externas (Caldeiras / Pátio).")
+                    elif temp_atual > 34:
+                        st.warning(f"⚠️ **ALERTA CALOR:** Temperatura muito elevada ({temp_atual}°C). Reforce no DDS a necessidade de pausas para hidratação das equipes!")
+                else:
+                    st.info("🌦️ Cidade não encontrada. Tente digitar sem acentos.")
+            except Exception as e:
+                st.caption(f"⚠️ Não foi possível carregar a API do clima no momento. (Verifique conexão)")
+                
+        st.divider()
+        
         st.markdown("### 🎛️ Centro de Comando (Overview)")
         
         # Filtro de MOI / MOD e Local
