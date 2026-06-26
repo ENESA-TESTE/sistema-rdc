@@ -844,31 +844,6 @@ if st.session_state.usuario_logado is None and cookie_user and cookie_user in us
     st.session_state.role_usuario = usuarios_db[cookie_user].get("role", "user")
     st.session_state.nome_completo = usuarios_db[cookie_user].get("nome", cookie_user)
 
-# === MODO MANUTENÇÃO ===
-caminho_manutencao = os.path.join(pasta_base, "manutencao.flag")
-em_manutencao = os.path.exists(caminho_manutencao)
-
-if em_manutencao and (st.session_state.usuario_logado is None or st.session_state.get("role_usuario") != "admin"):
-    st.markdown("""
-    <div style="display: flex; justify-content: center; align-items: center; min-height: 70vh;">
-        <div style="text-align: center; padding: 50px; background: linear-gradient(145deg, rgba(245, 158, 11, 0.1), rgba(239, 68, 68, 0.1)); border: 2px solid rgba(245, 158, 11, 0.5); border-radius: 24px; max-width: 550px; box-shadow: 0 0 60px rgba(245, 158, 11, 0.15);">
-            <div style="font-size: 80px; margin-bottom: 15px; animation: gear-spin 3s linear infinite;">⚙️</div>
-            <h1 style="color: #f59e0b; font-size: 32px; margin-bottom: 10px; text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);">Sistema em Manutenção</h1>
-            <p style="color: #94a3b8; font-size: 16px; line-height: 1.6;">Estamos realizando atualizações para melhorar sua experiência.<br>Voltamos em breve!</p>
-            <div style="margin-top: 25px; padding: 12px 20px; background: rgba(245, 158, 11, 0.15); border-radius: 10px; display: inline-block;">
-                <span style="color: #f59e0b; font-size: 14px; font-weight: bold;">🔒 Acesso temporariamente bloqueado</span>
-            </div>
-        </div>
-    </div>
-    <style>
-        @keyframes gear-spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    st.stop()
-
 if st.session_state.usuario_logado is None:
     st.markdown("<br><br>", unsafe_allow_html=True)
     
@@ -974,22 +949,6 @@ with st.sidebar:
     </div>
     """
     st.markdown(html_avatar, unsafe_allow_html=True)
-    
-    # === TOGGLE MODO MANUTENÇÃO (SÓ ADMIN) ===
-    if st.session_state.get("role_usuario") == "admin":
-        _em_manut = os.path.exists(caminho_manutencao)
-        manut_toggle = st.toggle("🔧 Modo Manutenção", value=_em_manut, key="toggle_manutencao", help="Bloqueia o acesso de TODOS os usuários (exceto Admin)")
-        if manut_toggle and not _em_manut:
-            with open(caminho_manutencao, "w") as f:
-                f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            st.warning("🔧 Modo Manutenção **ATIVADO**. Ninguém além de Admin consegue acessar.")
-            st.rerun()
-        elif not manut_toggle and _em_manut:
-            os.remove(caminho_manutencao)
-            st.success("✅ Modo Manutenção **DESATIVADO**. Sistema liberado para todos.")
-            st.rerun()
-        if _em_manut:
-            st.caption("⚠️ Sistema bloqueado para outros usuários agora.")
     
     st.header("📂 Arquivos Base")
     
