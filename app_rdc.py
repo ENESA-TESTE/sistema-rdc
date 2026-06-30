@@ -89,6 +89,29 @@ cor_azul_hover = "#2563eb"
 cor_destaque = "#0ea5e9" # Light blue neon
 cor_verde = "#10b981"
 
+st.markdown("""
+    <style>
+    .watermark-autoral {
+        position: fixed;
+        top: 15px;
+        right: 20px;
+        z-index: 999999;
+        color: rgba(255, 255, 255, 0.15);
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        pointer-events: none;
+        user-select: none;
+    }
+    </style>
+    <div class="watermark-autoral">
+        <span class="material-symbols-rounded" style="font-size: 14px; vertical-align: middle;">verified</span> 
+        Software Autoral © Edson Garcia
+    </div>
+""", unsafe_allow_html=True)
+
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
