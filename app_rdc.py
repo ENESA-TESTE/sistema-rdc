@@ -2219,19 +2219,27 @@ if st.session_state.df is not None:
                     st.session_state.df_ia = df_editado
                     
                     # Salva no F1
+                    import difflib
                     novos_registros = []
                     for _, row in df_editado.iterrows():
-                        enc_lido = str(row.get('ENCARREGADO', '')).strip()
-                        if enc_lido and enc_lido in lista_encarregados_base:
+                        enc_lido = str(row.get('ENCARREGADO', '')).strip().upper()
+                        if enc_lido:
+                            # Tentar achar o nome oficial
+                            if enc_lido in lista_encarregados_base:
+                                nome_oficial = enc_lido
+                            else:
+                                match = difflib.get_close_matches(enc_lido, lista_encarregados_base, n=1, cutoff=0.5)
+                                nome_oficial = match[0] if match else enc_lido
+                            
                             data_extraida = str(row.get('DATA', '')).strip()
                             try:
                                 data_registro = pd.to_datetime(data_extraida).strftime('%Y-%m-%d')
                             except:
                                 data_registro = datetime.date.today().strftime('%Y-%m-%d')
                             
-                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
+                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == nome_oficial)).any()
                             if not ja_existe:
-                                novos_registros.append({"DATA": data_registro, "ENCARREGADO": enc_lido})
+                                novos_registros.append({"DATA": data_registro, "ENCARREGADO": nome_oficial})
                                 
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
