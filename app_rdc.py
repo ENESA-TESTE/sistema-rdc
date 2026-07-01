@@ -1274,73 +1274,7 @@ if st.session_state.df is not None:
                 
         st.markdown("---")
         
-        col_evolucao, col_gauge = st.columns([6, 4])
-        
-        with col_evolucao:
-            st.markdown("**📈 Evolução Diária de Entregas de RDC (Mês Atual)**")
-            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
-                df_hist_dash = st.session_state.df_historico_f1.copy()
-                df_hist_dash["DATA"] = pd.to_datetime(df_hist_dash["DATA"], errors='coerce')
-                mes_atual = datetime.date.today().strftime("%Y-%m")
-                df_hist_dash = df_hist_dash[df_hist_dash["DATA"].dt.strftime("%Y-%m") == mes_atual]
-                
-                if not df_hist_dash.empty:
-                    entregas_por_dia = df_hist_dash.groupby(df_hist_dash["DATA"].dt.strftime("%Y-%m-%d")).size().reset_index(name="Entregas")
-                    entregas_por_dia.columns = ["Data", "Qtd Entregue"]
-                    
-                    fig_evolucao = px.line(entregas_por_dia, x="Data", y="Qtd Entregue", markers=True, 
-                                           title="", line_shape="spline", color_discrete_sequence=["#4a9eed"])
-                    fig_evolucao.update_layout(
-                        xaxis_title="Dia", yaxis_title="RDCs Entregues",
-                        margin=dict(l=0, r=20, t=10, b=0),
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#e0e4ea"), height=250
-                    )
-                    fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=8))
-                    st.plotly_chart(fig_evolucao, use_container_width=True)
-                else:
-                    st.info("Ainda não há entregas neste mês.")
-            else:
-                st.info("Sem histórico de F1.")
-                
-        with col_gauge:
-            st.markdown("**🌡️ Termômetro de Engajamento**")
-            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
-                dias_unicos = df_hist_dash["DATA"].nunique()
-                dias_unicos = dias_unicos if dias_unicos > 0 else 1
-                rdcs_esperados = dias_unicos * len(lista_completa_encarregados)
-                rdcs_entregues = len(df_hist_dash)
-                
-                pct_engajamento = round((rdcs_entregues / rdcs_esperados) * 100, 1) if rdcs_esperados > 0 else 0
-                
-                import plotly.graph_objects as go
-                fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = pct_engajamento,
-                    number = {'suffix': "%", 'font': {'size': 30, 'color': '#e0e4ea'}},
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    gauge = {
-                        'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
-                        'bar': {'color': "#2c3e50"},
-                        'bgcolor': "rgba(0,0,0,0)",
-                        'borderwidth': 2,
-                        'bordercolor': "gray",
-                        'steps': [
-                            {'range': [0, 60], 'color': '#e74c3c'},
-                            {'range': [60, 85], 'color': '#f1c40f'},
-                            {'range': [85, 100], 'color': '#27ae60'}],
-                        'threshold': {
-                            'line': {'color': "white", 'width': 4},
-                            'thickness': 0.75,
-                            'value': pct_engajamento}
-                    }
-                ))
-                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
-                st.plotly_chart(fig_gauge, use_container_width=True)
-            else:
-                st.info("Sem dados suficientes.")
-                
-        st.markdown("---")
+
         st.markdown("**📦 Raio-X da Mão de Obra Indireta (MOI)**")
         col_moi1, col_moi2 = st.columns([5, 5])
         with col_moi1:
