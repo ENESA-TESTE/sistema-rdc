@@ -794,6 +794,18 @@ with st.sidebar:
     st.markdown("---")
     
     st.markdown("---")
+    
+    st.subheader("🤖 Motor da IA")
+    opcoes_ia = {
+        "Gemini 2.0 Flash (Rápido e Estável)": "gemini-2.0-flash",
+        "Gemini 2.5 Flash (Mais Novo)": "gemini-2.5-flash",
+        "Gemini 1.5 Pro (Avançado)": "gemini-1.5-pro",
+        "Gemini 1.5 Flash (Antigo)": "gemini-1.5-flash"
+    }
+    ia_selecionada = st.selectbox("Mude a versão se o Google falhar:", list(opcoes_ia.keys()))
+    modelo_ia = opcoes_ia[ia_selecionada]
+    
+    st.markdown("---")
     st.markdown(f"👤 Bem-vindo(a), **{st.session_state.nome_completo}**")
     
     if st.button("Sair (Logout)", use_container_width=True):
@@ -1828,11 +1840,11 @@ if st.session_state.df is not None:
         
         def cor_fundo(valor):
             if valor == "✅":
-                return "background-color: rgba(74, 222, 128, 0.2); color: #4ade80;"
+                return "background-color: #003311; color: #00ff66; font-weight: 900;"
             elif valor == "❌":
-                return "background-color: rgba(255, 75, 75, 0.2); color: #ff4b4b;"
+                return "background-color: #330000; color: #ff3333; font-weight: 900;"
             elif valor == "➖":
-                return "background-color: rgba(128, 128, 128, 0.2); color: #888;"
+                return "background-color: #1a1a1a; color: #444444;"
             return ""
             
         try:
@@ -1856,17 +1868,67 @@ if st.session_state.df is not None:
             use_container_width=True
         )
         # ------------------------
+        
+        # --- EDITAR ENTREGA INDIVIDUAL ---
         st.markdown("---")
-        st.markdown("#### 🏆 Pódio do Mês (Top Melhores Entregas)")
+        if st.toggle("✏️ Editar Entrega Individual (Adicionar ou Remover RDC de um dia específico)"):
+            col_ed1, col_ed2, col_ed3 = st.columns([1, 2, 1])
+            with col_ed1:
+                data_edit = st.date_input("📅 Data:", key="edit_data_f1",
+                    value=datetime.date(ano, mes, min(datetime.date.today().day, num_dias)))
+            with col_ed2:
+                enc_edit = st.selectbox("👷 Encarregado:", lista_completa_encarregados, key="edit_enc_f1")
+            with col_ed3:
+                data_edit_str = data_edit.strftime("%Y-%m-%d")
+                ja_tem = ((st.session_state.df_historico_f1["DATA"] == data_edit_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_edit)).any()
+                if ja_tem:
+                    st.success("✅ Entregue")
+                    if st.button("🗑️ Remover Entrega", key="btn_remover_f1", type="primary", use_container_width=True):
+                        mask = ~((st.session_state.df_historico_f1["DATA"] == data_edit_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_edit))
+                        st.session_state.df_historico_f1 = st.session_state.df_historico_f1[mask].reset_index(drop=True)
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                st.cache_data.clear()
+                            except Exception:
+                                pass
+                        st.toast(f"🗑️ Entrega de {enc_edit} em {data_edit_str} removida!")
+                        time.sleep(1)
+                        st.rerun()
+                else:
+                    st.error("❌ Não entregue")
+                    if st.button("➕ Marcar como Entregue", key="btn_add_f1", type="primary", use_container_width=True):
+                        novo = pd.DataFrame([{"DATA": data_edit_str, "ENCARREGADO": enc_edit}])
+                        st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, novo], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                st.cache_data.clear()
+                            except Exception:
+                                pass
+                        st.toast(f"✅ Entrega de {enc_edit} em {data_edit_str} registrada!")
+                        time.sleep(1)
+                        st.rerun()
+        st.markdown("---")
+        st.markdown("### 🏆 Pódio dos Campeões (Top 3 Entregas)")
         
         ranking = matriz[["Total"]].sort_values(by="Total", ascending=False).reset_index()
         ranking.columns = ["ENCARREGADO", "ENTREGAS"]
+        top3 = ranking.head(3).values.tolist()
         
-        st.success("🥇 Os 3 que MAIS entregaram")
-        top3 = ranking.head(3)
-        for i, row in top3.iterrows():
-            medalha = "🥇" if i == 0 else ("🥈" if i == 1 else "🥉")
-            st.markdown(f"**{medalha} {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
+        nome_1 = top3[0][0] if len(top3) > 0 else '-'
+        qtd_1 = top3[0][1] if len(top3) > 0 else 0
+        nome_2 = top3[1][0] if len(top3) > 1 else '-'
+        qtd_2 = top3[1][1] if len(top3) > 1 else 0
+        nome_3 = top3[2][0] if len(top3) > 2 else '-'
+        qtd_3 = top3[2][1] if len(top3) > 2 else 0
+        
+        html_podium = f"""<div style="display:flex;justify-content:center;align-items:flex-end;gap:20px;padding:30px 10px 0;">
+<div style="width:180px;text-align:center;"><div style="background:linear-gradient(180deg,#d1d5db,#9ca3af);border-radius:16px 16px 0 0;padding:25px 15px;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 8px 25px rgba(0,0,0,0.3);"><div style="font-size:36px;margin-bottom:8px;">🥈</div><div style="font-size:14px;font-weight:700;color:#1f2937;line-height:1.3;">{nome_2}</div></div><div style="background:#374151;padding:12px;border-radius:0 0 8px 8px;text-align:center;"><span style="font-size:28px;font-weight:900;color:#d1d5db;">{qtd_2}</span><span style="font-size:12px;color:#9ca3af;display:block;">RDCs</span></div></div>
+<div style="width:200px;text-align:center;"><div style="background:linear-gradient(180deg,#fbbf24,#d97706);border-radius:16px 16px 0 0;padding:25px 15px;height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 12px 35px rgba(251,191,36,0.4);"><div style="font-size:44px;margin-bottom:8px;">👑</div><div style="font-size:16px;font-weight:900;color:#fff;text-shadow:1px 1px 3px rgba(0,0,0,0.3);line-height:1.3;">{nome_1}</div></div><div style="background:#92400e;padding:14px;border-radius:0 0 8px 8px;text-align:center;"><span style="font-size:32px;font-weight:900;color:#fbbf24;">{qtd_1}</span><span style="font-size:12px;color:#fde68a;display:block;">RDCs</span></div></div>
+<div style="width:180px;text-align:center;"><div style="background:linear-gradient(180deg,#d97706,#92400e);border-radius:16px 16px 0 0;padding:25px 15px;height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 8px 25px rgba(0,0,0,0.3);"><div style="font-size:32px;margin-bottom:8px;">🥉</div><div style="font-size:14px;font-weight:700;color:#fff;line-height:1.3;">{nome_3}</div></div><div style="background:#374151;padding:12px;border-radius:0 0 8px 8px;text-align:center;"><span style="font-size:28px;font-weight:900;color:#d97706;">{qtd_3}</span><span style="font-size:12px;color:#9ca3af;display:block;">RDCs</span></div></div>
+</div>"""
+        st.html(html_podium)
                 
         st.markdown("---")
         st.markdown("#### 📈 Evolução Mensal")
@@ -2009,10 +2071,9 @@ if st.session_state.df is not None:
                             for tentativa in range(max_tentativas):
                                 try:
                                     resposta = client.models.generate_content(
-                                        model='gemini-2.5-flash',
+                                        model=modelo_ia,
                                         contents=[arquivo_up, prompt_ia],
                                         config=genai.types.GenerateContentConfig(
-                                            response_mime_type="application/json",
                                             temperature=0.0,
                                             
                                             safety_settings=[
@@ -2151,7 +2212,7 @@ if st.session_state.df is not None:
                         st.rerun()
                 
                 st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
-                df_editado = st.data_editor(df_filtrado, hide_index=True, use_container_width=True, key="editor_ia_df")
+                df_editado = st.data_editor(df_filtrado, hide_index=True, use_container_width=True, key="editor_ia_df", num_rows="dynamic")
                 
                 if st.button("✅ Confirmar e Salvar no Sistema", type="primary", use_container_width=True):
                     # Salva no df_ia
@@ -2266,7 +2327,7 @@ if st.session_state.df is not None:
                         for tentativa in range(max_tentativas):
                             try:
                                 resposta = client.models.generate_content(
-                                    model='gemini-2.5-flash',
+                                    model=modelo_ia,
                                     contents=[arquivo_up, prompt_ia_cc]
                                 )
                                 
