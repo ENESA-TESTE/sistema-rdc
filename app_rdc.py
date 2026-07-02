@@ -1927,29 +1927,41 @@ if st.session_state.df is not None:
         if HAS_GENAI:
             # Tentar ler a chave do cofre secreto (.streamlit/secrets.toml)
             chave_padrao = ""
+            chave_openai = ""
             try:
                 chave_padrao = st.secrets.get("GEMINI_API_KEY", "")
+                chave_openai = st.secrets.get("OPENAI_API_KEY", "")
             except Exception:
                 pass
             
             st.markdown("#### Configuração e Upload")
-            if not chave_padrao:
-                chave_padrao = st.text_input("🔑 Cole suas Chaves da API Gemini (separadas por vírgula):", type="password", help="Se usar múltiplas chaves, o robô alterna em caso de limite.")
+            usa_openai = "gpt" in modelo_ia
             
-            if not chave_padrao:
-                st.info("☝️ Cole a(s) sua(s) chave(s) de API do Gemini acima para ativar o robô de leitura.")
+            if usa_openai:
+                if not chave_openai:
+                    chave_openai = st.text_input("🔑 Cole sua Chave da API OpenAI:", type="password")
+                if not chave_openai:
+                    st.info("☝️ Cole a sua chave de API da OpenAI acima para ativar o ChatGPT.")
+                tem_chave = bool(chave_openai)
+            else:
+                if not chave_padrao:
+                    chave_padrao = st.text_input("🔑 Cole suas Chaves da API Gemini (separadas por vírgula):", type="password", help="Se usar múltiplas chaves, o robô alterna em caso de limite.")
+                if not chave_padrao:
+                    st.info("☝️ Cole a(s) sua(s) chave(s) de API do Gemini acima para ativar o robô de leitura.")
+                tem_chave = bool(chave_padrao)
             
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
                 
             btn_processar = st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True)
             
-            if btn_processar and arquivos_scan and chave_padrao:
+            if btn_processar and arquivos_scan and tem_chave:
                 # --- FIX: Evitar que o Gemini tente usar o Service Account do Google Sheets ---
                 old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
                 
-                lista_chaves = [c.strip() for c in chave_padrao.split(",") if c.strip()]
-                idx_chave_atual = 0
-                client = genai.Client(api_key=lista_chaves[idx_chave_atual])
+                if not usa_openai:
+                    lista_chaves = [c.strip() for c in chave_padrao.split(",") if c.strip()]
+                    idx_chave_atual = 0
+                    client = genai.Client(api_key=lista_chaves[idx_chave_atual])
                 nomes_para_prompt = ", ".join(lista_encarregados_base)
                 
                 prompt_ia = f"""
@@ -1998,32 +2010,59 @@ if st.session_state.df is not None:
                                 tmp.write(arquivo_scan.getvalue())
                                 tmp_path = tmp.name
                             
-                            arquivo_up = client.files.upload(file=tmp_path)
-                        
                             max_tentativas = 3
                             sucesso_arquivo = False
                             for tentativa in range(max_tentativas):
                                 try:
-                                    resposta = client.models.generate_content(
-                                        model=modelo_ia,
-                                        contents=[arquivo_up, prompt_ia],
-                                        config=genai.types.GenerateContentConfig(
-                                            temperature=0.0,
+                                    texto_resposta = ""
+                                    if usa_openai:
+                                        import base64
+                                        import fitz
+                                        from openai import OpenAI
+                                        client_oai = OpenAI(api_key=chave_openai)
+                                        
+                                        base64_images = []
+                                        if tmp_path.lower().endswith(".pdf"):
+                                            doc = fitz.open(tmp_path)
+                                            for page in doc:
+                                                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                                                img_bytes = pix.tobytes("jpeg")
+                                                base64_images.append(base64.b64encode(img_bytes).decode('utf-8'))
+                                        else:
+                                            with open(tmp_path, "rb") as img_file:
+                                                base64_images.append(base64.b64encode(img_file.read()).decode('utf-8'))
+                                                
+                                        messages = [{"role": "user", "content": [{"type": "text", "text": prompt_ia}]}]
+                                        for b64 in base64_images:
+                                            messages[0]["content"].append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
                                             
-                                            safety_settings=[
-                                                genai.types.SafetySetting(category='HARM_CATEGORY_HARASSMENT', threshold='BLOCK_NONE'),
-                                                genai.types.SafetySetting(category='HARM_CATEGORY_HATE_SPEECH', threshold='BLOCK_NONE'),
-                                                genai.types.SafetySetting(category='HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold='BLOCK_NONE'),
-                                                genai.types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT', threshold='BLOCK_NONE')
-                                            ]
+                                        resposta = client_oai.chat.completions.create(
+                                            model=modelo_ia,
+                                            messages=messages,
+                                            temperature=0.0
                                         )
-                                    )
+                                        texto_resposta = resposta.choices[0].message.content.strip()
+                                    else:
+                                        arquivo_up = client.files.upload(file=tmp_path)
+                                        resposta = client.models.generate_content(
+                                            model=modelo_ia,
+                                            contents=[arquivo_up, prompt_ia],
+                                            config=genai.types.GenerateContentConfig(
+                                                temperature=0.0,
+                                                safety_settings=[
+                                                    genai.types.SafetySetting(category='HARM_CATEGORY_HARASSMENT', threshold='BLOCK_NONE'),
+                                                    genai.types.SafetySetting(category='HARM_CATEGORY_HATE_SPEECH', threshold='BLOCK_NONE'),
+                                                    genai.types.SafetySetting(category='HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold='BLOCK_NONE'),
+                                                    genai.types.SafetySetting(category='HARM_CATEGORY_DANGEROUS_CONTENT', threshold='BLOCK_NONE')
+                                                ]
+                                            )
+                                        )
+                                        texto_resposta = resposta.text.strip()
                                 
                                     # --- FIX: Restaurar as credenciais do Sheets caso necessário ---
                                     if old_cred:
                                         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
 
-                                    texto_resposta = resposta.text.strip()
                                     if texto_resposta.startswith("```json"):
                                         texto_resposta = texto_resposta[7:-3].strip()
                                     elif texto_resposta.startswith("```"):
@@ -2032,8 +2071,7 @@ if st.session_state.df is not None:
                                     try:
                                         dados_extraidos_lista = json.loads(texto_resposta)
                                     except Exception as e:
-                                        
-                                        reason = resposta.candidates[0].finish_reason if resposta.candidates else "Unknown"
+                                        reason = "Erro JSON OpenAI" if usa_openai else (resposta.candidates[0].finish_reason if resposta.candidates else "Unknown")
                                         st.error(f"Erro na IA: Erro ao interpretar JSON. Detalhe técnico: {e}. Finish Reason: {reason}\n\nTrecho da resposta gerada:\n{texto_resposta[:1000]}")
                                         st.stop()
 
@@ -2067,14 +2105,15 @@ if st.session_state.df is not None:
                                     erro_str = str(inner_e)
                                     if '429' in erro_str or 'RESOURCE_EXHAUSTED' in erro_str:
                                         if tentativa < max_tentativas - 1:
-                                            if idx_chave_atual < len(lista_chaves) - 1:
+                                            if not usa_openai and 'idx_chave_atual' in locals() and idx_chave_atual < len(lista_chaves) - 1:
                                                 idx_chave_atual += 1
                                                 client = genai.Client(api_key=lista_chaves[idx_chave_atual])
                                                 st.warning(f"🔄 Limite atingido na chave atual. Trocando para a chave reserva {idx_chave_atual + 1}/{len(lista_chaves)}...")
                                                 time.sleep(2)
                                                 continue
                                             else:
-                                                st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                                nome_api = "OpenAI" if usa_openai else "Google"
+                                                st.warning(f"⏳ Cota da {nome_api} atingida. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
                                                 time.sleep(60)
                                                 continue
                                             
@@ -2218,11 +2257,12 @@ if st.session_state.df is not None:
                 
             btn_processar_cc = st.button("🚀 Atualizar C.C das Equipes com IA", type="primary", use_container_width=True)
             
-            if btn_processar_cc and arquivos_scan_cc and chave_padrao:
+            if btn_processar_cc and arquivos_scan_cc and tem_chave:
                 old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-                lista_chaves = [c.strip() for c in chave_padrao.split(",") if c.strip()]
-                idx_chave_atual = 0
-                client = genai.Client(api_key=lista_chaves[idx_chave_atual])
+                if not usa_openai:
+                    lista_chaves = [c.strip() for c in chave_padrao.split(",") if c.strip()]
+                    idx_chave_atual = 0
+                    client = genai.Client(api_key=lista_chaves[idx_chave_atual])
                 nomes_para_prompt = ", ".join(lista_encarregados_base)
                 
                 prompt_ia_cc = f"""
@@ -2262,21 +2302,49 @@ if st.session_state.df is not None:
                             tmp.write(arquivo_scan.getvalue())
                             tmp_path = tmp.name
                             
-                        arquivo_up = client.files.upload(file=tmp_path)
-                        
                         max_tentativas = 3
                         sucesso_arquivo = False
                         for tentativa in range(max_tentativas):
                             try:
-                                resposta = client.models.generate_content(
-                                    model=modelo_ia,
-                                    contents=[arquivo_up, prompt_ia_cc]
-                                )
+                                texto_json = ""
+                                if usa_openai:
+                                    import base64
+                                    import fitz
+                                    from openai import OpenAI
+                                    client_oai = OpenAI(api_key=chave_openai)
+                                    
+                                    base64_images = []
+                                    if tmp_path.lower().endswith(".pdf"):
+                                        doc = fitz.open(tmp_path)
+                                        for page in doc:
+                                            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                                            img_bytes = pix.tobytes("jpeg")
+                                            base64_images.append(base64.b64encode(img_bytes).decode('utf-8'))
+                                    else:
+                                        with open(tmp_path, "rb") as img_file:
+                                            base64_images.append(base64.b64encode(img_file.read()).decode('utf-8'))
+                                            
+                                    messages = [{"role": "user", "content": [{"type": "text", "text": prompt_ia_cc}]}]
+                                    for b64 in base64_images:
+                                        messages[0]["content"].append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+                                        
+                                    resposta = client_oai.chat.completions.create(
+                                        model=modelo_ia,
+                                        messages=messages,
+                                        temperature=0.0
+                                    )
+                                    texto_json = resposta.choices[0].message.content.strip()
+                                else:
+                                    arquivo_up = client.files.upload(file=tmp_path)
+                                    resposta = client.models.generate_content(
+                                        model=modelo_ia,
+                                        contents=[arquivo_up, prompt_ia_cc]
+                                    )
+                                    texto_json = resposta.text.strip()
                                 
                                 if old_cred:
                                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
 
-                                texto_json = resposta.text.strip()
                                 if texto_json.startswith("```json"):
                                     texto_json = texto_json[7:-3].strip()
                                 elif texto_json.startswith("```"):
@@ -2285,8 +2353,8 @@ if st.session_state.df is not None:
                                 try:
                                     dados_extraidos_lista = json.loads(texto_json)
                                 except Exception as e:
-                                    reason = resposta.candidates[0].finish_reason if resposta.candidates else "Unknown"
-                                    st.error(f"Erro na IA: Erro ao interpretar JSON. Detalhe técnico: {e}. Finish Reason: {reason}\n\nTrecho da resposta gerada:\n{texto_resposta[:1000]}")
+                                    reason = "Erro JSON OpenAI" if usa_openai else (resposta.candidates[0].finish_reason if resposta.candidates else "Unknown")
+                                    st.error(f"Erro na IA: Erro ao interpretar JSON. Detalhe técnico: {e}. Finish Reason: {reason}\n\nTrecho da resposta gerada:\n{texto_json[:1000]}")
                                     st.stop()
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
@@ -2384,14 +2452,15 @@ if st.session_state.df is not None:
                                 erro_str = str(inner_e)
                                 if '429' in erro_str or 'RESOURCE_EXHAUSTED' in erro_str:
                                     if tentativa < max_tentativas - 1:
-                                        if idx_chave_atual < len(lista_chaves) - 1:
+                                        if not usa_openai and 'idx_chave_atual' in locals() and idx_chave_atual < len(lista_chaves) - 1:
                                             idx_chave_atual += 1
                                             client = genai.Client(api_key=lista_chaves[idx_chave_atual])
                                             st.warning(f"🔄 Limite atingido na chave atual. Trocando para a chave reserva {idx_chave_atual + 1}/{len(lista_chaves)}...")
                                             time.sleep(2)
                                             continue
                                         else:
-                                            st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                            nome_api = "OpenAI" if usa_openai else "Google"
+                                            st.warning(f"⏳ Cota da {nome_api} atingida. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
                                             time.sleep(60)
                                             continue
                                         

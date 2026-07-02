@@ -12,3 +12,6 @@ python-pptx
 streamlit-drawable-canvas
 
 qrcode[pil]
+
+openai
+PyMuPDF
