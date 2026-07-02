@@ -1,6 +1,7 @@
 import os
 import re
 import datetime
+import calendar
 import zipfile
 import io
 import openpyxl
@@ -1679,7 +1680,52 @@ if st.session_state.df is not None:
                     time.sleep(4)
                     st.rerun()
         # -------------------------
-
+        
+        # --- EDITAR ENTREGA INDIVIDUAL ---
+        if st.toggle("✏️ Corrigir Entrega Específica (Adicionar ✅ ou Remover ❌)"):
+            col_ed1, col_ed2, col_ed3 = st.columns([1, 2, 1])
+            
+            # Precisamos calcular as variáveis mes, ano e num_dias aqui para o date_input
+            ano_atual = datetime.date.today().year
+            mes_atual = datetime.date.today().month
+            _, num_dias_atual = calendar.monthrange(ano_atual, mes_atual)
+            
+            with col_ed1:
+                data_edit = st.date_input("📅 Data do RDC:", key="edit_data_f1",
+                    value=datetime.date(ano_atual, mes_atual, min(datetime.date.today().day, num_dias_atual)))
+            with col_ed2:
+                enc_edit = st.selectbox("👷 Nome do Encarregado:", lista_completa_encarregados, key="edit_enc_f1")
+            with col_ed3:
+                st.markdown("<br>", unsafe_allow_html=True)
+                data_edit_str = data_edit.strftime("%Y-%m-%d")
+                ja_tem = ((st.session_state.df_historico_f1["DATA"] == data_edit_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_edit)).any()
+                if ja_tem:
+                    if st.button("❌ Remover '✅'", key="btn_remover_f1", type="primary", use_container_width=True):
+                        mask = ~((st.session_state.df_historico_f1["DATA"] == data_edit_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_edit))
+                        st.session_state.df_historico_f1 = st.session_state.df_historico_f1[mask].reset_index(drop=True)
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                st.cache_data.clear()
+                            except Exception:
+                                pass
+                        st.toast(f"🗑️ Entrega de {enc_edit} em {data_edit_str} removida!")
+                        time.sleep(1)
+                        st.rerun()
+                else:
+                    if st.button("✅ Colocar '✅'", key="btn_add_f1", type="primary", use_container_width=True):
+                        novo = pd.DataFrame([{"DATA": data_edit_str, "ENCARREGADO": enc_edit}])
+                        st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, novo], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                st.cache_data.clear()
+                            except Exception:
+                                pass
+                        st.toast(f"✅ Entrega de {enc_edit} em {data_edit_str} registrada!")
+                        time.sleep(1)
+                        st.rerun()
+        # -------------------------
         # Preparar dados de data do histórico
         df_hist = st.session_state.df_historico_f1.copy()
         if not df_hist.empty:
@@ -1803,47 +1849,7 @@ if st.session_state.df is not None:
         )
         # ------------------------
         
-        # --- EDITAR ENTREGA INDIVIDUAL ---
-        st.markdown("---")
-        if st.toggle("✏️ Editar Entrega Individual (Adicionar ou Remover RDC de um dia específico)"):
-            col_ed1, col_ed2, col_ed3 = st.columns([1, 2, 1])
-            with col_ed1:
-                data_edit = st.date_input("📅 Data:", key="edit_data_f1",
-                    value=datetime.date(ano, mes, min(datetime.date.today().day, num_dias)))
-            with col_ed2:
-                enc_edit = st.selectbox("👷 Encarregado:", lista_completa_encarregados, key="edit_enc_f1")
-            with col_ed3:
-                data_edit_str = data_edit.strftime("%Y-%m-%d")
-                ja_tem = ((st.session_state.df_historico_f1["DATA"] == data_edit_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_edit)).any()
-                if ja_tem:
-                    st.success("✅ Entregue")
-                    if st.button("🗑️ Remover Entrega", key="btn_remover_f1", type="primary", use_container_width=True):
-                        mask = ~((st.session_state.df_historico_f1["DATA"] == data_edit_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_edit))
-                        st.session_state.df_historico_f1 = st.session_state.df_historico_f1[mask].reset_index(drop=True)
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
-                                st.cache_data.clear()
-                            except Exception:
-                                pass
-                        st.toast(f"🗑️ Entrega de {enc_edit} em {data_edit_str} removida!")
-                        time.sleep(1)
-                        st.rerun()
-                else:
-                    st.error("❌ Não entregue")
-                    if st.button("➕ Marcar como Entregue", key="btn_add_f1", type="primary", use_container_width=True):
-                        novo = pd.DataFrame([{"DATA": data_edit_str, "ENCARREGADO": enc_edit}])
-                        st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, novo], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
-                                st.cache_data.clear()
-                            except Exception:
-                                pass
-                        st.toast(f"✅ Entrega de {enc_edit} em {data_edit_str} registrada!")
-                        time.sleep(1)
-                        st.rerun()
-        st.markdown("---")
+
         st.markdown("### 🏆 Pódio dos Campeões (Top 3 Entregas)")
         
         ranking = matriz[["Total"]].sort_values(by="Total", ascending=False).reset_index()
