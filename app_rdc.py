@@ -821,6 +821,28 @@ with st.sidebar:
         st.markdown("---")
         st.markdown("#### ⚙️ Painel de Configurações")
         
+        if st.toggle("👷 Adicionar Novo Encarregado"):
+            with st.form("form_novo_enc"):
+                st.info("O nome será adicionado permanentemente à base de dados (Planilha Google).")
+                novo_nome = st.text_input("Digite o nome completo:")
+                if st.form_submit_button("Salvar no Banco de Dados", type="primary"):
+                    if novo_nome.strip():
+                        novo_nome_limpo = novo_nome.strip().upper()
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                novo_registro = pd.DataFrame([{"ENCARREGADO": novo_nome_limpo}])
+                                df_novo = pd.concat([st.session_state.df, novo_registro], ignore_index=True)
+                                conn.update(worksheet="Página1", data=df_novo)
+                                st.session_state.df = df_novo.copy()
+                                st.cache_data.clear()
+                                st.success(f"✅ {novo_nome_limpo} adicionado com sucesso! Atualizando...")
+                                time.sleep(2)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao salvar na nuvem: {e}")
+                        else:
+                            st.warning("❌ Conexão com a nuvem inativa.")
+        
         if st.toggle("🔑 Ver Usuários e Senhas"):
             usuarios_carregados = carregar_usuarios()
             dados_usuarios = []
@@ -1066,7 +1088,8 @@ if st.session_state.df is not None:
         "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA",
         "JORGE EUCLIDES DE SOUSA FERNANDES"
     ]
-    lista_completa_encarregados = sorted([e.upper() for e in encarregados_f1_oficial])
+    # Junta a lista hardcoded com os nomes da Página1 (df_atual) e remove duplicatas
+    lista_completa_encarregados = sorted(list(set([e.upper() for e in encarregados_f1_oficial] + lista_encarregados_base)))
 
     # =================================================================
     # MODO ENCARREGADO (Lançamento Nativo com Formatação Original)
