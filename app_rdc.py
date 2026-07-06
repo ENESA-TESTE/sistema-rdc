@@ -1024,7 +1024,22 @@ elif st.session_state.df is None:
 # =================================================================
 if st.session_state.df is not None:
     df_atual = preparar_dataframe(st.session_state.df.copy())
-    lista_encarregados_base = sorted([str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
+    encarregados_raw = [str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""]
+    lista_encarregados_base = []
+    
+    # Filtra supervisores, gerentes, coordenadores e diretores
+    for enc in encarregados_raw:
+        enc_str = enc.strip().upper()
+        if "NOME" in df_atual.columns and "FUNÇÃO" in df_atual.columns:
+            funcoes = df_atual[df_atual["NOME"].astype(str).str.strip().str.upper() == enc_str]["FUNÇÃO"].astype(str).str.upper().values
+            if len(funcoes) > 0:
+                func = funcoes[0]
+                termos_excluir = ["SUPERVISOR", "GERENTE", "COORDENADOR", "DIRETOR", "ENGENHEIRO", "LIDER", "LÍDER"]
+                if any(termo in func for termo in termos_excluir):
+                    continue
+        lista_encarregados_base.append(enc_str)
+    
+    lista_encarregados_base = sorted(lista_encarregados_base)
 
     # ====== HISTÓRICO DE C.C (FOTOGRAFIA DIÁRIA) ======
     try:
