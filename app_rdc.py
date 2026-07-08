@@ -3075,12 +3075,25 @@ if st.session_state.df is not None:
                                         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
 
                                     texto_resposta = resposta.text.strip()
-                                    if texto_resposta.startswith("```json"):
-                                        texto_resposta = texto_resposta[7:-3].strip()
-                                    elif texto_resposta.startswith("```"):
-                                        texto_resposta = texto_resposta[3:-3].strip()
+                                    if "```json" in texto_resposta:
+                                        texto_resposta = texto_resposta.split("```json")[1].split("```")[0].strip()
+                                    elif "```" in texto_resposta:
+                                        texto_resposta = texto_resposta.split("```")[1].split("```")[0].strip()
+                                        
+                                    start_idx = max(0, texto_resposta.find('[')) if '[' in texto_resposta else max(0, texto_resposta.find('{'))
+                                    end_idx = max(texto_resposta.rfind(']'), texto_resposta.rfind('}'))
+                                    if end_idx > start_idx:
+                                        texto_resposta = texto_resposta[start_idx:end_idx+1]
 
-                                    dados_extraidos_lista = json.loads(texto_resposta)
+                                    try:
+                                        dados_extraidos_lista = json.loads(texto_resposta)
+                                    except json.JSONDecodeError as err_json:
+                                        import ast
+                                        texto_fix = texto_resposta.replace("null", "None").replace("true", "True").replace("false", "False")
+                                        try:
+                                            dados_extraidos_lista = ast.literal_eval(texto_fix)
+                                        except:
+                                            raise err_json
 
                                     if isinstance(dados_extraidos_lista, dict):
                                         dados_extraidos_lista = [dados_extraidos_lista]
@@ -3340,12 +3353,25 @@ if st.session_state.df is not None:
                                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
 
                                 texto_json = resposta.text.strip()
-                                if texto_json.startswith("```json"):
-                                    texto_json = texto_json[7:-3].strip()
-                                elif texto_json.startswith("```"):
-                                    texto_json = texto_json[3:-3].strip()
+                                if "```json" in texto_json:
+                                    texto_json = texto_json.split("```json")[1].split("```")[0].strip()
+                                elif "```" in texto_json:
+                                    texto_json = texto_json.split("```")[1].split("```")[0].strip()
                                 
-                                dados_extraidos_lista = json.loads(texto_json)
+                                start_idx = max(0, texto_json.find('[')) if '[' in texto_json else max(0, texto_json.find('{'))
+                                end_idx = max(texto_json.rfind(']'), texto_json.rfind('}'))
+                                if end_idx > start_idx:
+                                    texto_json = texto_json[start_idx:end_idx+1]
+
+                                try:
+                                    dados_extraidos_lista = json.loads(texto_json)
+                                except json.JSONDecodeError as err_json:
+                                    import ast
+                                    texto_fix = texto_json.replace("null", "None").replace("true", "True").replace("false", "False")
+                                    try:
+                                        dados_extraidos_lista = ast.literal_eval(texto_fix)
+                                    except:
+                                        raise err_json
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
                                     
