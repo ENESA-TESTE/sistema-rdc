@@ -1143,22 +1143,32 @@ def salvar_base_localmente(arquivo_upload):
         return False
 
 def preparar_dataframe(df):
+    # Auto-detect header row if the file has title rows above the headers
+    unnamed_cols = [c for c in df.columns if str(c).startswith('Unnamed')]
+    if len(unnamed_cols) > len(df.columns) / 2:
+        for i, row in df.head(15).iterrows():
+            row_str = " ".join([str(x).upper() for x in row.values])
+            if "NOME" in row_str or "MATRICULA" in row_str or "CHAPA" in row_str or "CRACHA" in row_str or "COLABORADOR" in row_str:
+                df.columns = row
+                df = df.iloc[i+1:].reset_index(drop=True)
+                break
+
     mapeamento = {}
     for col in df.columns:
         col_clean = str(col).strip().upper()
-        if "ENCARREGADO" in col_clean:
+        if "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean or "SUPERVISOR" in col_clean:
             mapeamento[col] = "ENCARREGADO"
-        elif col_clean == "NOME":
+        elif "NOME" in col_clean or "COLABORADOR" in col_clean or "FUNCIONÁRIO" in col_clean or "FUNCIONARIO" in col_clean or "EMPREGADO" in col_clean:
             mapeamento[col] = "NOME"
-        elif col_clean in ["MATRICULA", "MATRÍCULA"]:
+        elif "MATRÍCULA" in col_clean or "MATRICULA" in col_clean or "MAT." in col_clean or "CHAPA" in col_clean or "CRACHÁ" in col_clean or "CRACHA" in col_clean or "RE " in col_clean or "RE" == col_clean:
             mapeamento[col] = "MATRICULA"
-        elif col_clean in ["FUNÇÃO", "FUNCAO", "FUNCOES", "FUNÇÕES"]:
+        elif "FUNÇÃO" in col_clean or "FUNCAO" in col_clean or "CARGO" in col_clean or "CBO" in col_clean:
             mapeamento[col] = "FUNÇÃO"
-        elif "CENTRO DE CUSTO" in col_clean or col_clean == "C.C" or col_clean == "CC":
+        elif "CENTRO DE CUSTO" in col_clean or col_clean == "C.C" or col_clean == "CC" or col_clean == "CECO":
             mapeamento[col] = "C.C"
-        elif col_clean in ["DISCIPLINA"]:
+        elif "DISCIPLINA" in col_clean or "ÁREA" in col_clean or "AREA" in col_clean or "SETOR" in col_clean:
             mapeamento[col] = "DISCIPLINA"
-        elif "MÃO DE OBRA" in col_clean or "MAO DE OBRA" in col_clean:
+        elif "MÃO DE OBRA" in col_clean or "MAO DE OBRA" in col_clean or "TIPO" in col_clean:
             mapeamento[col] = "MÃO DE OBRA"
     
     df = df.rename(columns=mapeamento)
@@ -1512,6 +1522,10 @@ with st.sidebar:
         arquivo_modelo = st.file_uploader("📄 Layout MODELO.xlsx:", type=["xlsx"])
         st.markdown("</div>", unsafe_allow_html=True)
         
+        if arquivo_pde is not None:
+            if salvar_base_localmente(arquivo_pde):
+                st.success("💾 Base de Efetivo salva localmente!")
+                
         if arquivo_modelo is not None:
             if salvar_modelo_no_disco(arquivo_modelo):
                 st.success("💾 Modelo salvo!")
@@ -2000,19 +2014,19 @@ if st.session_state.df is not None:
 
     tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}"])
 
-if st.session_state.get("role_usuario") == "apontador":
-    st.markdown("""
-    <style>
-        div[data-baseweb="tab-list"] button:nth-child(1),
-        div[data-baseweb="tab-list"] button:nth-child(2),
-        div[data-baseweb="tab-list"] button:nth-child(4),
-        div[data-baseweb="tab-list"] button:nth-child(6),
-        div[data-baseweb="tab-list"] button:nth-child(7),
-        div[data-baseweb="tab-list"] button:nth-child(8) {
-            display: none !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    if st.session_state.get("role_usuario") == "apontador":
+        st.markdown("""
+        <style>
+            div[data-baseweb="tab-list"] button:nth-child(1),
+            div[data-baseweb="tab-list"] button:nth-child(2),
+            div[data-baseweb="tab-list"] button:nth-child(4),
+            div[data-baseweb="tab-list"] button:nth-child(6),
+            div[data-baseweb="tab-list"] button:nth-child(7),
+            div[data-baseweb="tab-list"] button:nth-child(8) {
+                display: none !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
 
     with tab_dashboard:
         # === RELÓGIO DIGITAL ===
