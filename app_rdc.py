@@ -1156,25 +1156,36 @@ def preparar_dataframe(df):
     mapeamento = {}
     for col in df.columns:
         col_clean = str(col).strip().upper()
-        if "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean or "SUPERVISOR" in col_clean:
+        
+        # Ignorar matriculas de líderes/encarregados para não sobrescrever a matricula principal
+        if "MATRÍCULA" in col_clean or "MATRICULA" in col_clean or "MAT." in col_clean or "CHAPA" in col_clean or "CRACHÁ" in col_clean or "CRACHA" in col_clean or "RE " in col_clean or "RE" == col_clean:
+            if "LÍDER" in col_clean or "LIDER" in col_clean or "ENCARREGADO" in col_clean or "COORDENADOR" in col_clean or "SUPERVISOR" in col_clean:
+                continue
+            else:
+                mapeamento[col] = "MATRICULA"
+                
+        elif "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean or "SUPERVISOR" in col_clean:
             mapeamento[col] = "ENCARREGADO"
+            
         elif "NOME" in col_clean or "COLABORADOR" in col_clean or "FUNCIONÁRIO" in col_clean or "FUNCIONARIO" in col_clean or "EMPREGADO" in col_clean:
             mapeamento[col] = "NOME"
-        elif "MATRÍCULA" in col_clean or "MATRICULA" in col_clean or "MAT." in col_clean or "CHAPA" in col_clean or "CRACHÁ" in col_clean or "CRACHA" in col_clean or "RE " in col_clean or "RE" == col_clean:
-            mapeamento[col] = "MATRICULA"
+            
         elif "FUNÇÃO" in col_clean or "FUNCAO" in col_clean or "CARGO" in col_clean or "CBO" in col_clean:
             mapeamento[col] = "FUNÇÃO"
+            
         elif "CENTRO DE CUSTO" in col_clean or col_clean == "C.C" or col_clean == "CC" or col_clean == "CECO":
             mapeamento[col] = "C.C"
+            
         elif "DISCIPLINA" in col_clean or "ÁREA" in col_clean or "AREA" in col_clean or "SETOR" in col_clean:
             mapeamento[col] = "DISCIPLINA"
+            
         elif "MÃO DE OBRA" in col_clean or "MAO DE OBRA" in col_clean or "TIPO" in col_clean:
             mapeamento[col] = "MÃO DE OBRA"
-    
+
     df = df.rename(columns=mapeamento)
     
-    # Remover colunas duplicadas que podem ser geradas após o rename ou pela injeção da nuvem, mantendo a mais recente (last)
-    df = df.loc[:, ~df.columns.duplicated(keep='last')]
+    # Remover colunas duplicadas mantendo a primeira encontrada (que geralmente é a principal da esquerda pra direita)
+    df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
     for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]:
         if c not in df.columns:
