@@ -27,6 +27,26 @@ if not os.path.exists(caminho_logo_padrao):
 
 try:
     from google import genai
+    from pydantic import BaseModel
+    
+    class RDC_Schema(BaseModel):
+        DATA: str
+        DISCIPLINA: str
+        ENCARREGADO: str
+        TURNO: str
+        DDS: str
+        ATIVIDADE: str
+        PROBLEMAS: str
+        LOCAL: str
+        AREA: str
+        
+    class RDC_CC_Schema(BaseModel):
+        LOCAL: str
+        AREA: str
+        DISCIPLINA: str
+        ENCARREGADO: str
+        CALDEIRA: str
+
 except ImportError:
     pass
 
@@ -3012,7 +3032,7 @@ if st.session_state.df is not None:
                 - ENCARREGADO: FAÇA O MÁXIMO ESFORÇO POSSÍVEL para descobrir quem é o encarregado. Compare o que está escrito à mão com esta lista oficial: [{nomes_para_prompt}]. Se a caligrafia estiver ruim, com erros de ortografia, ou se houver apenas o primeiro e segundo nome (ex: "Jailson Gois"), use dedução lógica e similaridade para encontrar a correspondência exata na lista. Retorne EXATAMENTE o nome completo que consta na lista fornecida. Somente se for 100% impossível deduzir quem é, retorne o texto 'AJUSTAR NOME'.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
-                - ATIVIDADE: OBRIGATÓRIO: Crie um ÚNICO RESUMO SUPER CURTO E DIRETO de NO MÁXIMO 20 PALAVRAS sobre o que foi feito na seção 'ATIVIDADES'. Se você usar mais de 20 palavras, será considerado um erro gravíssimo! Extraia a ação principal, corrija a ortografia e escreva TUDO EM MAIÚSCULAS. NUNCA SEPARE EM LINHAS.
+                - ATIVIDADE: OBRIGATÓRIO: Crie um ÚNICO RESUMO SUPER CURTO E DIRETO de NO MÁXIMO 15 PALAVRAS sobre o que foi feito na seção 'ATIVIDADES'. Se você usar mais de 15 palavras, será considerado um erro gravíssimo pois o limite de texto será cortado! Extraia a ação principal, corrija a ortografia e escreva TUDO EM MAIÚSCULAS. NUNCA SEPARE EM LINHAS.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
                 - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. As opções são exatamente: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área que estiver marcada. Se nenhuma estiver marcada, retorne ''.
@@ -3054,18 +3074,19 @@ if st.session_state.df is not None:
                             with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
                                 tmp.write(arquivo_scan.getvalue())
                                 tmp_path = tmp.name
-                            
-                            arquivo_up = client.files.upload(file=tmp_path)
                         
                             max_tentativas = 3
                             sucesso_arquivo = False
                             for tentativa in range(max_tentativas):
                                 try:
+                                    arquivo_up = client.files.upload(file=tmp_path)
+                                    
                                     resposta = client.models.generate_content(
                                         model=st.session_state.get('modelo_gemini', 'gemini-2.5-flash'),
                                         contents=[arquivo_up, prompt_ia],
                                         config=genai.types.GenerateContentConfig(
                                             response_mime_type="application/json",
+                                            response_schema=list[RDC_Schema],
                                             temperature=0.0
                                         )
                                     )
@@ -3089,9 +3110,18 @@ if st.session_state.df is not None:
                                         dados_extraidos_lista = json.loads(texto_resposta)
                                     except json.JSONDecodeError as err_json:
                                         import ast
+                                        import re
                                         texto_fix = texto_resposta.replace("null", "None").replace("true", "True").replace("false", "False")
+                                        texto_fix = re.sub(r'\}\s*\{', '}, {', texto_fix)
+                                        texto_fix = re.sub(r'\]\s*\[', '], [', texto_fix)
+                                        texto_fix = re.sub(r'("|\]|\})\s+(")', r'\1, \2', texto_fix)
                                         try:
                                             dados_extraidos_lista = ast.literal_eval(texto_fix)
+                                        except SyntaxError:
+                                            try:
+                                                dados_extraidos_lista = ast.literal_eval(texto_fix + '"}]')
+                                            except:
+                                                raise err_json
                                         except:
                                             raise err_json
 
@@ -3135,19 +3165,21 @@ if st.session_state.df is not None:
                                                 st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
                                                 time.sleep(60)
                                                 continue
-                                            
+                                    elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
+                                        if tentativa < max_tentativas - 1:
+                                            st.warning(f"⏳ Servidores da IA sobrecarregados. Tentando novamente em 10 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                            time.sleep(10)
+                                            continue
+                                                
                                     msg_erro = f"Erro detalhado na IA: {inner_e}"
                                     try:
                                         # Tentar buscar a lista de modelos para debug
                                         modelos = [m.name for m in client.models.list()]
-                                        msg_erro += f" | Modelos liberados na sua chave: {modelos}"
+                                        msg_erro += f" | Modelos liberados: {modelos}"
                                     except:
                                         pass
                                     st.error(msg_erro)
-                                    if '503' in str(inner_e):
-                                        time.sleep(10)
-                                    else:
-                                        break
+                                    break
                                     
                             os.remove(tmp_path)
                         
@@ -3338,15 +3370,20 @@ if st.session_state.df is not None:
                             tmp.write(arquivo_scan.getvalue())
                             tmp_path = tmp.name
                             
-                        arquivo_up = client.files.upload(file=tmp_path)
-                        
                         max_tentativas = 3
                         sucesso_arquivo = False
                         for tentativa in range(max_tentativas):
                             try:
+                                arquivo_up = client.files.upload(file=tmp_path)
+                                
                                 resposta = client.models.generate_content(
                                     model=st.session_state.get('modelo_gemini', 'gemini-2.5-flash'),
-                                    contents=[arquivo_up, prompt_ia_cc]
+                                    contents=[arquivo_up, prompt_ia_cc],
+                                    config=genai.types.GenerateContentConfig(
+                                        response_mime_type="application/json",
+                                        response_schema=list[RDC_CC_Schema],
+                                        temperature=0.0
+                                    )
                                 )
                                 
                                 if old_cred:
@@ -3367,9 +3404,18 @@ if st.session_state.df is not None:
                                     dados_extraidos_lista = json.loads(texto_json)
                                 except json.JSONDecodeError as err_json:
                                     import ast
+                                    import re
                                     texto_fix = texto_json.replace("null", "None").replace("true", "True").replace("false", "False")
+                                    texto_fix = re.sub(r'\}\s*\{', '}, {', texto_fix)
+                                    texto_fix = re.sub(r'\]\s*\[', '], [', texto_fix)
+                                    texto_fix = re.sub(r'("|\]|\})\s+(")', r'\1, \2', texto_fix)
                                     try:
                                         dados_extraidos_lista = ast.literal_eval(texto_fix)
+                                    except SyntaxError:
+                                        try:
+                                            dados_extraidos_lista = ast.literal_eval(texto_fix + '"}]')
+                                        except:
+                                            raise err_json
                                     except:
                                         raise err_json
                                 if isinstance(dados_extraidos_lista, dict):
@@ -3478,18 +3524,20 @@ if st.session_state.df is not None:
                                             st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
                                             time.sleep(60)
                                             continue
+                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
+                                    if tentativa < max_tentativas - 1:
+                                        st.warning(f"⏳ Servidores da IA sobrecarregados. Tentando novamente em 10 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                        time.sleep(10)
+                                        continue
                                         
                                 msg_erro = f"Erro detalhado na IA: {inner_e}"
                                 try:
                                     modelos = [m.name for m in client.models.list()]
-                                    msg_erro += f" | Modelos liberados na sua chave: {modelos}"
+                                    msg_erro += f" | Modelos liberados: {modelos}"
                                 except:
                                     pass
                                 st.error(msg_erro)
-                                if '503' in str(inner_e):
-                                    time.sleep(10)
-                                else:
-                                    break
+                                break
                                     
                         os.remove(tmp_path)
                         
