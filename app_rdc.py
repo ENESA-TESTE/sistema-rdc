@@ -1620,7 +1620,7 @@ with st.sidebar:
             novo_user = st.text_input("Usuário (Login):")
             nova_senha = st.text_input("Senha:")
             novo_nome = st.text_input("Nome Completo:")
-            nova_role = st.selectbox("Nível de Acesso:", ["user", "admin"])
+            nova_role = st.selectbox("Nível de Acesso:", ["user", "admin", "apontador"])
             submit_user = st.form_submit_button("Salvar Usuário")
             if submit_user and novo_user and nova_senha:
                 usuarios_db[novo_user] = {"senha": nova_senha, "nome": novo_nome, "role": nova_role}
@@ -1631,13 +1631,27 @@ with st.sidebar:
         
         st.markdown("**Usuários Cadastrados:**")
         for u, dados in sorted(usuarios_db.items()):
-            col_u, col_del = st.columns([3, 1])
-            col_u.text(f"👤 {u} ({dados.get('role', 'user')})")
-            if u != "admin":
-                if col_del.button("❌", key=f"del_{u}"):
-                    del usuarios_db[u]
+            col_u, col_del = st.columns([4, 1])
+            if u == "admin":
+                col_u.markdown(f"👤 **{u}** (admin)")
+            else:
+                current_role = dados.get('role', 'user')
+                roles_options = ["user", "admin", "apontador"]
+                idx = roles_options.index(current_role) if current_role in roles_options else 0
+                
+                new_role = col_u.selectbox(f"👤 {u}", roles_options, index=idx, key=f"role_{u}")
+                
+                if new_role != current_role:
+                    usuarios_db[u]['role'] = new_role
                     salvar_usuarios(usuarios_db)
                     st.rerun()
+                    
+                with col_del:
+                    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                    if st.button("❌", key=f"del_{u}"):
+                        del usuarios_db[u]
+                        salvar_usuarios(usuarios_db)
+                        st.rerun()
 
         st.markdown("---")
         if st.toggle("🏎️ Gerenciar Lista F1", key="toggle_f1_config"):
@@ -1985,6 +1999,20 @@ if st.session_state.df is not None:
     }
 
     tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}"])
+
+if st.session_state.get("role_usuario") == "apontador":
+    st.markdown("""
+    <style>
+        div[data-baseweb="tab-list"] button:nth-child(1),
+        div[data-baseweb="tab-list"] button:nth-child(2),
+        div[data-baseweb="tab-list"] button:nth-child(4),
+        div[data-baseweb="tab-list"] button:nth-child(6),
+        div[data-baseweb="tab-list"] button:nth-child(7),
+        div[data-baseweb="tab-list"] button:nth-child(8) {
+            display: none !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
     with tab_dashboard:
         # === RELÓGIO DIGITAL ===
@@ -2494,7 +2522,7 @@ if st.session_state.df is not None:
         # A lista completa foi movida para cima para ser compartilhada com a aba de Resumo Diário
         
         # === PAINEL: GERENCIAR LISTA DE ENCARREGADOS ===
-        if st.toggle("👥 Gerenciar Lista de Encarregados do F1", key="toggle_gerenciar_lista_f1"):
+        if st.session_state.get("role_usuario") != "apontador" and st.toggle("👥 Gerenciar Lista de Encarregados do F1", key="toggle_gerenciar_lista_f1"):
             st.markdown("""
             <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
                 <p style="margin: 0; color: #94a3b8; font-size: 14px;">⚙️ Aqui você pode <b style="color: #0ea5e9;">adicionar</b> ou <b style="color: #ef4444;">remover</b> encarregados do controle F1. As alterações são salvas automaticamente.</p>
@@ -2536,7 +2564,7 @@ if st.session_state.df is not None:
             st.caption(f"📋 Total atual na lista: **{len(lista_completa_encarregados)}** encarregados")
         
         # === PAINEL: ABONAR FALTAS ===
-        if st.toggle("⏸️ Abonar Faltas (Folga / Atestado / Feriado)", key="toggle_abono_f1"):
+        if st.session_state.get("role_usuario") != "apontador" and st.toggle("⏸️ Abonar Faltas (Folga / Atestado / Feriado)", key="toggle_abono_f1"):
             st.markdown("""
             <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
                 <p style="margin: 0; color: #94a3b8; font-size: 14px;">📝 Marque os dias em que o encarregado <b style="color: #f59e0b;">não precisava</b> entregar o RDC. Esses dias aparecerão como <b style="color: #f59e0b;">⏸️</b> na tabela em vez de ❌.</p>
@@ -2595,7 +2623,7 @@ if st.session_state.df is not None:
                     st.rerun()
         
         # --- LANÇAMENTO MANUAL ---
-        if st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)"):
+        if st.session_state.get("role_usuario") != "apontador" and st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)"):
             with st.form("form_f1_manual"):
                 st.info("💡 Você pode colar a lista inteira de encarregados aqui (um por linha ou separados por vírgula). O robô vai verificar: se a IA já tiver lido, ele ignora. Se faltou, ele adiciona!")
                 col_m1, col_m2 = st.columns([1, 2])
