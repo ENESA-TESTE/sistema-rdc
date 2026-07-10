@@ -2189,6 +2189,7 @@ if st.session_state.df is not None:
                                            title="", line_shape="spline", color_discrete_sequence=["#0ea5e9"])
                     fig_evolucao.update_layout(
                         xaxis_title="Dia", yaxis_title="RDCs Entregues",
+                        yaxis=dict(dtick=1),
                         margin=dict(l=0, r=20, t=10, b=0),
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                         font=dict(color="#e0e4ea"), height=250
