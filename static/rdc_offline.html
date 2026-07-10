@@ -1,0 +1,517 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RDC Offline - ENESA</title>
+    <style>
+        :root {
+            --bg-color: #f7fafc;
+            --card-bg: #ffffff;
+            --text-main: #2d3748;
+            --text-muted: #718096;
+            --primary: #dd6b20; /* Laranja Enesa */
+            --primary-hover: #c05621;
+            --secondary: #2b6cb0; /* Azul Enesa */
+            --border: #e2e8f0;
+            --success: #38a169;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding-bottom: 40px;
+        }
+
+        header {
+            background-color: var(--secondary);
+            color: white;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        h1 { font-size: 1.5rem; }
+        p.subtitle { font-size: 0.85rem; opacity: 0.8; margin-top: 4px; }
+
+        .container {
+            padding: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--text-main);
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+            background-color: #fff;
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary { background-color: var(--primary); }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        
+        .btn-secondary { background-color: var(--success); margin-top: 20px;}
+        .btn-secondary:hover:not(:disabled) { background-color: #2f855a; }
+
+        .btn-danger { background-color: #e53e3e; margin-top: 10px;}
+        .btn-danger:hover { background-color: #c53030; }
+
+        hr {
+            border: 0;
+            border-top: 1px solid var(--border);
+            margin: 20px 0;
+        }
+
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .badge {
+            background-color: var(--secondary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .rdc-item {
+            border-left: 4px solid var(--secondary);
+            padding: 8px 12px;
+            background-color: #edf2f7;
+            margin-bottom: 8px;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .rdc-item-title { font-weight: bold; font-size: 0.95rem; }
+        .rdc-item-desc { font-size: 0.8rem; color: var(--text-muted); }
+
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            padding: 12px;
+            position: fixed;
+            z-index: 100;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            font-size: 0.9rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        #toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 4.5s;
+        }
+
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+        
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 16px;
+            height: 16px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>📱 RDC Digital Offline</h1>
+    <p class="subtitle">ENESA - Lançamento de Campo</p>
+</header>
+
+<div class="container">
+    <div class="card">
+        <form id="rdcForm">
+            <div class="form-group">
+                <label>Nome do Encarregado</label>
+                <input list='lista_encarregados' id='f_encarregado' placeholder='Digite ou selecione o nome...' required>
+                <datalist id='lista_encarregados'>
+    <option value='ABMAEL PEREIRA PAIVA'></option>
+    <option value='ADALBERTO ALMEIDA ALVES JUNIOR'></option>
+    <option value='ADIMILSON JOSE DAMASCENO'></option>
+    <option value='ALEX MARTINS GUIMARAES'></option>
+    <option value='ALEX PANTOJA DE OLIVEIRA'></option>
+    <option value='ALOISIO FERREIRA SOUZA'></option>
+    <option value='ANA PAULA DA SILVA SENA'></option>
+    <option value='ANANIAS DE SOUSA NETO'></option>
+    <option value='ANTONIO FLAVIO ALVES DA PENHA'></option>
+    <option value='ANTONIO TEIXEIRA BORBA'></option>
+    <option value='ARILSON DIAS DO PRADO'></option>
+    <option value='ARLINDO PEREIRA DA SILVA'></option>
+    <option value='BARTOLOMEU FERNANDES'></option>
+    <option value='BRAULIO MARCIO RABELO GOMES'></option>
+    <option value='CARLOS ALBERTO DA COSTA MOREIRA'></option>
+    <option value='CARLOS DA SILVA OLIVEIRA'></option>
+    <option value='CLAUDIO CRUZ SOUSA'></option>
+    <option value='CLAUDIO LUCIANO ARGELINO'></option>
+    <option value='CLAUDIVAN OLIVEIRA DOS SANTOS'></option>
+    <option value='CLIDENILDO GOMES DE ALMEIDA'></option>
+    <option value='DARLAN SIQUEIRA GOMES'></option>
+    <option value='DOBSON AMARAL MARTINS FILHO'></option>
+    <option value='EDIMILSON NUNES VASCONCELOS'></option>
+    <option value='EDINALDO SOUSA CARDOSO'></option>
+    <option value='EDSON FERREIRA DE ARAUJO'></option>
+    <option value='EDVALDO CARVALHO ANGELIM'></option>
+    <option value='ELDER MENDES'></option>
+    <option value='ELDER MENDES JUNIOR'></option>
+    <option value='ELIAS SOUSA DA COSTA'></option>
+    <option value='ELISEU DA SILVA BISPO'></option>
+    <option value='ELTON GOMES DOS SANTOS'></option>
+    <option value='EVERALDO DOS SANTOS SOARES'></option>
+    <option value='FABIANO LEONARDO RODRIGUES'></option>
+    <option value='FABIO JUNIOR CARVALHO LOBATO'></option>
+    <option value='FAUZE CELIS RODRIGUES COSTA'></option>
+    <option value='FERNANDO DA CONCEICAO'></option>
+    <option value='FRANCINALDO DE SOUSA'></option>
+    <option value='FRANCISCO ALVES DA PENHA'></option>
+    <option value='FRANCISCO AUGUSTO DE SOUSA BARROS'></option>
+    <option value='FRANCISCO COSTA GOMES'></option>
+    <option value='FRANCISCO DAS CHAGAS ARAUJO GALDINO'></option>
+    <option value='FRANCISCO GRACIEL DE SOUSA MARTINS'></option>
+    <option value='FRANCISCO PEREIRA LIMA'></option>
+    <option value='GEAN LENO JOSE DE FREITAS'></option>
+    <option value='GILDO GONCALVES DA SILVA'></option>
+    <option value='GILGLEZIA MARIA DE SOUSA OLIVEIRA.'></option>
+    <option value='GRACINEI PEREIRA DOS SANTOS'></option>
+    <option value='GREITON ORACIO DA SILVA'></option>
+    <option value='GUILHERME HENRIQUE DE ARAUJO SOUSA'></option>
+    <option value='HELENO MARQUES DE SOUZA NETO'></option>
+    <option value='HEMERSON MONTEIRO DE OLIVEIRA'></option>
+    <option value='IRON MARQUES MOREIRA'></option>
+    <option value='ISAIAS SOUSA LISBOA'></option>
+    <option value='ISMAEL CARLOS GOMES DA SILVA'></option>
+    <option value='IVAN DO NASCIMENTO RAMOS'></option>
+    <option value='IZAIAS BAIA BELO'></option>
+    <option value='JACKSON DEIBSON FELICIANO DA SILVA'></option>
+    <option value='JAILSON MENDES DE OLIVEIRA'></option>
+    <option value='JAILSON SILVA DE GOIS'></option>
+    <option value='JARBAS DA ROCHA GOMES'></option>
+    <option value='JARDELINO PEREIRA DA COSTA'></option>
+    <option value='JEAN PEDRO'></option>
+    <option value='JOAO BATISTA SOUZA'></option>
+    <option value='JOAO PAULO DA COSTA QUARESMA'></option>
+    <option value='JOAO TIAGO OLIVEIRA DE AMORIM'></option>
+    <option value='JORGE DA COSTA SILVA'></option>
+    <option value='JORGE LUIS LOPES'></option>
+    <option value='JORGINALDO NUNES DA SILVA'></option>
+    <option value='JOSE DE RIBAMAR LAGO FIGUEIREDO'></option>
+    <option value='JOSE EDUARDO FARIAS FERREIRA'></option>
+    <option value='JOSE FRANCIVAN MONTEIRO SANTOS'></option>
+    <option value='JOSE GERIARDI FONSECA DE SENA'></option>
+    <option value='JOSE HENRIQUE SILVA VIEIRA'></option>
+    <option value='JOSE MARIA DA SILVA PESSOA'></option>
+    <option value='JOSE MAURICIO RODRIGUES DA SILVA'></option>
+    <option value='JOSE ORLANDO DAS NEVES MADEIRA'></option>
+    <option value='JOSE RENATO MORAIS CORREIA'></option>
+    <option value='JOSE SARAIVA LOPES NETO'></option>
+    <option value='JOSE TARCISIO ARAUJO DA SILVA'></option>
+    <option value='JOSE WALKER CARNEIRO OLIVEIRA'></option>
+    <option value='JOSIEL DE JESUS BOAS'></option>
+    <option value='JOSMAEL RODRIGUES PEREIRA'></option>
+    <option value='LEANDRO DA CRUZ DE SOUZA'></option>
+    <option value='LEANDRO DA SILVA QUEIROZ'></option>
+    <option value='LEANDRO MARTINS DA SILVA BORGES'></option>
+    <option value='LOURISVALDO AMARAL ARAUJO'></option>
+    <option value='LUCIO FABIO DA SILVA LEANDRO'></option>
+    <option value='LUIZ CARLOS DE SOUZA'></option>
+    <option value='LUIZ RAMOS DE LIMA'></option>
+    <option value='LUZINALDO AMARAL DE ARAUJO'></option>
+    <option value='MANOEL MARIA SARGES SOARES'></option>
+    <option value='MANOEL NEPOMUCENO DOS SANTOS'></option>
+    <option value='MARCELO SILVA BARBOSA'></option>
+    <option value='MARCIO DOCILIO SANTOS'></option>
+    <option value='MARCONI DO NASCIMENTO BASTOS'></option>
+    <option value='MARCOS ROBERTO DE ALBUQUERQUE VASQUES'></option>
+    <option value='MAURO DE QUEIROZ ANDRADE'></option>
+    <option value='NELSON ANDERSON FERREIRA BARBOSA'></option>
+    <option value='ODAIR MENEZES DA SILVA'></option>
+    <option value='PEDRO LEANDRO DE OLIVEIRA RIOS'></option>
+    <option value='RAIMUNDO DA SILVA DOS SANTOS'></option>
+    <option value='RAIMUNDO EUDE DA SILVA FREITAS'></option>
+    <option value='RAIMUNDO FRAZAO DOS SANTOS'></option>
+    <option value='RAIMUNDO GONCALVES DOS SANTOS'></option>
+    <option value='RHOKSONY FERREIRA SILVEIRA'></option>
+    <option value='RICARDO SARMENTO FERREIRA'></option>
+    <option value='RODOLFO DOS SANTOS COSTA'></option>
+    <option value='RONILDO BAIA BELO'></option>
+    <option value='ROUBERVAL SANTOS DOS SANTOS'></option>
+    <option value='SANDRO LIMA DE SOUZA'></option>
+    <option value='SEBASTIAO CARLOS DE OLIVEIRA'></option>
+    <option value='SIDNALDO SANTOS DE JESUS'></option>
+    <option value='SIDNEI FERNANDES DA SILVA'></option>
+    <option value='SILVIO MANOEL DE ANDRADE'></option>
+    <option value='VALDEMIR BARBOSA REIS'></option>
+    <option value='VALDINEI GOMES OLIVEIRA'></option>
+    <option value='VICENTE DE PAULA TORRES BIA'></option>
+    <option value='WENISON DA SILVA CUNHA CORREIA'></option>
+    <option value='WEVERTON FERNANDES MARIANO'></option>
+</datalist>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Data</label>
+                    <input type="date" id="f_data" required>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Turno</label>
+                    <select id="f_turno">
+                        <option value="DIURNO">DIURNO</option>
+                        <option value="NOTURNO">NOTURNO</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Disciplina</label>
+                <input type="text" id="f_disciplina" placeholder="Ex: Tubulação, Andaime" required>
+            </div>
+
+            <div class="form-group">
+                <label>Área / Local</label>
+                <input type="text" id="f_area" placeholder="Ex: Caldeira, PB, RB" required>
+            </div>
+
+            <div class="form-group">
+                <label>Tópico do DDS</label>
+                <textarea id="f_dds" rows="2" placeholder="Assunto abordado no DDS" required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Atividades Executadas</label>
+                <textarea id="f_atividades" rows="4" placeholder="Detalhe os serviços realizados hoje" required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Problemas / Interrupções (Opcional)</label>
+                <textarea id="f_problemas" rows="2" placeholder="Falta de material, chuva, etc."></textarea>
+            </div>
+
+            <button type="submit" class="btn-primary">💾 Salvar RDC no Celular</button>
+        </form>
+    </div>
+
+    <hr>
+
+    <div class="card" id="sync-section">
+        <div class="list-header">
+            <h3>RDCs Pendentes de Envio</h3>
+            <span class="badge" id="rdc-count">0</span>
+        </div>
+        
+        <div id="rdc-list">
+            <!-- Items filled by JS -->
+        </div>
+
+        <button type="button" class="btn-secondary" id="btnExportar" onclick="syncData()" disabled>☁️ Enviar para o Sistema (Nuvem)</button>
+        <button type="button" class="btn-danger" id="btnLimpar" onclick="clearData()" style="display: none;">🗑️ Limpar RDCs do Celular</button>
+    </div>
+</div>
+
+<div id="toast">Operação realizada com sucesso!</div>
+
+<script>
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec";
+
+    document.getElementById('f_data').valueAsDate = new Date();
+    
+    const savedName = localStorage.getItem('rdc_nome_encarregado');
+    if (savedName) document.getElementById('f_encarregado').value = savedName;
+
+    let rdcs = JSON.parse(localStorage.getItem('rdc_offline_data')) || [];
+
+    function updateUI() {
+        const countBadge = document.getElementById('rdc-count');
+        const listDiv = document.getElementById('rdc-list');
+        const btnExportar = document.getElementById('btnExportar');
+        const btnLimpar = document.getElementById('btnLimpar');
+
+        countBadge.innerText = rdcs.length;
+        
+        if (rdcs.length === 0) {
+            listDiv.innerHTML = '<p style="font-size: 0.85rem; color: #718096; text-align: center; padding: 10px 0;">Nenhum RDC pendente. Você está em dia!</p>';
+            btnExportar.disabled = true;
+            btnLimpar.style.display = 'none';
+        } else {
+            listDiv.innerHTML = rdcs.map((r, i) => 
+                <div class="rdc-item">
+                    <div class="rdc-item-title"> + r.DATA +  -  + r.DISCIPLINA + </div>
+                    <div class="rdc-item-desc"> + r.AREA +  ( + r.TURNO + )</div>
+                </div>
+            ).join('');
+            btnExportar.disabled = false;
+            btnLimpar.style.display = 'block';
+        }
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById("toast");
+        toast.innerHTML = msg;
+        toast.className = "show";
+        setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 5000);
+    }
+
+    document.getElementById('rdcForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const encarregado = document.getElementById('f_encarregado').value;
+        const problemas = document.getElementById('f_problemas').value;
+        let atividades = document.getElementById('f_atividades').value;
+        
+        if (problemas.trim() !== '') {
+            atividades += \\n[Problemas Registrados]:  + problemas;
+        }
+        
+        const newRdc = {
+            DATA: document.getElementById('f_data').value,
+            ENCARREGADO: encarregado,
+            TURNO: document.getElementById('f_turno').value,
+            DISCIPLINA: document.getElementById('f_disciplina').value,
+            AREA: document.getElementById('f_area').value,
+            LOCAL: document.getElementById('f_area').value,
+            DDS: document.getElementById('f_dds').value,
+            ATIVIDADE: atividades
+        };
+
+        rdcs.push(newRdc);
+        localStorage.setItem('rdc_offline_data', JSON.stringify(rdcs));
+        localStorage.setItem('rdc_nome_encarregado', encarregado);
+        
+        document.getElementById('f_dds').value = '';
+        document.getElementById('f_atividades').value = '';
+        document.getElementById('f_problemas').value = '';
+        
+        updateUI();
+        showToast("✅ RDC Salvo no Celular!");
+        
+        document.getElementById('sync-section').scrollIntoView({ behavior: 'smooth' });
+    });
+
+    async function syncData() {
+        if (rdcs.length === 0) return;
+        
+        const btn = document.getElementById('btnExportar');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="loader"></span> Enviando...';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(WEBHOOK_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "text/plain;charset=utf-8",
+                },
+                body: JSON.stringify(rdcs)
+            });
+
+            const result = await response.json();
+            
+            if (result.status === "success") {
+                showToast("🚀 RDCs enviados com sucesso para o banco de dados!");
+                rdcs = [];
+                localStorage.removeItem('rdc_offline_data');
+                updateUI();
+            } else {
+                showToast("❌ Erro retornado pelo servidor: " + result.message);
+            }
+        } catch (error) {
+            console.error("Erro no envio:", error);
+            showToast("❌ Erro de conexão. Verifique se você está com internet (Wi-Fi/4G) e tente novamente.");
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            updateUI();
+        }
+    }
+
+    function clearData() {
+        if(confirm("ATENÇÃO: Você tem certeza que deseja APAGAR os RDCs do seu celular sem enviar?")) {
+            rdcs = [];
+            localStorage.removeItem('rdc_offline_data');
+            updateUI();
+            showToast("🗑️ RDCs apagados da memória.");
+        }
+    }
+
+    updateUI();
+</script>
+
+</body>
+</html>
+

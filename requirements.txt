@@ -10,6 +10,8 @@ extra-streamlit-components
 fpdf2
 python-pptx
 streamlit-drawable-canvas
+
 qrcode[pil]
+
 openai
 PyMuPDF
