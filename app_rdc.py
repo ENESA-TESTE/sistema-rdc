@@ -1781,15 +1781,34 @@ if arquivo_pde is not None:
 
 elif st.session_state.df is None:
     carregado_nuvem = False
-    if conn and not st.session_state.get('force_use_local', False):
+    
+    # 1. LER DA NOVA PLANILHA MESTRE DO GOOGLE SHEETS
+    if not st.session_state.get('force_use_local', False):
+        url_pde_mestre = "https://docs.google.com/spreadsheets/d/10T9dKSWsM_rTKd2eNBfX4mKe_jvtPvNcMUHvmZ-FeiM/export?format=csv"
         try:
-            df_gsheets = conn.read(worksheet="Página1", ttl=5)
-            df_gsheets = df_gsheets.dropna(how='all')
-            if not df_gsheets.empty:
-                st.session_state.df = df_gsheets
+            df_mestre = pd.read_csv(url_pde_mestre)
+            df_mestre = df_mestre.dropna(how='all')
+            if not df_mestre.empty:
+                st.session_state.df = df_mestre
                 carregado_nuvem = True
+                
+                # Backup invisível para a Página1 antiga (caso a mestre caia no futuro)
+                if conn:
+                    try: conn.update(worksheet="Página1", data=df_mestre)
+                    except: pass
         except Exception:
             pass
+            
+        # 2. FAILSAFE: Se a mestre falhar, tenta ler o backup antigo
+        if not carregado_nuvem and conn:
+            try:
+                df_gsheets = conn.read(worksheet="Página1", ttl=5)
+                df_gsheets = df_gsheets.dropna(how='all')
+                if not df_gsheets.empty:
+                    st.session_state.df = df_gsheets
+                    carregado_nuvem = True
+            except Exception:
+                pass
             
         try:
             df_f1 = conn.read(worksheet="Historico_F1", ttl=5)
