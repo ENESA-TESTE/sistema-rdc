@@ -1739,6 +1739,43 @@ try:
 except Exception:
     conn = None
 
+# =================================================================
+# SINCRONIZAÇÃO AUTOMÁTICA (LOCAL -> NUVEM)
+# =================================================================
+if conn and st.session_state.df is None:
+    try:
+        caminho_sync_txt = os.path.join(pasta_base, "last_sync.txt")
+        arquivo_local_recente = None
+        if os.path.exists(caminho_base_salva_xlsx):
+            arquivo_local_recente = caminho_base_salva_xlsx
+        elif os.path.exists(caminho_base_salva_csv):
+            arquivo_local_recente = caminho_base_salva_csv
+            
+        if arquivo_local_recente:
+            mtime_local = os.path.getmtime(arquivo_local_recente)
+            last_sync = 0.0
+            if os.path.exists(caminho_sync_txt):
+                with open(caminho_sync_txt, 'r') as f:
+                    content = f.read().strip()
+                    if content:
+                        last_sync = float(content)
+                        
+            # Se o arquivo local for mais novo que a última vez que subimos para nuvem
+            if mtime_local > last_sync:
+                nome_arq = "BASE_ATUAL.xlsx" if "xlsx" in arquivo_local_recente else "BASE_ATUAL.csv"
+                df_sync = ler_arquivo_seguro(arquivo_local_recente, nome_arq)
+                if df_sync is not None:
+                    df_sync = preparar_dataframe(df_sync)
+                    conn.update(worksheet="Página1", data=df_sync)
+                    
+                    with open(caminho_sync_txt, 'w') as f:
+                        f.write(str(mtime_local))
+                    
+                    st.session_state.df = df_sync
+                    st.toast("☁️ Nuvem atualizada automaticamente com seu novo arquivo local!", icon="✅")
+    except Exception as e:
+        pass
+
 if arquivo_pde is not None:
     df_carregado = ler_arquivo_seguro(arquivo_pde, arquivo_pde.name)
     if df_carregado is not None:
