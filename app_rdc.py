@@ -1809,14 +1809,18 @@ elif st.session_state.df is None:
                     carregado_nuvem = True
             except Exception:
                 pass
-            
-        try:
-            df_f1 = conn.read(worksheet="Historico_F1", ttl=5)
-            if not df_f1.empty:
-                st.session_state.df_historico_f1 = df_f1.dropna(how='all')
-                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-        except Exception:
-            pass
+
+# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (CACHE DE 10 SEGUNDOS)
+if conn and not st.session_state.get('force_use_local', False):
+    try:
+        df_f1 = conn.read(worksheet="Historico_F1", ttl=10)
+        if not df_f1.empty:
+            df_f1 = df_f1.dropna(how='all')
+            # Garante que a base do F1 não tem datas corrompidas e atualiza a sessão local
+            st.session_state.df_historico_f1 = df_f1
+            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+    except Exception:
+        pass
             
     # Resetar a flag
     if st.session_state.get('force_use_local', False):
