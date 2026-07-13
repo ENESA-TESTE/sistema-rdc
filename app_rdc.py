@@ -1810,19 +1810,7 @@ elif st.session_state.df is None:
             except Exception:
                 pass
 
-# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (CACHE DE 10 SEGUNDOS)
-if conn and not st.session_state.get('force_use_local', False):
-    try:
-        df_f1 = conn.read(worksheet="Historico_F1", ttl=10)
-        if not df_f1.empty:
-            df_f1 = df_f1.dropna(how='all')
-            # Garante que a base do F1 não tem datas corrompidas e atualiza a sessão local
-            st.session_state.df_historico_f1 = df_f1
-            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-    except Exception:
-        pass
-            
-    # Resetar a flag
+    # Resetar a flag (dentro do elif st.session_state.df is None)
     if st.session_state.get('force_use_local', False):
         carregado_nuvem = True
         st.session_state.force_use_local = False
@@ -1840,6 +1828,21 @@ if conn and not st.session_state.get('force_use_local', False):
             df_carregado = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
             if df_carregado is not None:
                 st.session_state.df = df_carregado
+
+# =================================================================
+# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM
+# =================================================================
+if conn and not st.session_state.get('force_use_local', False):
+    try:
+        # ttl=0 garante que ele vai puxar ao vivo a cada clique no site
+        df_f1 = conn.read(worksheet="Historico_F1", ttl=0)
+        if not df_f1.empty:
+            df_f1 = df_f1.dropna(how='all')
+            # Garante que a base do F1 não tem datas corrompidas e atualiza a sessão local
+            st.session_state.df_historico_f1 = df_f1
+            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+    except Exception:
+        pass
 
 # =================================================================
 # CONTEUDO PRINCIPAL
