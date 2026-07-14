@@ -143,6 +143,58 @@ st.set_page_config(page_title=f"Sistema RDC & PDE - {nome_site}", layout="wide",
 # Injeção de CSS para ajustes de interface
 st.markdown("""
     <style>
+        /* Tipografia Moderna */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        html, body, [class*="css"] {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Glassmorphism na Sidebar */
+        [data-testid="stSidebar"] {
+            background-color: rgba(15, 23, 42, 0.5) !important;
+            backdrop-filter: blur(12px) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }
+
+        /* Melhorar visual dos Métricas (Cards) */
+        [data-testid="stMetric"] {
+            background: rgba(30, 41, 59, 0.5) !important;
+            border-radius: 12px !important;
+            padding: 15px 20px !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+            transition: all 0.3s ease !important;
+        }
+        [data-testid="stMetric"]:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2) !important;
+            border-color: rgba(14, 165, 233, 0.3) !important;
+        }
+
+        /* Botões Arredondados com Hover Vivo */
+        .stButton button {
+            border-radius: 8px !important;
+            transition: all 0.2s ease !important;
+            font-weight: 600 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+        .stButton button:hover {
+            transform: scale(1.02) !important;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3) !important;
+            border-color: rgba(14, 165, 233, 0.5) !important;
+        }
+        
+        /* Headers com gradiente sutil */
+        h1, h2, h3 {
+            font-weight: 700 !important;
+        }
+        
+        /* Ocultar barra de topo do Streamlit */
+        header[data-testid="stHeader"] {
+            background: transparent !important;
+        }
+
         /* Tentar forçar o carregamento da fonte oficial de ícones do Google */
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0');
         
@@ -1142,6 +1194,7 @@ def salvar_base_localmente(arquivo_upload):
     except Exception:
         return False
 
+@st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
     # Auto-detect header row if the file has title rows above the headers
     unnamed_cols = [c for c in df.columns if str(c).startswith('Unnamed')]
@@ -1775,7 +1828,7 @@ if arquivo_pde is not None:
         if conn and not st.session_state.get('force_use_local', False):
             try:
                 conn.update(worksheet="Página1", data=st.session_state.df)
-                st.sidebar.success("☁️ Base salva! C.Cs antigos foram preservados com sucesso!")
+                st.toast("☁️ Base salva! C.Cs preservados com sucesso!", icon="✅")
             except Exception as e:
                 st.sidebar.error(f"Erro Nuvem: {e}")
 
@@ -2021,7 +2074,7 @@ if st.session_state.df is not None:
                         with st.spinner("Enviando dados para a nuvem..."):
                             res = requests.post(WEBHOOK_URL, json=rdc_json, allow_redirects=True)
                         if res.status_code == 200:
-                            st.success(f"✅ RDC Digital de {rdc_encarregado} salvo com sucesso na Nuvem!")
+                            st.toast(f"RDC Digital de {rdc_encarregado} salvo com sucesso na Nuvem!", icon="✅")
                             st.info("O relatório já foi enviado. Você pode fechar esta página.")
                         else:
                             st.error(f"❌ Erro ao enviar. Servidor retornou: {res.text}")
@@ -2366,7 +2419,7 @@ if st.session_state.df is not None:
                                 st.session_state.df_historico_f1 = df_final
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 st.cache_data.clear()
-                                st.success(f"✅ {len(novos_registros)} novos RDCs adicionados e sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).")
+                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
                             except Exception as e:
                                 st.error(f"Erro ao salvar na nuvem: {e}")
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -2374,7 +2427,7 @@ if st.session_state.df is not None:
                         else:
                             st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                             st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.success(f"✅ {len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).")
+                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -2725,7 +2778,7 @@ if st.session_state.df is not None:
                                 st.session_state.df_historico_f1 = df_final
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 st.cache_data.clear()
-                                st.success(f"✅ {len(novos_registros)} novos RDCs adicionados e sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).")
+                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
                             except Exception as e:
                                 st.error(f"Erro ao salvar na nuvem: {e}")
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -2733,7 +2786,7 @@ if st.session_state.df is not None:
                         else:
                             st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                             st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.success(f"✅ {len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).")
+                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -3353,7 +3406,7 @@ if st.session_state.df is not None:
                                 st.session_state.df_historico_f1 = df_final
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 st.cache_data.clear()
-                                st.success(f"✅ {len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!")
+                                st.toast(f"{len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!", icon="✅")
                             except Exception as e:
                                 st.error(f"Erro ao salvar na nuvem: {e}")
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -3361,7 +3414,7 @@ if st.session_state.df is not None:
                         else:
                             st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                             st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.success(f"✅ {len(novos_registros)} RDCs registrados localmente no Resumo Diário!")
+                            st.toast(f"{len(novos_registros)} RDCs registrados localmente no Resumo Diário!", icon="✅")
                     else:
                         st.info("ℹ️ Os dados foram processados, mas os Encarregados dessa lista já haviam sido contabilizados.")
 
@@ -4024,7 +4077,7 @@ if st.session_state.df is not None:
                         with st.spinner("Enviando dados para a nuvem..."):
                             res = requests.post(WEBHOOK_URL, json=rdc_json, allow_redirects=True)
                         if res.status_code == 200:
-                            st.success(f"✅ RDC Digital de {rdc_encarregado} salvo com sucesso na Nuvem!")
+                            st.toast(f"RDC Digital de {rdc_encarregado} salvo com sucesso na Nuvem!", icon="✅")
                             st.info("Para visualizar na tabela da IA, clique em 'Puxar Dados Automáticos' abaixo.")
                         else:
                             st.error(f"❌ Erro ao enviar. Servidor retornou: {res.text}")
