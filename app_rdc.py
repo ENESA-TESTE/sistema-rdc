@@ -306,9 +306,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Paleta Premium Dark Mode (Glassmorphism & Neon Subtle)
-cor_fundo = "#020617" # Slate 950
-cor_fundo_grad = "linear-gradient(135deg, #020617 0%, #0f172a 100%)"
-cor_card = "rgba(30, 41, 59, 0.45)" # Slate 800 glass
+cor_fundo = "#0f172a" # Slate 900 (azul-marinho elegante)
+cor_fundo_grad = "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)"
+cor_card = "rgba(30, 41, 59, 0.55)" # Slate 800 glass
 cor_borda = "rgba(255, 255, 255, 0.08)"
 cor_texto = "#f8fafc"
 cor_texto_sub = "#94a3b8"
@@ -365,12 +365,12 @@ st.markdown(f"""
         100% {{ background-position: 100vw 100vh; }}
     }}
     .stApp {{
-        background: radial-gradient(circle at top, {cor_fundo} 0%, #020617 100%) !important;
+        background: radial-gradient(ellipse at top, #1e293b 0%, {cor_fundo} 60%, #0f172a 100%) !important;
         background-image: 
-            linear-gradient(rgba(14, 165, 233, 0.04) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(14, 165, 233, 0.04) 1px, transparent 1px) !important;
-        background-size: 40px 40px !important;
-        animation: panBackground 150s linear infinite !important;
+            linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px) !important;
+        background-size: 50px 50px !important;
+        animation: panBackground 200s linear infinite !important;
     }}
     
     /* === DATAFRAME GLOW === */
