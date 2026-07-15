@@ -195,6 +195,81 @@ st.markdown("""
             background: transparent !important;
         }
 
+        /* ================================================ */
+        /* 3. TABELAS ZEBRADAS (linhas alternadas)          */
+        /* ================================================ */
+        [data-testid="stDataFrame"] table tbody tr:nth-child(even) {
+            background-color: rgba(30, 41, 59, 0.4) !important;
+        }
+        [data-testid="stDataFrame"] table tbody tr:nth-child(odd) {
+            background-color: rgba(15, 23, 42, 0.6) !important;
+        }
+        [data-testid="stDataFrame"] table tbody tr:hover {
+            background-color: rgba(14, 165, 233, 0.12) !important;
+            transition: background-color 0.2s ease !important;
+        }
+        [data-testid="stDataFrame"] table thead tr {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(139, 92, 246, 0.15)) !important;
+            border-bottom: 2px solid rgba(14, 165, 233, 0.3) !important;
+        }
+        [data-testid="stDataFrame"] table thead th {
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            font-size: 0.75rem !important;
+            letter-spacing: 0.5px !important;
+            color: #e2e8f0 !important;
+        }
+
+        /* ================================================ */
+        /* 4. TABS/MENUS COM ESTILO PREMIUM                 */
+        /* ================================================ */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 4px !important;
+            background: rgba(15, 23, 42, 0.6) !important;
+            border-radius: 12px !important;
+            padding: 4px !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 8px !important;
+            padding: 8px 16px !important;
+            font-weight: 600 !important;
+            font-size: 0.85rem !important;
+            color: #94a3b8 !important;
+            transition: all 0.25s ease !important;
+            border: none !important;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
+            background: rgba(14, 165, 233, 0.1) !important;
+            color: #e2e8f0 !important;
+        }
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(135deg, #0ea5e9, #3b82f6) !important;
+            color: #ffffff !important;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35) !important;
+        }
+        .stTabs [data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+        .stTabs [data-baseweb="tab-border"] {
+            display: none !important;
+        }
+
+        /* ================================================ */
+        /* 6. SPINNER DE CARREGAMENTO PREMIUM               */
+        /* ================================================ */
+        .stSpinner > div {
+            border-radius: 12px !important;
+            background: rgba(15, 23, 42, 0.8) !important;
+            backdrop-filter: blur(8px) !important;
+            border: 1px solid rgba(14, 165, 233, 0.2) !important;
+            padding: 20px !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+        }
+        .stSpinner > div > div {
+            border-top-color: #0ea5e9 !important;
+        }
+
         /* Tentar forçar o carregamento da fonte oficial de ícones do Google */
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0');
         
@@ -1194,7 +1269,6 @@ def salvar_base_localmente(arquivo_upload):
     except Exception:
         return False
 
-@st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
     # Auto-detect header row if the file has title rows above the headers
     unnamed_cols = [c for c in df.columns if str(c).startswith('Unnamed')]
@@ -1217,7 +1291,7 @@ def preparar_dataframe(df):
             else:
                 mapeamento[col] = "MATRICULA"
                 
-        elif "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean or "SUPERVISOR" in col_clean:
+        elif "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean or "SUPERVISOR" in col_clean or "COORDENADOR" in col_clean:
             mapeamento[col] = "ENCARREGADO"
             
         elif "NOME" in col_clean or "COLABORADOR" in col_clean or "FUNCIONÁRIO" in col_clean or "FUNCIONARIO" in col_clean or "EMPREGADO" in col_clean:
@@ -1530,23 +1604,33 @@ nome_user_logado = st.session_state.get('nome_completo', 'Admin')
 
 st.markdown(f"""
     <div class="enesa-header">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div>
-                <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700;">
-                    <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
-                </h1>
-                <p style="color: {cor_texto_sub}; font-size: 0.85rem; margin: 4px 0 0 0; letter-spacing: 0.5px;">{nome_site} — Controle Operacional de Efetivo</p>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                    <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
+                        <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
+                    </h1>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v7.0</span>
+                </div>
+                <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">{nome_site} — Controle Operacional de Efetivo</p>
             </div>
-            <div style="text-align: right;">
-                <div style="display: inline-flex; gap: 12px; align-items: center;">
-                    <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 20px; padding: 4px 14px; font-size: 11px; color: #10b981; font-weight: 600; letter-spacing: 0.5px;">● ONLINE</div>
-                    <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 10px; padding: 6px 14px; font-size: 12px; color: #94a3b8;">
-                        <span style="color: #0ea5e9; font-weight: 600;">👤 {nome_user_logado}</span> · {data_agora}
-                    </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 20px; padding: 5px 14px; font-size: 11px; color: #10b981; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 6px #10b981; animation: pulse 2s infinite;"></span>
+                    ONLINE
+                </div>
+                <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.15); border-radius: 10px; padding: 6px 14px; font-size: 12px; color: #94a3b8;">
+                    <span style="color: #0ea5e9; font-weight: 600;">{nome_user_logado}</span> · {data_agora}
                 </div>
             </div>
         </div>
     </div>
+    <style>
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.4; }}
+        }}
+    </style>
 """, unsafe_allow_html=True)
 
 # =================================================================
@@ -1770,15 +1854,23 @@ with st.sidebar:
     st.markdown("---")
     st.markdown(
         f"""
-        <div style='text-align: center; margin-top: 20px; padding: 20px 10px; background: rgba(15, 23, 42, 0.5); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05);'>
-            <p style='font-size: 10px; color: #64748b; letter-spacing: 2px; text-transform: uppercase; margin: 0;'>Desenvolvido por</p>
-            <p style='font-size: 15px; font-weight: 700; margin: 6px 0 0 0; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Edson Garcia - 125</p>
-            <div style='margin-top: 10px; display: inline-block; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 20px; padding: 3px 14px;'>
-                <span style='font-size: 10px; color: #0ea5e9; font-weight: 600; letter-spacing: 1px;'>v6.0</span>
-                <span style='font-size: 10px; color: #475569;'> · </span>
-                <span style='font-size: 10px; color: #64748b;'>{nome_site}</span>
+        <div style='text-align: center; margin-top: 30px; padding: 24px 16px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(30, 41, 59, 0.4)); border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(8px);'>
+            <div style='display: flex; justify-content: center; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 12px;'>
+                <div style='display: flex; align-items: center; gap: 6px;'>
+                    <span style='width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981;'></span>
+                    <span style='font-size: 11px; color: #94a3b8; font-weight: 500;'>Sistema Operacional</span>
+                </div>
+                <span style='font-size: 10px; color: #334155;'>|</span>
+                <span style='font-size: 11px; color: #64748b;'>📅 Última att: 15/07/2026</span>
+                <span style='font-size: 10px; color: #334155;'>|</span>
+                <div style='display: inline-block; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 20px; padding: 2px 12px;'>
+                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v7.0</span>
+                </div>
             </div>
-            <p style='font-size: 9px; color: #334155; margin-top: 8px; letter-spacing: 1.5px;'>POWERED BY ANTIGRAVITY AI</p>
+            <div style='border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;'>
+                <p style='font-size: 10px; color: #475569; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 4px 0;'>Desenvolvido por</p>
+                <p style='font-size: 14px; font-weight: 700; margin: 0; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Edson Garcia · {nome_site}</p>
+            </div>
         </div>
         """, 
         unsafe_allow_html=True
@@ -1842,15 +1934,16 @@ elif st.session_state.df is None:
             df_mestre = pd.read_csv(url_pde_mestre)
             df_mestre = df_mestre.dropna(how='all')
             if not df_mestre.empty:
-                st.session_state.df = df_mestre
+                st.session_state.df = preparar_dataframe(df_mestre)
                 carregado_nuvem = True
+                st.toast(f"PDE Mestre carregado! {len(df_mestre)} funcionários.", icon="☁️")
                 
                 # Backup invisível para a Página1 antiga (caso a mestre caia no futuro)
                 if conn:
                     try: conn.update(worksheet="Página1", data=df_mestre)
                     except: pass
-        except Exception:
-            pass
+        except Exception as e:
+            st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre: {e}")
             
         # 2. FAILSAFE: Se a mestre falhar, tenta ler o backup antigo
         if not carregado_nuvem and conn:
@@ -1858,7 +1951,7 @@ elif st.session_state.df is None:
                 df_gsheets = conn.read(worksheet="Página1", ttl=5)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
-                    st.session_state.df = df_gsheets
+                    st.session_state.df = preparar_dataframe(df_gsheets)
                     carregado_nuvem = True
             except Exception:
                 pass
