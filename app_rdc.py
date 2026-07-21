@@ -29,11 +29,6 @@ try:
     from google import genai
     from pydantic import BaseModel
     
-    class Atividade_Sub(BaseModel):
-        ATIVIDADE: str
-        LOCAL_ESPECIFICO: str
-        EFETIVO: str
-    
     class RDC_Schema(BaseModel):
         DATA: str
         DISCIPLINA: str
@@ -45,7 +40,7 @@ try:
         PROBLEMAS: str
         LOCAL: str
         AREA: str
-        SUBNIVEIS: list[Atividade_Sub]
+        CALDEIRA: str
         
     class RDC_CC_Schema(BaseModel):
         LOCAL: str
@@ -1479,7 +1474,7 @@ def backup_google_drive(file_path, mime_type, file_name):
 if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_ia' not in st.session_state:
-    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
+    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
 if 'df_historico_f1' not in st.session_state:
     if os.path.exists(caminho_historico_f1_csv):
         try:
@@ -3768,13 +3763,8 @@ if st.session_state.df is not None:
                 - ENCARREGADO: FAÇA O MÁXIMO ESFORÇO POSSÍVEL para descobrir quem é o encarregado. Compare o que está escrito à mão com esta lista oficial: [{nomes_para_prompt}]. Se a caligrafia estiver ruim, com erros de ortografia, ou se houver apenas o primeiro e segundo nome (ex: "Jailson Gois"), use dedução lógica e similaridade para encontrar a correspondência exata na lista. Retorne EXATAMENTE o nome completo que consta na lista fornecida. Somente se for 100% impossível deduzir quem é, retorne o texto 'AJUSTAR NOME'.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
-                - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou (locais, quantidades, diâmetros, elevações, etc). A diferença entre TRANSCRICAO e ATIVIDADE é que TRANSCRICAO é o texto COMPLETO e detalhado, e ATIVIDADE é apenas um resumo curto de 15 palavras. TUDO EM MAIÚSCULAS.
-                - ATIVIDADE: Crie um RESUMO GERAL CURTO de no máximo 15 palavras sobre o que foi feito. TUDO EM MAIÚSCULAS. CORRIJA a ortografia usando o glossário acima.
-                - SUBNIVEIS: ESTA É A PARTE MAIS IMPORTANTE. Leia TODA a seção de atividades do RDC e quebre em subníveis individuais. Cada subnível deve conter:
-                    * ATIVIDADE: Descrição curta e objetiva daquela atividade específica (ex: "SOLDAGEM DE TUBULAÇÃO DN 6 POLEGADAS"). TUDO EM MAIÚSCULAS. Máximo 12 palavras. CORRIJA a ortografia.
-                    * LOCAL_ESPECIFICO: O local exato onde a atividade foi executada (ex: "ELEVAÇÃO 35M", "MÓDULO 3", "ÁREA DO ECONOMIZADOR"). Se não mencionado, retorne "NÃO INFORMADO".
-                    * EFETIVO: Quantas pessoas e quais funções foram usadas nessa atividade (ex: "3 SOLDADORES, 2 AJUDANTES"). Se não mencionado, retorne "NÃO INFORMADO".
-                  Se o RDC mencionar apenas 1 atividade, retorne 1 subnível. Se mencionar 5 atividades diferentes, retorne 5 subníveis. NUNCA retorne uma lista vazia.
+                - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou.
+                - ATIVIDADE: Crie um RESUMO GERAL de no máximo 35 palavras contendo as principais atividades executadas em todo o RDC. TUDO EM MAIÚSCULAS. CORRIJA a ortografia usando o glossário acima. NÃO CRIE SUBNÍVEIS, APENAS UM ÚNICO RESUMO TEXTUAL.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
                 - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. As opções são exatamente: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área que estiver marcada. Se nenhuma estiver marcada, retorne ''.
@@ -3823,6 +3813,21 @@ if st.session_state.df is not None:
                                 try:
                                     arquivo_up = client.files.upload(file=tmp_path)
                                     
+                                    # Aguardar o arquivo ficar pronto no servidor do Google (necessário para arquivos pesados)
+                                    tempo_espera = 0
+                                    while tempo_espera < 180: # Aguarda até 3 minutos
+                                        file_info = client.files.get(name=arquivo_up.name)
+                                        estado = str(file_info.state).upper()
+                                        if "ACTIVE" in estado:
+                                            break
+                                        elif "FAILED" in estado:
+                                            raise Exception("Falha interna do Google ao processar este arquivo. Tente um arquivo menor.")
+                                        time.sleep(3)
+                                        tempo_espera += 3
+                                        
+                                    if tempo_espera >= 180:
+                                        raise Exception("Tempo limite esgotado aguardando o Google processar o PDF (demorou mais de 3 minutos).")
+                                    
                                     resposta = client.models.generate_content(
                                         model=st.session_state.get('modelo_gemini', 'gemini-2.5-flash'),
                                         contents=[arquivo_up, prompt_ia],
@@ -3853,19 +3858,39 @@ if st.session_state.df is not None:
                                     except json.JSONDecodeError as err_json:
                                         import ast
                                         import re
-                                        texto_fix = texto_resposta.replace("null", "None").replace("true", "True").replace("false", "False")
-                                        texto_fix = re.sub(r'\}\s*\{', '}, {', texto_fix)
-                                        texto_fix = re.sub(r'\]\s*\[', '], [', texto_fix)
-                                        texto_fix = re.sub(r'("|\]|\})\s+(")', r'\1, \2', texto_fix)
-                                        try:
-                                            dados_extraidos_lista = ast.literal_eval(texto_fix)
-                                        except SyntaxError:
+                                        
+                                        # Tentativa 1: Recuperar JSON truncado pelo limite de tokens da IA (arquivos enormes)
+                                        recuperado = False
+                                        last_brace = texto_resposta.rfind('}')
+                                        if last_brace != -1:
+                                            texto_recuperado = texto_resposta[:last_brace+1] + ']'
                                             try:
-                                                dados_extraidos_lista = ast.literal_eval(texto_fix + '"}]')
+                                                dados_extraidos_lista = json.loads(texto_recuperado)
+                                                recuperado = True
+                                            except:
+                                                pass
+                                                
+                                        if not recuperado:
+                                            texto_fix = texto_resposta.replace("null", "None").replace("true", "True").replace("false", "False")
+                                            texto_fix = re.sub(r'\}\s*\{', '}, {', texto_fix)
+                                            texto_fix = re.sub(r'\]\s*\[', '], [', texto_fix)
+                                            texto_fix = re.sub(r'("|\]|\})\s+(")', r'\1, \2', texto_fix)
+                                            try:
+                                                dados_extraidos_lista = ast.literal_eval(texto_fix)
+                                            except SyntaxError:
+                                                try:
+                                                    dados_extraidos_lista = ast.literal_eval(texto_fix + '"}]')
+                                                except:
+                                                    # Ultima tentativa: cortar no ultimo '}' válido pro AST também
+                                                    if last_brace != -1:
+                                                        try:
+                                                            dados_extraidos_lista = ast.literal_eval(texto_fix[:last_brace+1] + ']')
+                                                        except:
+                                                            raise err_json
+                                                    else:
+                                                        raise err_json
                                             except:
                                                 raise err_json
-                                        except:
-                                            raise err_json
 
                                     if isinstance(dados_extraidos_lista, dict):
                                         dados_extraidos_lista = [dados_extraidos_lista]
@@ -3887,27 +3912,13 @@ if st.session_state.df is not None:
                                         if 'AREA' not in dados:
                                             dados['AREA'] = ''
                                         
-                                        # Extrair subníveis
-                                        subniveis = dados.pop('SUBNIVEIS', [])
-                                        
-                                        if subniveis and len(subniveis) > 0:
-                                            # Criar uma linha para cada subnível
-                                            for idx_sub, sub in enumerate(subniveis):
-                                                linha_sub = dados.copy()
-                                                linha_sub['ITEM'] = item_pai
-                                                linha_sub['SUB'] = idx_sub + 1
-                                                linha_sub['SUB_ATIVIDADE'] = sub.get('ATIVIDADE', sub.get('atividade', ''))
-                                                linha_sub['LOCAL_ESPECIFICO'] = sub.get('LOCAL_ESPECIFICO', sub.get('local_especifico', 'NÃO INFORMADO'))
-                                                linha_sub['EFETIVO_ATIVIDADE'] = sub.get('EFETIVO', sub.get('efetivo', 'NÃO INFORMADO'))
-                                                st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([linha_sub])], ignore_index=True)
-                                        else:
-                                            # Fallback: sem subníveis, comportamento antigo
-                                            dados['ITEM'] = item_pai
-                                            dados['SUB'] = 1
-                                            dados['SUB_ATIVIDADE'] = dados.get('ATIVIDADE', '')
-                                            dados['LOCAL_ESPECIFICO'] = ''
-                                            dados['EFETIVO_ATIVIDADE'] = ''
-                                            st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
+                                        # Sem subníveis, manter apenas 1 item
+                                        dados['ITEM'] = item_pai
+                                        dados['SUB'] = 1
+                                        dados['SUB_ATIVIDADE'] = dados.get('ATIVIDADE', '')
+                                        dados['LOCAL_ESPECIFICO'] = ''
+                                        dados['EFETIVO_ATIVIDADE'] = ''
+                                        st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
 
                                     sucesso_arquivo = True
                                     break 
@@ -3982,7 +3993,10 @@ if st.session_state.df is not None:
                 col_dw1, col_dw2 = st.columns([1, 1])
                 with col_dw1:
                     buffer_df = io.BytesIO()
-                    df_filtrado.to_excel(buffer_df, index=False, engine='openpyxl')
+                    
+                    # Preparar Excel
+                    df_excel_ia = df_filtrado.copy()
+                    df_excel_ia.to_excel(buffer_df, index=False, engine='openpyxl')
                     buffer_df.seek(0)
                     st.download_button(
                         label="⬇️ Baixar Planilha RDC Lida (.xlsx)",
@@ -3994,21 +4008,22 @@ if st.session_state.df is not None:
                     )
                 with col_dw2:
                     if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
                         st.rerun()
                 
                 st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
                 
-                # === VISUALIZAÇÃO EXPANDIDA DOS SUBNÍVEIS ===
-                if 'SUB_ATIVIDADE' in df_filtrado.columns and df_filtrado['SUB_ATIVIDADE'].notna().any():
-                    with st.expander("🔍 Visualizar Subníveis de Atividades (Detalhamento)", expanded=False):
-                        itens_unicos = df_filtrado['ITEM'].unique()
-                        for item_id in sorted(itens_unicos):
-                            bloco = df_filtrado[df_filtrado['ITEM'] == item_id]
+                # === VISUALIZAÇÃO DOS RDCs LIDOS ===
+                with st.expander("🔍 Visualizar RDCs (Texto Original vs Resumo)", expanded=False):
+                    itens_unicos = df_filtrado['ITEM'].unique()
+                    for item_id in sorted(itens_unicos):
+                        bloco = df_filtrado[df_filtrado['ITEM'] == item_id]
+                        if not bloco.empty:
                             enc = bloco.iloc[0].get('ENCARREGADO', '?')
                             disc = bloco.iloc[0].get('DISCIPLINA', '?')
                             data = bloco.iloc[0].get('DATA', '?')
                             resumo = bloco.iloc[0].get('ATIVIDADE', '')
+                            transcricao = bloco.iloc[0].get('TRANSCRICAO', '')
                             
                             st.markdown(f"""
                             <div style="background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.25); border-radius: 12px; padding: 15px; margin-bottom: 12px;">
@@ -4016,67 +4031,40 @@ if st.session_state.df is not None:
                                     <span style="font-weight: 700; color: #0ea5e9; font-size: 15px;">📋 RDC #{int(item_id)} — {enc}</span>
                                     <span style="color: #64748b; font-size: 12px;">{disc} · {data}</span>
                                 </div>
-                                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 5px 0;">📝 Resumo (Corrigido): {resumo}</p>
+                                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 5px 0;">📝 Resumo Final: {resumo}</p>
                             """, unsafe_allow_html=True)
                             
-                            # Mostrar transcrição bruta
-                            transcricao = bloco.iloc[0].get('TRANSCRICAO', '')
                             if transcricao and str(transcricao).strip():
                                 st.markdown(f"""
-                                <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;">
-                                    <span style="color: #f59e0b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">✏️ Texto Original do RDC (como o encarregado escreveu):</span>
+                                <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 8px; padding: 10px 14px; margin-top: 10px;">
+                                    <span style="color: #f59e0b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">✏️ Texto Original do RDC:</span>
                                     <p style="color: #cbd5e1; font-size: 12px; margin: 6px 0 0 0; font-style: italic; line-height: 1.5;">{transcricao}</p>
                                 </div>
                                 """, unsafe_allow_html=True)
-                            
-                            subs_html = ""
-                            for _, sub_row in bloco.iterrows():
-                                sub_at = sub_row.get('SUB_ATIVIDADE', '')
-                                sub_loc = sub_row.get('LOCAL_ESPECIFICO', '')
-                                sub_ef = sub_row.get('EFETIVO_ATIVIDADE', '')
-                                sub_num = sub_row.get('SUB', '')
-                                if sub_at:
-                                    subs_html += f"""
-                                    <div style="background: rgba(30,41,59,0.4); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; border-left: 3px solid #10b981;">
-                                        <span style="color: #10b981; font-weight: 600; font-size: 12px;">Subnível {sub_num}</span>
-                                        <p style="color: #e2e8f0; margin: 4px 0 2px 0; font-size: 13px; font-weight: 600;">🔧 {sub_at}</p>
-                                        <span style="color: #94a3b8; font-size: 12px;">📍 {sub_loc} &nbsp;|&nbsp; 👷 {sub_ef}</span>
-                                    </div>
-                                    """
-                            
-                            st.markdown(subs_html + "</div>", unsafe_allow_html=True)
+                                
+                            st.markdown("</div>", unsafe_allow_html=True)
                 
-                # Preparar dados para edição: mostrar apenas a linha principal (SUB == 1) por RDC
-                df_editavel = df_filtrado[df_filtrado['SUB'] == 1].copy()
-                colunas_mostrar = ['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE']
+                # Preparar dados para edição
+                df_editavel = df_filtrado.copy()
+                colunas_mostrar = ['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'CALDEIRA', 'ATIVIDADE']
                 df_editavel = df_editavel[[c for c in colunas_mostrar if c in df_editavel.columns]]
                 
                 df_editado = st.data_editor(df_editavel, hide_index=True, use_container_width=True, key="editor_ia_df")
                 
                 if st.button("✅ Confirmar e Salvar no Sistema", type="primary", use_container_width=True):
-                    # Propagar edições (DATA, ENCARREGADO, etc) para os subníveis
-                    itens_processados = df_filtrado['ITEM'].unique()
+                    # Salvar atualizações no df_ia
+                    itens_processados = df_editavel['ITEM'].unique()
                     df_restante = st.session_state.df_ia[~st.session_state.df_ia['ITEM'].isin(itens_processados)].copy()
                     
-                    novas_linhas = []
+                    # Atualiza os dados do df_filtrado com as edições feitas na tabela
                     for _, row_edit in df_editado.iterrows():
                         item_id = row_edit['ITEM']
-                        linhas_orig_rdc = df_filtrado[df_filtrado['ITEM'] == item_id]
-                        
-                        for _, row_orig in linhas_orig_rdc.iterrows():
-                            linha_final = row_orig.copy()
-                            # Atualiza campos master com os editados
-                            for col in ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS']:
-                                if col in row_edit:
-                                    linha_final[col] = row_edit[col]
-                                    
-                            if linha_final['SUB'] == 1 and 'ATIVIDADE' in row_edit:
-                                linha_final['ATIVIDADE'] = row_edit['ATIVIDADE']
+                        idx = df_filtrado[df_filtrado['ITEM'] == item_id].index
+                        for col in ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'CALDEIRA', 'ATIVIDADE']:
+                            if col in row_edit:
+                                df_filtrado.loc[idx, col] = row_edit[col]
                                 
-                            novas_linhas.append(linha_final)
-                            
-                    df_atualizado = pd.DataFrame(novas_linhas)
-                    st.session_state.df_ia = pd.concat([df_restante, df_atualizado], ignore_index=True)
+                    st.session_state.df_ia = pd.concat([df_restante, df_filtrado], ignore_index=True)
                     
                     # Salva no F1
                     novos_registros = []
@@ -4839,7 +4827,7 @@ if st.session_state.df is not None:
                         
                         if isinstance(dados_offline, list) and len(dados_offline) > 0:
                             if 'df_ia' not in st.session_state:
-                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
+                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
                                 
                             ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                             
