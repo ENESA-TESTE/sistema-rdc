@@ -3177,6 +3177,7 @@ if st.session_state.df is not None:
                     with pd.ExcelWriter(buffer_escala, engine='openpyxl') as writer:
                         # Formatar DataFrame para Excel (remover colunas indesejadas, traduzir booleanos)
                         df_excel = edited_df.copy()
+                        df_excel.insert(0, "DATA", data_esc_str) # Adiciona a data como primeira coluna
                         df_excel["ESCALADO"] = df_excel["ESCALADO"].apply(lambda x: "SIM" if x else "NÃO")
                         df_excel.to_excel(writer, index=False, sheet_name="Escala")
                     buffer_escala.seek(0)
