@@ -29,16 +29,23 @@ try:
     from google import genai
     from pydantic import BaseModel
     
+    class Atividade_Sub(BaseModel):
+        ATIVIDADE: str
+        LOCAL_ESPECIFICO: str
+        EFETIVO: str
+    
     class RDC_Schema(BaseModel):
         DATA: str
         DISCIPLINA: str
         ENCARREGADO: str
         TURNO: str
         DDS: str
+        TRANSCRICAO: str
         ATIVIDADE: str
         PROBLEMAS: str
         LOCAL: str
         AREA: str
+        SUBNIVEIS: list[Atividade_Sub]
         
     class RDC_CC_Schema(BaseModel):
         LOCAL: str
@@ -1308,13 +1315,19 @@ def preparar_dataframe(df):
             
         elif "MÃO DE OBRA" in col_clean or "MAO DE OBRA" in col_clean or "TIPO" in col_clean:
             mapeamento[col] = "MÃO DE OBRA"
+            
+        elif "TURNO" in col_clean or "HORÁRIO" in col_clean or "HORARIO" in col_clean:
+            mapeamento[col] = "TURNO"
+            
+        elif "STATUS" in col_clean or "SITUAÇÃO" in col_clean or "SITUACAO" in col_clean:
+            mapeamento[col] = "STATUS"
 
     df = df.rename(columns=mapeamento)
     
     # Remover colunas duplicadas mantendo a primeira encontrada (que geralmente é a principal da esquerda pra direita)
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
-    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]:
+    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "TURNO", "STATUS"]:
         if c not in df.columns:
             df[c] = ""
         df[c] = df[c].fillna("").astype(str).str.strip()
@@ -1465,7 +1478,7 @@ def backup_google_drive(file_path, mime_type, file_name):
 if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_ia' not in st.session_state:
-    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
+    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
 if 'df_historico_f1' not in st.session_state:
     if os.path.exists(caminho_historico_f1_csv):
         try:
@@ -1689,6 +1702,13 @@ with st.sidebar:
     st.markdown("---")
     
     st.markdown("---")
+    
+    # === MODO TV ===
+    if st.button("📺 Modo TV (Apresentação)", use_container_width=True, type="secondary"):
+        st.session_state.modo_tv = True
+        st.session_state.tv_slide = 0
+        st.rerun()
+    
     st.markdown(f"👤 Bem-vindo(a), **{st.session_state.nome_completo}**")
     
     if st.button("Sair (Logout)", use_container_width=True):
@@ -2176,6 +2196,70 @@ if st.session_state.df is not None:
                         
         st.stop() # Finaliza o script para não mostrar as abas do admin
 
+    def gerar_relatorio_pdf(df):
+        import io
+        from fpdf import FPDF
+        import datetime as dt_mod
+        
+        class PDF(FPDF):
+            def header(self):
+                self.set_font('helvetica', 'B', 15)
+                self.cell(0, 10, 'Relatorio Executivo - Sistema RDO & PDE', new_x="LMARGIN", new_y="NEXT", align='C')
+                self.set_font('helvetica', '', 10)
+                agora = dt_mod.datetime.now().strftime("%d/%m/%Y %H:%M")
+                self.cell(0, 5, f'Gerado em: {agora}', new_x="LMARGIN", new_y="NEXT", align='C')
+                self.ln(10)
+                
+            def footer(self):
+                self.set_y(-15)
+                self.set_font('helvetica', 'I', 8)
+                self.cell(0, 10, f'Pagina {self.page_no()}', align='C')
+
+        pdf = PDF()
+        pdf.add_page()
+        
+        # 1. Resumo de Efetivo
+        pdf.set_font('helvetica', 'B', 12)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, ' 1. Resumo de Efetivo Global', new_x="LMARGIN", new_y="NEXT", fill=True)
+        pdf.ln(2)
+        
+        total = len(df)
+        mod = len(df[df["MÃO DE OBRA"].str.strip().str.upper() == "MOD"])
+        moi = len(df[df["MÃO DE OBRA"].str.strip().str.upper() == "MOI"])
+        
+        pdf.set_font('helvetica', '', 11)
+        pdf.cell(50, 8, f'Efetivo Total:', border=0)
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.cell(50, 8, f'{total}', border=0, new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font('helvetica', '', 11)
+        pdf.cell(50, 8, f'Mao de Obra Direta (MOD):', border=0)
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.cell(50, 8, f'{mod}', border=0, new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font('helvetica', '', 11)
+        pdf.cell(50, 8, f'Mao de Obra Indireta (MOI):', border=0)
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.cell(50, 8, f'{moi}', border=0, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
+        
+        # 2. Distribuição por Área
+        pdf.set_font('helvetica', 'B', 12)
+        pdf.cell(0, 10, ' 2. Distribuicao por Area', new_x="LMARGIN", new_y="NEXT", fill=True)
+        pdf.ln(2)
+        
+        df_area = df.copy()
+        df_area['AREA'] = df_area['C.C'].apply(lambda x: 'PB' if '125.02' in str(x) and '.005' not in str(x) else ('RB' if '125.01' in str(x) and '.005' not in str(x) else ('ESP' if '.005' in str(x) else 'OUTROS')))
+        contagem = df_area[df_area['AREA'] != 'OUTROS'].groupby('AREA').size()
+        
+        pdf.set_font('helvetica', '', 10)
+        for area, qtd in contagem.items():
+            pdf.cell(100, 8, f'Area {area}:', border=1)
+            pdf.cell(40, 8, f'{qtd} funcionarios', border=1, new_x="LMARGIN", new_y="NEXT", align="R")
+        pdf.ln(5)
+        
+        return bytes(pdf.output())
     mapa_area_sufixo = {
         'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
         'DUTO': '002', 'DUTOS': '002',
@@ -2194,6 +2278,232 @@ if st.session_state.df is not None:
         'OPERADOR': '015', 'OPERADORES E MOTORISTAS': '015', 'MOTORISTA': '015',
         'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
     }
+    # =================================================================
+    # MODO TV (APRESENTAÇÃO AUTOMÁTICA)
+    # =================================================================
+    if st.session_state.get("modo_tv", False):
+        import streamlit.components.v1 as components
+        
+        slide_atual = st.session_state.get("tv_slide", 0)
+        proximo_slide = 1 - slide_atual  # alterna entre 0 e 1
+        
+        # CSS para esconder sidebar e maximizar conteúdo
+        st.markdown("""
+        <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="stSidebarCollapseButton"] { display: none !important; }
+            .block-container { max-width: 100% !important; padding: 1rem 2rem !important; }
+            .stApp { margin-top: -80px; }
+            @keyframes fadeSlideIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .tv-container { animation: fadeSlideIn 0.8s ease; }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Barra superior do Modo TV
+        col_tv_tit, col_tv_btn = st.columns([5, 1])
+        with col_tv_tit:
+            slide_nome = "📊 Dashboard" if slide_atual == 0 else "🏎️ Competição F1"
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; gap: 15px; margin-top: 10px;">
+                <div style="background: linear-gradient(135deg, #ef4444, #f97316); border-radius: 8px; padding: 4px 12px; font-size: 11px; color: white; font-weight: 700; letter-spacing: 1px; animation: pulse 1.5s infinite;">
+                    📺 AO VIVO
+                </div>
+                <span style="color: #94a3b8; font-size: 14px;">{slide_nome} · Atualiza em 20s</span>
+            </div>
+            <style>@keyframes pulse {{ 0%,100%{{ opacity:1; }} 50%{{ opacity:0.5; }} }}</style>
+            """, unsafe_allow_html=True)
+        with col_tv_btn:
+            if st.button("❌ Sair do Modo TV", type="primary"):
+                st.session_state.modo_tv = False
+                st.rerun()
+        
+        st.markdown("<div class='tv-container'>", unsafe_allow_html=True)
+        
+        if slide_atual == 0:
+            # ====== SLIDE 0: DASHBOARD ======
+            st.markdown(f"""
+            <div class="enesa-header" style="margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h1 style="margin: 0; font-size: 2rem; font-weight: 700;">
+                            <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Painel de Controle — {nome_site}</span>
+                        </h1>
+                        <p style="color: {cor_texto_sub}; font-size: 0.9rem; margin: 4px 0 0 0;">Efetivo Operacional · {data_agora}</p>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Filtros do Modo TV
+            col_f1_tv, col_f2_tv = st.columns(2)
+            with col_f1_tv:
+                filtro_tv_local = st.segmented_control(
+                    "📍 Filtrar por Local:", 
+                    ["Todas", "PB (Caldeira)", "RB (Retorta)", "ESP (Precipitador)"], 
+                    default="Todas",
+                    key="tv_filtro_local"
+                )
+                if not filtro_tv_local:
+                    filtro_tv_local = "Todas"
+            with col_f2_tv:
+                enc_lista_tv = ["Todos"] + sorted(lista_completa_encarregados)
+                filtro_tv_enc = st.selectbox("👷 Filtrar por Encarregado:", enc_lista_tv, key="tv_filtro_enc")
+            
+            # Aplicar filtros
+            df_tv = df_atual.copy()
+            if "PB" in filtro_tv_local:
+                df_tv = df_tv[df_tv["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
+            elif "RB" in filtro_tv_local:
+                df_tv = df_tv[df_tv["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
+            elif "ESP" in filtro_tv_local:
+                df_tv = df_tv[df_tv["C.C"].apply(lambda x: ".005" in str(x))]
+            
+            if filtro_tv_enc != "Todos":
+                df_tv = df_tv[df_tv["ENCARREGADO"] == filtro_tv_enc]
+            
+            label_filtro = filtro_tv_local if filtro_tv_enc == "Todos" else f"{filtro_tv_enc} ({filtro_tv_local})"
+            
+            # KPIs
+            total_tv = len(df_tv)
+            mod_tv = len(df_tv[df_tv["MÃO DE OBRA"].str.strip().str.upper() == "MOD"])
+            moi_tv = len(df_tv[df_tv["MÃO DE OBRA"].str.strip().str.upper() == "MOI"])
+            pct_mod_tv = round(mod_tv / (mod_tv + moi_tv) * 100, 1) if (mod_tv + moi_tv) > 0 else 0
+            enc_tv = len([e for e in df_tv["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
+            funcoes_tv = df_tv["FUNÇÃO"].nunique()
+            
+            def card_tv(titulo, valor, cor):
+                return f"""
+                <div style="background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); padding: 24px; text-align: center; position: relative; overflow: hidden;">
+                    <p style="margin: 0; font-size: 14px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">{titulo}</p>
+                    <h2 style="margin: 8px 0 0 0; font-size: 42px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 20px {cor}60;">{valor}</h2>
+                    <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent);"></div>
+                </div>
+                """
+            
+            c1, c2, c3, c4, c5 = st.columns(5)
+            with c1: st.markdown(card_tv("Efetivo Total", total_tv, "#3b82f6"), unsafe_allow_html=True)
+            with c2: st.markdown(card_tv("MOD", mod_tv, "#10b981"), unsafe_allow_html=True)
+            with c3: st.markdown(card_tv("MOI", moi_tv, "#ef4444"), unsafe_allow_html=True)
+            with c4: st.markdown(card_tv("% MOD", f"{pct_mod_tv}%", "#0ea5e9"), unsafe_allow_html=True)
+            with c5: st.markdown(card_tv("Encarregados", enc_tv, "#8b5cf6"), unsafe_allow_html=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Gráficos lado a lado
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                st.markdown("#### Efetivo por Área")
+                df_area_tv = df_tv.copy()
+                df_area_tv['AREA'] = df_area_tv['C.C'].apply(lambda x: 'PB' if '125.02' in str(x) and '.005' not in str(x) else ('RB' if '125.01' in str(x) and '.005' not in str(x) else ('ESP' if '.005' in str(x) else 'OUTROS')))
+                df_area_count = df_area_tv[df_area_tv['AREA'] != 'OUTROS'].groupby('AREA').size().reset_index(name='Quantidade')
+                if not df_area_count.empty:
+                    import plotly.express as px
+                    fig_tv1 = px.pie(df_area_count, values='Quantidade', names='AREA', hole=0.55, color_discrete_sequence=["#3b82f6", "#10b981", "#f59e0b", "#ef4444"])
+                    fig_tv1.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea", size=14), height=350, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5))
+                    st.plotly_chart(fig_tv1, use_container_width=True)
+            
+            with col_g2:
+                st.markdown("#### Top 10 Maiores Equipes")
+                df_top_enc = df_tv[df_tv["ENCARREGADO"].isin(lista_completa_encarregados)]
+                top10 = df_top_enc.groupby("ENCARREGADO").size().nlargest(10).reset_index(name="Qtd")
+                if not top10.empty:
+                    import plotly.express as px
+                    fig_tv2 = px.bar(top10, y="ENCARREGADO", x="Qtd", orientation="h", color_discrete_sequence=["#3b82f6"], text="Qtd")
+                    fig_tv2.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea", size=12), height=350, yaxis=dict(autorange="reversed"), xaxis_title="", yaxis_title="")
+                    fig_tv2.update_traces(textposition="outside")
+                    st.plotly_chart(fig_tv2, use_container_width=True)
+        
+        else:
+            # ====== SLIDE 1: F1 RANKING ======
+            st.markdown(f"""
+            <div class="enesa-header" style="margin-top: 10px;">
+                <div style="text-align: center;">
+                    <h1 style="margin: 0; font-size: 2rem; font-weight: 700;">
+                        <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🏎️ Competição F1 — Ranking de Entregas</span>
+                    </h1>
+                    <p style="color: {cor_texto_sub}; font-size: 0.9rem; margin: 4px 0 0 0;">{nome_site} · {data_agora}</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Montar ranking do F1 (mesmo mês atual)
+            df_hist_tv = st.session_state.get("df_historico_f1", pd.DataFrame())
+            if not df_hist_tv.empty:
+                mes_atual_str = datetime.date.today().strftime("%Y-%m")
+                df_hist_tv["DATA"] = df_hist_tv["DATA"].astype(str)
+                df_mes = df_hist_tv[df_hist_tv["DATA"].str.startswith(mes_atual_str)]
+                
+                if not df_mes.empty:
+                    ranking_tv = df_mes.groupby("ENCARREGADO").size().reset_index(name="ENTREGAS").sort_values("ENTREGAS", ascending=False)
+                    
+                    # Pódio Top 3
+                    top3_tv = ranking_tv.head(3)
+                    if len(top3_tv) >= 3:
+                        def nome_curto(nome):
+                            p = str(nome).split()
+                            return p[0] + " " + (p[-1] if len(p) > 1 else "")
+                        
+                        n1, t1 = nome_curto(top3_tv.iloc[0]["ENCARREGADO"]), top3_tv.iloc[0]["ENTREGAS"]
+                        n2, t2 = nome_curto(top3_tv.iloc[1]["ENCARREGADO"]), top3_tv.iloc[1]["ENTREGAS"]
+                        n3, t3 = nome_curto(top3_tv.iloc[2]["ENCARREGADO"]), top3_tv.iloc[2]["ENTREGAS"]
+                        
+                        st.markdown(f"""
+                        <div style="display: flex; justify-content: center; align-items: flex-end; height: 250px; gap: 25px; margin: 30px 0;">
+                            <div style="display: flex; flex-direction: column; align-items: center; width: 180px;">
+                                <span style="font-size: 40px;">🥈</span>
+                                <div style="background: linear-gradient(180deg, #94a3b8, #64748b); width: 100%; height: 120px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                                    <span style="font-size: 28px; font-weight: 700; color: white;">{t2}</span>
+                                    <span style="font-size: 11px; color: #e2e8f0; margin-top: 4px;">{n2}</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; width: 200px;">
+                                <span style="font-size: 50px;">🥇</span>
+                                <div style="background: linear-gradient(180deg, #f59e0b, #d97706); width: 100%; height: 170px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 0 30px rgba(245, 158, 11, 0.4);">
+                                    <span style="font-size: 36px; font-weight: 700; color: white;">{t1}</span>
+                                    <span style="font-size: 13px; color: #fef3c7; margin-top: 4px; font-weight: 600;">{n1}</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; width: 180px;">
+                                <span style="font-size: 40px;">🥉</span>
+                                <div style="background: linear-gradient(180deg, #b45309, #92400e); width: 100%; height: 100px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                                    <span style="font-size: 28px; font-weight: 700; color: white;">{t3}</span>
+                                    <span style="font-size: 11px; color: #e2e8f0; margin-top: 4px;">{n3}</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Tabela completa do ranking
+                    st.markdown("#### 📊 Ranking Completo do Mês")
+                    ranking_tv["POS"] = range(1, len(ranking_tv) + 1)
+                    ranking_tv = ranking_tv[["POS", "ENCARREGADO", "ENTREGAS"]]
+                    st.dataframe(ranking_tv, use_container_width=True, height=350, hide_index=True)
+                else:
+                    st.info("Nenhuma entrega registrada neste mês ainda.")
+            else:
+                st.info("Histórico F1 não carregado.")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # JavaScript: Fullscreen + Auto-rotação a cada 20s
+        st.session_state.tv_slide = proximo_slide
+        components.html(f"""
+        <script>
+            // Tentar fullscreen
+            if (!document.fullscreenElement) {{
+                document.documentElement.requestFullscreen().catch(e => {{}});
+            }}
+            // Recarregar em 20 segundos
+            setTimeout(function() {{
+                window.parent.location.reload();
+            }}, 20000);
+        </script>
+        """, height=0)
+        
+        st.stop()  # Impede o resto da página de renderizar
 
     tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}"])
 
@@ -2234,10 +2544,23 @@ if st.session_state.df is not None:
         """
         components.html(html_relogio, height=110)
         
-        st.markdown("### 🎛️ Centro de Comando (Overview)")
+        col_dash_tit, col_dash_btn = st.columns([3, 1])
+        with col_dash_tit:
+            st.markdown("### 🎛️ Centro de Comando (Overview)")
+        with col_dash_btn:
+            st.markdown("<br>", unsafe_allow_html=True)
+            pdf_bytes = gerar_relatorio_pdf(df_atual)
+            st.download_button(
+                label="📥 Baixar Relatório PDF",
+                data=pdf_bytes,
+                file_name=f"Relatorio_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary"
+            )
         
-        # Filtro de MOI / MOD e Local
-        col_filtros1, col_filtros2 = st.columns(2)
+        # Filtro de MOI / MOD, Local, Turno e Status
+        col_filtros1, col_filtros2, col_filtros3, col_filtros4 = st.columns(4)
         with col_filtros1:
             filtro_dash_mo = st.segmented_control(
                 "Filtrar Visão por Tipo de Mão de Obra:", 
@@ -2256,6 +2579,32 @@ if st.session_state.df is not None:
             )
             if not filtro_dash_local:
                 filtro_dash_local = "Ambas"
+                
+        with col_filtros3:
+            # Pegar todos os turnos únicos do PDE, ou padronizar
+            turnos_disponiveis = ["Todos"]
+            if "TURNO" in df_atual.columns:
+                turnos_reais = [t for t in df_atual["TURNO"].unique() if str(t).strip() and str(t) != "nan"]
+                turnos_disponiveis.extend(sorted(turnos_reais))
+            
+            filtro_dash_turno = st.selectbox(
+                "Filtrar por Turno:", 
+                turnos_disponiveis,
+                index=0
+            )
+            
+        with col_filtros4:
+            # Pegar todos os status únicos do PDE, ou padronizar
+            status_disponiveis = ["Todos"]
+            if "STATUS" in df_atual.columns:
+                status_reais = [s for s in df_atual["STATUS"].unique() if str(s).strip() and str(s) != "nan"]
+                status_disponiveis.extend(sorted(status_reais))
+                
+            filtro_dash_status = st.selectbox(
+                "Filtrar por Status:", 
+                status_disponiveis,
+                index=status_disponiveis.index("ATIVO") if "ATIVO" in status_disponiveis else 0
+            )
             
         df_dash = df_atual.copy()
         
@@ -2273,6 +2622,14 @@ if st.session_state.df is not None:
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
         elif filtro_dash_local == "ESP":
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
+            
+        # Aplicar filtro Turno
+        if filtro_dash_turno != "Todos" and "TURNO" in df_dash.columns:
+            df_dash = df_dash[df_dash["TURNO"] == filtro_dash_turno]
+            
+        # Aplicar filtro Status
+        if filtro_dash_status != "Todos" and "STATUS" in df_dash.columns:
+            df_dash = df_dash[df_dash["STATUS"] == filtro_dash_status]
         
         # Linha 1: Cartões de KPI Customizados (Premium)
         qtd_encarregados_dash = len([e for e in df_dash["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
@@ -3235,8 +3592,34 @@ if st.session_state.df is not None:
                 
                 prompt_ia = f"""
                 Analise este documento (que pode ter várias páginas). Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
-                REGRA IMPORTANTÍSSIMA: Retorne APENAS UM objeto JSON por formulário/página. NÃO separe as atividades em linhas diferentes. JUNTE TODAS as atividades do mesmo formulário em UM ÚNICO campo ATIVIDADE.
+                REGRA IMPORTANTÍSSIMA: Retorne APENAS UM objeto JSON por formulário/página. NÃO separe os formulários.
                 DICA DE OURO: Todos os RDCs dentro deste arquivo PDF pertencem EXATAMENTE ao mesmo dia. Portanto, a DATA extraída deve ser idêntica para todos os formulários.
+                
+                === GLOSSÁRIO DE TERMOS DA CONSTRUÇÃO (USE PARA CORRIGIR ERROS) ===
+                Os encarregados escrevem à mão e cometem erros. Quando encontrar palavras estranhas, use este glossário para deduzir a palavra correta:
+                - TUBULASÃO, TUBULASAO, TUBULAÇAO, TUBLAÇÃO → TUBULAÇÃO
+                - SOLDAJEM, SOLDAGEN, SOUDAGEM → SOLDAGEM
+                - CALDEIRARIA, CALDEIRRARIA, CALDERARIA → CALDEIRARIA
+                - SUPERAQUECEDOR, SUPER AQUECEDOR, SUPERAQUESSEDOR → SUPERAQUECEDOR
+                - ECONOMISADOR, ECONOMIÇADOR, ECONOMIZADRO → ECONOMIZADOR
+                - PRECIPITADRO, PRESIPITADOR, PRECIPTADOR → PRECIPITADOR
+                - ESTRUTURA METALICA, ESTRURA MET, METALICA → ESTRUTURA METÁLICA
+                - EQUIPAMENTO, EKIPAMENTO, EQUIPAMNETO → EQUIPAMENTO
+                - ANDAINE, ANDAME, HANDAIME → ANDAIME
+                - MONTAJEM, MONTAGEN, MONTAGEN → MONTAGEM
+                - DESMONTAJEM, DISMONTAGEM → DESMONTAGEM
+                - ESMERILHAMENTO, ESMERILHAMNETO → ESMERILHAMENTO
+                - TRAÇAJEM, TRASAGEM → TRAÇAGEM
+                - HIDROJAETEAMENTO, HIDRO JATO → HIDROJATEAMENTO
+                - MAÇARICO, MASARICO, MAÇARIKO → MAÇARICO
+                - PRE AQUECIMENTO, PRÉ AQUECIMENTO → PRÉ-AQUECIMENTO
+                - ELEVAÇAO, ELEVASSÃO → ELEVAÇÃO
+                - REVESTIMNTO, REVESTIMENTO → REVESTIMENTO
+                - ISOLAMNTO, IZOLAMENTO → ISOLAMENTO
+                - JUNTA DE ESPANÇÃO, JUNTA ESPANSÃO → JUNTA DE EXPANSÃO
+                Se encontrar qualquer palavra estranha ou ilegível não listada acima, use o contexto para tentar deduzir o que o encarregado quis escrever. SEMPRE corrija a ortografia nos campos ATIVIDADE e SUB_ATIVIDADE.
+                ===================================================================
+
                 Retorne APENAS um array (lista) em formato JSON válido. Exemplo do formato exato esperado:
                 [
                   {{
@@ -3245,10 +3628,15 @@ if st.session_state.df is not None:
                     "ENCARREGADO": "...",
                     "TURNO": "...",
                     "DDS": "...",
-                    "ATIVIDADE": "...",
+                    "TRANSCRICAO": "TEXTO EXATAMENTE COMO ESTÁ ESCRITO NO RDC, SEM CORRIGIR NADA",
+                    "ATIVIDADE": "RESUMO GERAL CURTO CORRIGIDO DE TODAS AS ATIVIDADES",
                     "PROBLEMAS": "...",
                     "LOCAL": "...",
-                    "AREA": "..."
+                    "AREA": "...",
+                    "SUBNIVEIS": [
+                      {{"ATIVIDADE": "SOLDAGEM DE TUBULAÇÃO DN 8", "LOCAL_ESPECIFICO": "ELEVAÇÃO 35M - MÓDULO 3", "EFETIVO": "3 SOLDADORES, 1 AJUDANTE"}},
+                      {{"ATIVIDADE": "MONTAGEM DE ANDAIME", "LOCAL_ESPECIFICO": "ÁREA DO SUPERAQUECEDOR", "EFETIVO": "2 MONTADORES"}}
+                    ]
                   }}
                 ]
 
@@ -3258,7 +3646,13 @@ if st.session_state.df is not None:
                 - ENCARREGADO: FAÇA O MÁXIMO ESFORÇO POSSÍVEL para descobrir quem é o encarregado. Compare o que está escrito à mão com esta lista oficial: [{nomes_para_prompt}]. Se a caligrafia estiver ruim, com erros de ortografia, ou se houver apenas o primeiro e segundo nome (ex: "Jailson Gois"), use dedução lógica e similaridade para encontrar a correspondência exata na lista. Retorne EXATAMENTE o nome completo que consta na lista fornecida. Somente se for 100% impossível deduzir quem é, retorne o texto 'AJUSTAR NOME'.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
-                - ATIVIDADE: OBRIGATÓRIO: Crie um ÚNICO RESUMO SUPER CURTO E DIRETO de NO MÁXIMO 15 PALAVRAS sobre o que foi feito na seção 'ATIVIDADES'. Se você usar mais de 15 palavras, será considerado um erro gravíssimo pois o limite de texto será cortado! Extraia a ação principal, corrija a ortografia e escreva TUDO EM MAIÚSCULAS. NUNCA SEPARE EM LINHAS.
+                - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou (locais, quantidades, diâmetros, elevações, etc). A diferença entre TRANSCRICAO e ATIVIDADE é que TRANSCRICAO é o texto COMPLETO e detalhado, e ATIVIDADE é apenas um resumo curto de 15 palavras. TUDO EM MAIÚSCULAS.
+                - ATIVIDADE: Crie um RESUMO GERAL CURTO de no máximo 15 palavras sobre o que foi feito. TUDO EM MAIÚSCULAS. CORRIJA a ortografia usando o glossário acima.
+                - SUBNIVEIS: ESTA É A PARTE MAIS IMPORTANTE. Leia TODA a seção de atividades do RDC e quebre em subníveis individuais. Cada subnível deve conter:
+                    * ATIVIDADE: Descrição curta e objetiva daquela atividade específica (ex: "SOLDAGEM DE TUBULAÇÃO DN 6 POLEGADAS"). TUDO EM MAIÚSCULAS. Máximo 12 palavras. CORRIJA a ortografia.
+                    * LOCAL_ESPECIFICO: O local exato onde a atividade foi executada (ex: "ELEVAÇÃO 35M", "MÓDULO 3", "ÁREA DO ECONOMIZADOR"). Se não mencionado, retorne "NÃO INFORMADO".
+                    * EFETIVO: Quantas pessoas e quais funções foram usadas nessa atividade (ex: "3 SOLDADORES, 2 AJUDANTES"). Se não mencionado, retorne "NÃO INFORMADO".
+                  Se o RDC mencionar apenas 1 atividade, retorne 1 subnível. Se mencionar 5 atividades diferentes, retorne 5 subníveis. NUNCA retorne uma lista vazia.
                 - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
                 - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. As opções são exatamente: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área que estiver marcada. Se nenhuma estiver marcada, retorne ''.
@@ -3365,14 +3759,33 @@ if st.session_state.df is not None:
 
                                     for dados in dados_extraidos_lista:
                                         ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
-                                        dados['ITEM'] = int(ultimo_item) + 1
+                                        item_pai = int(ultimo_item) + 1
                                         if 'LOCAL' not in dados:
                                             dados['LOCAL'] = ''
                                         if 'AREA' not in dados:
                                             dados['AREA'] = ''
-                                        st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
-                                    
-                                        # Apenas extrai os dados, aguardando validação do usuário.
+                                        
+                                        # Extrair subníveis
+                                        subniveis = dados.pop('SUBNIVEIS', [])
+                                        
+                                        if subniveis and len(subniveis) > 0:
+                                            # Criar uma linha para cada subnível
+                                            for idx_sub, sub in enumerate(subniveis):
+                                                linha_sub = dados.copy()
+                                                linha_sub['ITEM'] = item_pai
+                                                linha_sub['SUB'] = idx_sub + 1
+                                                linha_sub['SUB_ATIVIDADE'] = sub.get('ATIVIDADE', sub.get('atividade', ''))
+                                                linha_sub['LOCAL_ESPECIFICO'] = sub.get('LOCAL_ESPECIFICO', sub.get('local_especifico', 'NÃO INFORMADO'))
+                                                linha_sub['EFETIVO_ATIVIDADE'] = sub.get('EFETIVO', sub.get('efetivo', 'NÃO INFORMADO'))
+                                                st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([linha_sub])], ignore_index=True)
+                                        else:
+                                            # Fallback: sem subníveis, comportamento antigo
+                                            dados['ITEM'] = item_pai
+                                            dados['SUB'] = 1
+                                            dados['SUB_ATIVIDADE'] = dados.get('ATIVIDADE', '')
+                                            dados['LOCAL_ESPECIFICO'] = ''
+                                            dados['EFETIVO_ATIVIDADE'] = ''
+                                            st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
 
                                     sucesso_arquivo = True
                                     break 
@@ -3459,10 +3872,58 @@ if st.session_state.df is not None:
                     )
                 with col_dw2:
                     if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
                         st.rerun()
                 
                 st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
+                
+                # === VISUALIZAÇÃO EXPANDIDA DOS SUBNÍVEIS ===
+                if 'SUB_ATIVIDADE' in df_filtrado.columns and df_filtrado['SUB_ATIVIDADE'].notna().any():
+                    with st.expander("🔍 Visualizar Subníveis de Atividades (Detalhamento)", expanded=False):
+                        itens_unicos = df_filtrado['ITEM'].unique()
+                        for item_id in sorted(itens_unicos):
+                            bloco = df_filtrado[df_filtrado['ITEM'] == item_id]
+                            enc = bloco.iloc[0].get('ENCARREGADO', '?')
+                            disc = bloco.iloc[0].get('DISCIPLINA', '?')
+                            data = bloco.iloc[0].get('DATA', '?')
+                            resumo = bloco.iloc[0].get('ATIVIDADE', '')
+                            
+                            st.markdown(f"""
+                            <div style="background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.25); border-radius: 12px; padding: 15px; margin-bottom: 12px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <span style="font-weight: 700; color: #0ea5e9; font-size: 15px;">📋 RDC #{int(item_id)} — {enc}</span>
+                                    <span style="color: #64748b; font-size: 12px;">{disc} · {data}</span>
+                                </div>
+                                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 5px 0;">📝 Resumo (Corrigido): {resumo}</p>
+                            """, unsafe_allow_html=True)
+                            
+                            # Mostrar transcrição bruta
+                            transcricao = bloco.iloc[0].get('TRANSCRICAO', '')
+                            if transcricao and str(transcricao).strip():
+                                st.markdown(f"""
+                                <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;">
+                                    <span style="color: #f59e0b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">✏️ Texto Original do RDC (como o encarregado escreveu):</span>
+                                    <p style="color: #cbd5e1; font-size: 12px; margin: 6px 0 0 0; font-style: italic; line-height: 1.5;">{transcricao}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            
+                            subs_html = ""
+                            for _, sub_row in bloco.iterrows():
+                                sub_at = sub_row.get('SUB_ATIVIDADE', '')
+                                sub_loc = sub_row.get('LOCAL_ESPECIFICO', '')
+                                sub_ef = sub_row.get('EFETIVO_ATIVIDADE', '')
+                                sub_num = sub_row.get('SUB', '')
+                                if sub_at:
+                                    subs_html += f"""
+                                    <div style="background: rgba(30,41,59,0.4); border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; border-left: 3px solid #10b981;">
+                                        <span style="color: #10b981; font-weight: 600; font-size: 12px;">Subnível {sub_num}</span>
+                                        <p style="color: #e2e8f0; margin: 4px 0 2px 0; font-size: 13px; font-weight: 600;">🔧 {sub_at}</p>
+                                        <span style="color: #94a3b8; font-size: 12px;">📍 {sub_loc} &nbsp;|&nbsp; 👷 {sub_ef}</span>
+                                    </div>
+                                    """
+                            
+                            st.markdown(subs_html + "</div>", unsafe_allow_html=True)
+                
                 df_editado = st.data_editor(df_filtrado, hide_index=True, use_container_width=True, key="editor_ia_df")
                 
                 if st.button("✅ Confirmar e Salvar no Sistema", type="primary", use_container_width=True):
@@ -3875,15 +4336,43 @@ if st.session_state.df is not None:
                 unique_invalids = list(set(invalid_cc_list))
                 st.warning(f"⚠️ **ATENÇÃO:** Foram encontrados **{invalid_cc_count} colaboradores** com C.C **inválido** (não existe no mapa oficial). Exemplos: {', '.join(unique_invalids[:5])}")
 
-            # Filtro PB/RB/ESP Global para a aba C.C
-            filtro_local = st.segmented_control(
-                "Filtrar Dados por Local:", 
-                ["Ambas", "PB", "RB", "ESP"], 
-                default="Ambas",
-                key="filtro_cc_local_key"
-            )
-            if not filtro_local:
-                filtro_local = "Ambas"
+            # Filtro PB/RB/ESP, Turno e Status Global para a aba C.C
+            col_cc_filt1, col_cc_filt2, col_cc_filt3 = st.columns(3)
+            with col_cc_filt1:
+                filtro_local = st.segmented_control(
+                    "Filtrar Dados por Local:", 
+                    ["Ambas", "PB", "RB", "ESP"], 
+                    default="Ambas",
+                    key="filtro_cc_local_key"
+                )
+                if not filtro_local:
+                    filtro_local = "Ambas"
+                    
+            with col_cc_filt2:
+                turnos_cc_disponiveis = ["Todos"]
+                if "TURNO" in df_atual.columns:
+                    turnos_reais = [t for t in df_atual["TURNO"].unique() if str(t).strip() and str(t) != "nan"]
+                    turnos_cc_disponiveis.extend(sorted(turnos_reais))
+                
+                filtro_cc_turno = st.selectbox(
+                    "Filtrar por Turno:", 
+                    turnos_cc_disponiveis,
+                    index=0,
+                    key="filtro_cc_turno_key"
+                )
+                
+            with col_cc_filt3:
+                status_cc_disponiveis = ["Todos"]
+                if "STATUS" in df_atual.columns:
+                    status_reais = [s for s in df_atual["STATUS"].unique() if str(s).strip() and str(s) != "nan"]
+                    status_cc_disponiveis.extend(sorted(status_reais))
+                
+                filtro_cc_status = st.selectbox(
+                    "Filtrar por Status:", 
+                    status_cc_disponiveis,
+                    index=status_cc_disponiveis.index("ATIVO") if "ATIVO" in status_cc_disponiveis else 0,
+                    key="filtro_cc_status_key"
+                )
                 
             df_cc_aba = df_atual[df_atual["C.C"].str.strip() != ""]
             if filtro_local == "PB":
@@ -3892,6 +4381,13 @@ if st.session_state.df is not None:
                 df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
             elif filtro_local == "ESP":
                 df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: ".005" in str(x))]
+                
+            if filtro_cc_turno != "Todos" and "TURNO" in df_cc_aba.columns:
+                df_cc_aba = df_cc_aba[df_cc_aba["TURNO"] == filtro_cc_turno]
+                
+                
+            if filtro_cc_status != "Todos" and "STATUS" in df_cc_aba.columns:
+                df_cc_aba = df_cc_aba[df_cc_aba["STATUS"] == filtro_cc_status]
 
             lista_cc = sorted([str(cc) for cc in df_cc_aba["C.C"].unique()])
             
@@ -4195,7 +4691,7 @@ if st.session_state.df is not None:
                         
                         if isinstance(dados_offline, list) and len(dados_offline) > 0:
                             if 'df_ia' not in st.session_state:
-                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
+                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA'])
                                 
                             ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                             
