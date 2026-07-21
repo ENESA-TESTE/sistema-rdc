@@ -4046,11 +4046,37 @@ if st.session_state.df is not None:
                             
                             st.markdown(subs_html + "</div>", unsafe_allow_html=True)
                 
-                df_editado = st.data_editor(df_filtrado, hide_index=True, use_container_width=True, key="editor_ia_df")
+                # Preparar dados para edição: mostrar apenas a linha principal (SUB == 1) por RDC
+                df_editavel = df_filtrado[df_filtrado['SUB'] == 1].copy()
+                colunas_mostrar = ['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'ATIVIDADE']
+                df_editavel = df_editavel[[c for c in colunas_mostrar if c in df_editavel.columns]]
+                
+                df_editado = st.data_editor(df_editavel, hide_index=True, use_container_width=True, key="editor_ia_df")
                 
                 if st.button("✅ Confirmar e Salvar no Sistema", type="primary", use_container_width=True):
-                    # Salva no df_ia
-                    st.session_state.df_ia = df_editado
+                    # Propagar edições (DATA, ENCARREGADO, etc) para os subníveis
+                    itens_processados = df_filtrado['ITEM'].unique()
+                    df_restante = st.session_state.df_ia[~st.session_state.df_ia['ITEM'].isin(itens_processados)].copy()
+                    
+                    novas_linhas = []
+                    for _, row_edit in df_editado.iterrows():
+                        item_id = row_edit['ITEM']
+                        linhas_orig_rdc = df_filtrado[df_filtrado['ITEM'] == item_id]
+                        
+                        for _, row_orig in linhas_orig_rdc.iterrows():
+                            linha_final = row_orig.copy()
+                            # Atualiza campos master com os editados
+                            for col in ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS']:
+                                if col in row_edit:
+                                    linha_final[col] = row_edit[col]
+                                    
+                            if linha_final['SUB'] == 1 and 'ATIVIDADE' in row_edit:
+                                linha_final['ATIVIDADE'] = row_edit['ATIVIDADE']
+                                
+                            novas_linhas.append(linha_final)
+                            
+                    df_atualizado = pd.DataFrame(novas_linhas)
+                    st.session_state.df_ia = pd.concat([df_restante, df_atualizado], ignore_index=True)
                     
                     # Salva no F1
                     novos_registros = []
