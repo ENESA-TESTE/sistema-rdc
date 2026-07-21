@@ -806,6 +806,7 @@ caminho_base_salva_csv = os.path.join(pasta_base, "BASE_ATUAL.csv")
 caminho_hist_cc = os.path.join(pasta_base, "historico_cc.csv")
 caminho_historico_f1_csv = os.path.join(pasta_base, "historico_f1_local.csv")
 caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
+caminho_escala_csv = os.path.join(pasta_base, "escala_diaria.csv")
 
 celula_encarregado = "I4"
 celula_matricula = "B9"
@@ -2505,17 +2506,17 @@ if st.session_state.df is not None:
         
         st.stop()  # Impede o resto da página de renderizar
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}"])
+    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}"])
 
     if st.session_state.get("role_usuario") == "apontador":
         st.markdown("""
         <style>
             div[data-baseweb="tab-list"] button:nth-child(1),
             div[data-baseweb="tab-list"] button:nth-child(2),
-            div[data-baseweb="tab-list"] button:nth-child(4),
-            div[data-baseweb="tab-list"] button:nth-child(6),
+            div[data-baseweb="tab-list"] button:nth-child(5),
             div[data-baseweb="tab-list"] button:nth-child(7),
-            div[data-baseweb="tab-list"] button:nth-child(8) {
+            div[data-baseweb="tab-list"] button:nth-child(8),
+            div[data-baseweb="tab-list"] button:nth-child(9) {
                 display: none !important;
             }
         </style>
@@ -3069,6 +3070,126 @@ if st.session_state.df is not None:
                             st.success(f"✅ {qtd} planilhas geradas!")
                         except Exception as e:
                             st.error(f"Erro: {e}")
+
+    with tab_escala:
+        st.markdown("### 📋 Escala Diária de Efetivo")
+        st.markdown("Marque quem da equipe está escalado para trabalhar no dia selecionado. Os dados são salvos para controle do apontamento.")
+        
+        col_esc1, col_esc2 = st.columns(2)
+        with col_esc1:
+            data_escala = st.date_input("Data da Escala:", datetime.date.today(), key="data_escala_input")
+            data_esc_str = data_escala.strftime("%Y-%m-%d")
+        with col_esc2:
+            if not lista_encarregados_base:
+                st.warning("Nenhum encarregado encontrado na base.")
+                enc_escala_sel = None
+            else:
+                enc_escala_sel = st.selectbox("Escolha o Encarregado:", lista_encarregados_base, key="enc_escala_sel")
+                
+        if enc_escala_sel:
+            # Pegar a equipe atual do encarregado selecionado da base PDE (df_atual)
+            equipe_base = df_atual[df_atual["ENCARREGADO"] == enc_escala_sel][["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]].copy()
+            
+            # Carregar o arquivo de escala, se existir
+            if os.path.exists(caminho_escala_csv):
+                try:
+                    df_escala_hist = pd.read_csv(caminho_escala_csv)
+                except Exception:
+                    df_escala_hist = pd.DataFrame(columns=["DATA", "MATRICULA", "NOME", "ENCARREGADO", "ESCALADO"])
+            else:
+                df_escala_hist = pd.DataFrame(columns=["DATA", "MATRICULA", "NOME", "ENCARREGADO", "ESCALADO"])
+                
+            # Filtrar histórico de escala para a data e encarregado específicos
+            df_escala_hoje = df_escala_hist[(df_escala_hist["DATA"] == data_esc_str) & (df_escala_hist["ENCARREGADO"] == enc_escala_sel)]
+            
+            # Se já houver salvamento para este dia, usar o valor salvo. Senão, todos "Sim" (True)
+            if not df_escala_hoje.empty:
+                # Merge base com histórico
+                equipe_edit = pd.merge(equipe_base, df_escala_hoje[["MATRICULA", "ESCALADO"]], on="MATRICULA", how="left")
+                # Quem não estava no histórico, recebe True como padrão
+                equipe_edit["ESCALADO"] = equipe_edit["ESCALADO"].fillna(True)
+            else:
+                equipe_edit = equipe_base.copy()
+                equipe_edit["ESCALADO"] = True
+                
+            # Organizar colunas
+            equipe_edit = equipe_edit[["ESCALADO", "MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]]
+            
+            # Mostrar editor interativo (data_editor)
+            st.markdown(f"**Equipe de {enc_escala_sel} ({len(equipe_edit)} pessoas)**")
+            
+            # Desabilitar edição das colunas de identificação
+            config_colunas = {
+                "ESCALADO": st.column_config.CheckboxColumn("Escalado (Sim/Não)?", help="Marque se o funcionário vai trabalhar hoje.", default=True),
+                "MATRICULA": st.column_config.TextColumn("Matrícula", disabled=True),
+                "NOME": st.column_config.TextColumn("Nome", disabled=True),
+                "FUNÇÃO": st.column_config.TextColumn("Função", disabled=True),
+                "ENCARREGADO": None # Ocultar coluna
+            }
+            
+            edited_df = st.data_editor(
+                equipe_edit,
+                column_config=config_colunas,
+                hide_index=True,
+                use_container_width=True,
+                key=f"editor_escala_{enc_escala_sel}_{data_esc_str}"
+            )
+            
+            # Botões de Ação
+            col_action1, col_action2 = st.columns(2)
+            with col_action1:
+                if st.button("💾 Salvar Escala da Equipe", type="primary", use_container_width=True):
+                    try:
+                        # Preparar os dados editados
+                        edited_df["DATA"] = data_esc_str
+                        edited_df["ENCARREGADO"] = enc_escala_sel
+                        
+                        novos_dados = edited_df[["DATA", "MATRICULA", "NOME", "ENCARREGADO", "ESCALADO"]].copy()
+                        
+                        if not df_escala_hist.empty:
+                            # Remover os dados antigos deste encarregado neste dia
+                            mask_remover = (df_escala_hist["DATA"] == data_esc_str) & (df_escala_hist["ENCARREGADO"] == enc_escala_sel)
+                            df_escala_hist = df_escala_hist[~mask_remover]
+                            
+                            # Concatenar
+                            df_final = pd.concat([df_escala_hist, novos_dados], ignore_index=True)
+                        else:
+                            df_final = novos_dados
+                            
+                        # Salvar CSV Local
+                        df_final.to_csv(caminho_escala_csv, index=False)
+                        
+                        # Backup Google Drive
+                        success, msg = backup_google_drive(caminho_escala_csv, "text/csv", f"escala_diaria_{datetime.datetime.now().strftime('%d%m%Y')}.csv")
+                        if success:
+                            st.toast("☁️ Escala salva na nuvem com sucesso!")
+                            
+                        st.success(f"✅ Escala da equipe de **{enc_escala_sel}** para o dia **{data_escala.strftime('%d/%m/%Y')}** salva com sucesso!")
+                        time.sleep(2)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar a escala: {e}")
+                        
+            with col_action2:
+                # Gerar Excel em memória para download
+                try:
+                    buffer_escala = io.BytesIO()
+                    with pd.ExcelWriter(buffer_escala, engine='openpyxl') as writer:
+                        # Formatar DataFrame para Excel (remover colunas indesejadas, traduzir booleanos)
+                        df_excel = edited_df.copy()
+                        df_excel["ESCALADO"] = df_excel["ESCALADO"].apply(lambda x: "SIM" if x else "NÃO")
+                        df_excel.to_excel(writer, index=False, sheet_name="Escala")
+                    buffer_escala.seek(0)
+                    
+                    st.download_button(
+                        label="⬇️ Baixar Escala em Excel",
+                        data=buffer_escala,
+                        file_name=f"Escala_{enc_escala_sel.replace(' ', '_')}_{data_esc_str}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"Erro ao gerar Excel: {e}")
 
     with tab_f1:
         st.markdown("### 🏎️ Competição F1 - Entrega de RDC")
