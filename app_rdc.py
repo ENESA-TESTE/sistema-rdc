@@ -3099,8 +3099,13 @@ if st.session_state.df is not None:
             
             # Se já houver salvamento para este dia, usar o valor salvo. Senão, todos "Sim" (True)
             if not df_escala_hoje.empty:
+                # Forçar tipo string na matrícula para evitar erros de merge no pandas
+                equipe_base['MATRICULA'] = equipe_base['MATRICULA'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                df_escala_hoje_tmp = df_escala_hoje[["MATRICULA", "ESCALADO"]].copy()
+                df_escala_hoje_tmp['MATRICULA'] = df_escala_hoje_tmp['MATRICULA'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                
                 # Merge base com histórico
-                equipe_edit = pd.merge(equipe_base, df_escala_hoje[["MATRICULA", "ESCALADO"]], on="MATRICULA", how="left")
+                equipe_edit = pd.merge(equipe_base, df_escala_hoje_tmp, on="MATRICULA", how="left")
                 # Quem não estava no histórico, recebe True como padrão
                 equipe_edit["ESCALADO"] = equipe_edit["ESCALADO"].fillna(True)
             else:
@@ -3760,7 +3765,7 @@ if st.session_state.df is not None:
                 Regras de negócio:
                 - DATA: Extraia a data em que o RDC foi preenchido. Retorne RIGOROSAMENTE no formato YYYY-MM-DD (Ano-Mês-Dia).
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
-                - ENCARREGADO: FAÇA O MÁXIMO ESFORÇO POSSÍVEL para descobrir quem é o encarregado. Compare o que está escrito à mão com esta lista oficial: [{nomes_para_prompt}]. Se a caligrafia estiver ruim, com erros de ortografia, ou se houver apenas o primeiro e segundo nome (ex: "Jailson Gois"), use dedução lógica e similaridade para encontrar a correspondência exata na lista. Retorne EXATAMENTE o nome completo que consta na lista fornecida. Somente se for 100% impossível deduzir quem é, retorne o texto 'AJUSTAR NOME'.
+                - ENCARREGADO: É QUASE PROIBIDO retornar 'AJUSTAR NOME'. Você DEVE escolher o nome da lista oficial [{nomes_para_prompt}] que for mais parecido fonética ou visualmente com o que está escrito à mão, mesmo que a letra seja péssima, haja apenas o primeiro nome, iniciais (ex: "J. Silva") ou erros grosseiros. Faça o cruzamento lógico e retorne EXATAMENTE o nome completo da lista. Só use 'AJUSTAR NOME' se o campo estiver 100% em branco ou completamente rasurado sem nenhuma letra legível.
                 - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
                 - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou.
@@ -3798,175 +3803,203 @@ if st.session_state.df is not None:
                     progresso = st.progress(0)
                     total_arquivos = len(arquivos_scan)
                     
-                    for i, arquivo_scan in enumerate(arquivos_scan):
-                        status.update(label=f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...", state="running")
-                    
-                        try:
-                            # Salvar temporariamente para enviar pro Gemini
-                            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
-                                tmp.write(arquivo_scan.getvalue())
-                                tmp_path = tmp.name
-                        
-                            max_tentativas = 3
-                            sucesso_arquivo = False
-                            for tentativa in range(max_tentativas):
-                                try:
-                                    arquivo_up = client.files.upload(file=tmp_path)
-                                    
-                                    # Aguardar o arquivo ficar pronto no servidor do Google (necessário para arquivos pesados)
-                                    tempo_espera = 0
-                                    while tempo_espera < 180: # Aguarda até 3 minutos
-                                        file_info = client.files.get(name=arquivo_up.name)
-                                        estado = str(file_info.state).upper()
-                                        if "ACTIVE" in estado:
-                                            break
-                                        elif "FAILED" in estado:
-                                            raise Exception("Falha interna do Google ao processar este arquivo. Tente um arquivo menor.")
-                                        time.sleep(3)
-                                        tempo_espera += 3
-                                        
-                                    if tempo_espera >= 180:
-                                        raise Exception("Tempo limite esgotado aguardando o Google processar o PDF (demorou mais de 3 minutos).")
-                                    
-                                    resposta = client.models.generate_content(
-                                        model=st.session_state.get('modelo_gemini', 'gemini-2.5-flash'),
-                                        contents=[arquivo_up, prompt_ia],
-                                        config=genai.types.GenerateContentConfig(
-                                            response_mime_type="application/json",
-                                            response_schema=list[RDC_Schema],
-                                            temperature=0.0
-                                        )
-                                    )
-                                
-                                    # --- FIX: Restaurar as credenciais do Sheets caso necessário ---
-                                    if old_cred:
-                                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
-
-                                    texto_resposta = resposta.text.strip()
-                                    if "```json" in texto_resposta:
-                                        texto_resposta = texto_resposta.split("```json")[1].split("```")[0].strip()
-                                    elif "```" in texto_resposta:
-                                        texto_resposta = texto_resposta.split("```")[1].split("```")[0].strip()
-                                        
-                                    start_idx = max(0, texto_resposta.find('[')) if '[' in texto_resposta else max(0, texto_resposta.find('{'))
-                                    end_idx = max(texto_resposta.rfind(']'), texto_resposta.rfind('}'))
-                                    if end_idx > start_idx:
-                                        texto_resposta = texto_resposta[start_idx:end_idx+1]
-
-                                    try:
-                                        dados_extraidos_lista = json.loads(texto_resposta)
-                                    except json.JSONDecodeError as err_json:
-                                        import ast
-                                        import re
-                                        
-                                        # Tentativa 1: Recuperar JSON truncado pelo limite de tokens da IA (arquivos enormes)
-                                        recuperado = False
-                                        last_brace = texto_resposta.rfind('}')
-                                        if last_brace != -1:
-                                            texto_recuperado = texto_resposta[:last_brace+1] + ']'
-                                            try:
-                                                dados_extraidos_lista = json.loads(texto_recuperado)
-                                                recuperado = True
-                                            except:
-                                                pass
-                                                
-                                        if not recuperado:
-                                            texto_fix = texto_resposta.replace("null", "None").replace("true", "True").replace("false", "False")
-                                            texto_fix = re.sub(r'\}\s*\{', '}, {', texto_fix)
-                                            texto_fix = re.sub(r'\]\s*\[', '], [', texto_fix)
-                                            texto_fix = re.sub(r'("|\]|\})\s+(")', r'\1, \2', texto_fix)
-                                            try:
-                                                dados_extraidos_lista = ast.literal_eval(texto_fix)
-                                            except SyntaxError:
-                                                try:
-                                                    dados_extraidos_lista = ast.literal_eval(texto_fix + '"}]')
-                                                except:
-                                                    # Ultima tentativa: cortar no ultimo '}' válido pro AST também
-                                                    if last_brace != -1:
-                                                        try:
-                                                            dados_extraidos_lista = ast.literal_eval(texto_fix[:last_brace+1] + ']')
-                                                        except:
-                                                            raise err_json
-                                                    else:
-                                                        raise err_json
-                                            except:
-                                                raise err_json
-
-                                    if isinstance(dados_extraidos_lista, dict):
-                                        dados_extraidos_lista = [dados_extraidos_lista]
-
-                                    # --- FIX: Consenso de Data do Lote ---
-                                    # Como todos os RDCs escaneados juntos pertencem ao mesmo dia,
-                                    # pegamos a data mais frequente encontrada e forçamos para todos.
-                                    datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
-                                    if datas_encontradas:
-                                        data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
-                                        for d in dados_extraidos_lista:
-                                            d["DATA"] = data_consenso
-
-                                    for dados in dados_extraidos_lista:
-                                        ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
-                                        item_pai = int(ultimo_item) + 1
-                                        if 'LOCAL' not in dados:
-                                            dados['LOCAL'] = ''
-                                        if 'AREA' not in dados:
-                                            dados['AREA'] = ''
-                                        
-                                        # Sem subníveis, manter apenas 1 item
-                                        dados['ITEM'] = item_pai
-                                        dados['SUB'] = 1
-                                        dados['SUB_ATIVIDADE'] = dados.get('ATIVIDADE', '')
-                                        dados['LOCAL_ESPECIFICO'] = ''
-                                        dados['EFETIVO_ATIVIDADE'] = ''
-                                        st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
-
-                                    sucesso_arquivo = True
-                                    break 
-
-                                except Exception as inner_e:
-                                    erro_str = str(inner_e)
-                                    if '429' in erro_str or 'RESOURCE_EXHAUSTED' in erro_str:
-                                        if tentativa < max_tentativas - 1:
-                                            if idx_chave_atual < len(lista_chaves) - 1:
-                                                idx_chave_atual += 1
-                                                client = genai.Client(api_key=lista_chaves[idx_chave_atual])
-                                                st.warning(f"🔄 Limite atingido na chave atual. Trocando para a chave reserva {idx_chave_atual + 1}/{len(lista_chaves)}...")
-                                                time.sleep(2)
-                                                continue
-                                            else:
-                                                st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
-                                                time.sleep(60)
-                                                continue
-                                    elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
-                                        if tentativa < max_tentativas - 1:
-                                            st.warning(f"⏳ Servidores da IA sobrecarregados. Tentando novamente em 10 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
-                                            time.sleep(10)
-                                            continue
-                                                
-                                    msg_erro = f"Erro detalhado na IA: {inner_e}"
-                                    try:
-                                        # Tentar buscar a lista de modelos para debug
-                                        modelos = [m.name for m in client.models.list()]
-                                        msg_erro += f" | Modelos liberados: {modelos}"
-                                    except:
-                                        pass
-                                    st.error(msg_erro)
-                                    break
-                                    
-                            os.remove(tmp_path)
-                        
-                            if sucesso_arquivo:
-                                st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
+                    # === PRE-PROCESSAMENTO E CHUNKING ===
+                    import fitz
+                    arquivos_processar = []
+                    for arquivo_scan in arquivos_scan:
+                        nome = arquivo_scan.name
+                        if nome.lower().endswith('.pdf'):
+                            doc = fitz.open(stream=arquivo_scan.getvalue(), filetype="pdf")
+                            num_pages = len(doc)
+                            if num_pages > 15:
+                                chunk_size = 15
+                                for start_idx in range(0, num_pages, chunk_size):
+                                    chunk_doc = fitz.open()
+                                    chunk_doc.insert_pdf(doc, from_page=start_idx, to_page=min(start_idx + chunk_size - 1, num_pages - 1))
+                                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+                                    tmp.close()
+                                    chunk_doc.save(tmp.name)
+                                    chunk_doc.close()
+                                    arquivos_processar.append({'name': f"{nome} (Pág {start_idx+1}-{min(start_idx+chunk_size, num_pages)})", 'tmp_path': tmp.name})
                             else:
-                                st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
-                                # Se falhou pelo menos um, mantem expandido
-                                st.session_state.teve_falha_ia = True
+                                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+                                tmp.write(arquivo_scan.getvalue())
+                                tmp.close()
+                                arquivos_processar.append({'name': nome, 'tmp_path': tmp.name})
+                            doc.close()
+                        else:
+                            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{nome.split('.')[-1]}")
+                            tmp.write(arquivo_scan.getvalue())
+                            tmp.close()
+                            arquivos_processar.append({'name': nome, 'tmp_path': tmp.name})
                             
-                        except Exception as e:
-                            st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
-                            st.session_state.teve_falha_ia = True
+                    total_arquivos = len(arquivos_processar)
+                    
+                    def processar_chunk_ia(arquivo_dict, chaves_api, modelo_gemini, prompt_ia, schema, _old_cred):
+                        import time
+                        import json
+                        import os
+                        import ast
+                        import re
+                        from google import genai
                         
-                        progresso.progress((i + 1) / total_arquivos)
+                        tmp_path = arquivo_dict['tmp_path']
+                        max_tentativas = 3
+                        idx_chave_atual_local = 0
+                        client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
+                        
+                        for tentativa in range(max_tentativas):
+                            try:
+                                arquivo_up = client_local.files.upload(file=tmp_path)
+                                
+                                tempo_espera = 0
+                                while tempo_espera < 180:
+                                    file_info = client_local.files.get(name=arquivo_up.name)
+                                    estado = str(file_info.state).upper()
+                                    if "ACTIVE" in estado:
+                                        break
+                                    elif "FAILED" in estado:
+                                        raise Exception("Falha interna do Google ao processar este arquivo. Tente um arquivo menor.")
+                                    time.sleep(3)
+                                    tempo_espera += 3
+                                    
+                                if tempo_espera >= 180:
+                                    raise Exception("Tempo limite esgotado aguardando o Google processar o PDF (demorou mais de 3 minutos).")
+                                
+                                resposta = client_local.models.generate_content(
+                                    model=modelo_gemini,
+                                    contents=[arquivo_up, prompt_ia],
+                                    config=genai.types.GenerateContentConfig(
+                                        response_mime_type="application/json",
+                                        response_schema=list[schema],
+                                        temperature=0.0
+                                    )
+                                )
+                                
+                                if _old_cred:
+                                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _old_cred
+
+                                texto_resposta = resposta.text.strip()
+                                if "```json" in texto_resposta:
+                                    texto_resposta = texto_resposta.split("```json")[1].split("```")[0].strip()
+                                elif "```" in texto_resposta:
+                                    texto_resposta = texto_resposta.split("```")[1].split("```")[0].strip()
+                                    
+                                start_idx = max(0, texto_resposta.find('[')) if '[' in texto_resposta else max(0, texto_resposta.find('{'))
+                                end_idx = max(texto_resposta.rfind(']'), texto_resposta.rfind('}'))
+                                if end_idx > start_idx:
+                                    texto_resposta = texto_resposta[start_idx:end_idx+1]
+
+                                try:
+                                    dados_extraidos_lista = json.loads(texto_resposta)
+                                except json.JSONDecodeError as err_json:
+                                    recuperado = False
+                                    last_brace = texto_resposta.rfind('}')
+                                    if last_brace != -1:
+                                        texto_recuperado = texto_resposta[:last_brace+1] + ']'
+                                        try:
+                                            dados_extraidos_lista = json.loads(texto_recuperado)
+                                            recuperado = True
+                                        except:
+                                            pass
+                                            
+                                    if not recuperado:
+                                        texto_fix = texto_resposta.replace("null", "None").replace("true", "True").replace("false", "False")
+                                        texto_fix = re.sub(r'\}\s*\{', '}, {', texto_fix)
+                                        texto_fix = re.sub(r'\]\s*\[', '], [', texto_fix)
+                                        texto_fix = re.sub(r'("|\]|\})\s+(")', r'\1, \2', texto_fix)
+                                        try:
+                                            dados_extraidos_lista = ast.literal_eval(texto_fix)
+                                        except SyntaxError:
+                                            try:
+                                                dados_extraidos_lista = ast.literal_eval(texto_fix + '"}]')
+                                            except:
+                                                if last_brace != -1:
+                                                    try:
+                                                        dados_extraidos_lista = ast.literal_eval(texto_fix[:last_brace+1] + ']')
+                                                    except:
+                                                        raise err_json
+                                                else:
+                                                    raise err_json
+                                        except:
+                                            raise err_json
+
+                                if isinstance(dados_extraidos_lista, dict):
+                                    dados_extraidos_lista = [dados_extraidos_lista]
+
+                                datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
+                                if datas_encontradas:
+                                    data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
+                                    for d in dados_extraidos_lista:
+                                        d["DATA"] = data_consenso
+
+                                for dados in dados_extraidos_lista:
+                                    if 'LOCAL' not in dados:
+                                        dados['LOCAL'] = ''
+                                    if 'AREA' not in dados:
+                                        dados['AREA'] = ''
+                                    dados['SUB'] = 1
+                                    dados['SUB_ATIVIDADE'] = dados.get('ATIVIDADE', '')
+                                    dados['LOCAL_ESPECIFICO'] = ''
+                                    dados['EFETIVO_ATIVIDADE'] = ''
+                                
+                                return dados_extraidos_lista
+                                
+                            except Exception as inner_e:
+                                erro_str = str(inner_e)
+                                if '429' in erro_str or 'RESOURCE_EXHAUSTED' in erro_str:
+                                    if tentativa < max_tentativas - 1:
+                                        if idx_chave_atual_local < len(chaves_api) - 1:
+                                            idx_chave_atual_local += 1
+                                            client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
+                                            time.sleep(2)
+                                            continue
+                                        else:
+                                            time.sleep(60)
+                                            continue
+                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
+                                    if tentativa < max_tentativas - 1:
+                                        time.sleep(10)
+                                        continue
+                                raise Exception(f"Erro detalhado na IA: {inner_e}")
+                        raise Exception("Falha após múltiplas tentativas.")
+
+                    import concurrent.futures
+                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
+                    
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                        future_to_chunk = {
+                            executor.submit(processar_chunk_ia, chunk, lista_chaves, modelo_usado, prompt_ia, RDC_Schema, old_cred): chunk
+                            for chunk in arquivos_processar
+                        }
+                        
+                        completed = 0
+                        for future in concurrent.futures.as_completed(future_to_chunk):
+                            chunk = future_to_chunk[future]
+                            nome_atual = chunk['name']
+                            tmp_path = chunk['tmp_path']
+                            
+                            try:
+                                dados_extraidos_lista = future.result()
+                                
+                                for dados in dados_extraidos_lista:
+                                    ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+                                    dados['ITEM'] = int(ultimo_item) + 1
+                                    st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
+                                
+                                st.toast(f"✅ {nome_atual} processado com sucesso!")
+                            except Exception as e:
+                                st.error(f"Erro no envio de {nome_atual}: {e}")
+                                st.session_state.teve_falha_ia = True
+                                
+                            try:
+                                os.remove(tmp_path)
+                            except:
+                                pass
+                                
+                            completed += 1
+                            progresso.progress(completed / total_arquivos)
+                            status.update(label=f"Processando blocos simultaneamente... ({completed}/{total_arquivos} concluídos)", state="running")
 
                     expandir_status = st.session_state.get('teve_falha_ia', False)
                     status.update(label="🎉 Leitura concluída!" if not expandir_status else "⚠️ Leitura finalizada com erros", state="complete", expanded=expandir_status)
@@ -4107,6 +4140,25 @@ if st.session_state.df is not None:
                             st.toast(f"{len(novos_registros)} RDCs registrados localmente no Resumo Diário!", icon="✅")
                     else:
                         st.info("ℹ️ Os dados foram processados, mas os Encarregados dessa lista já haviam sido contabilizados.")
+
+                # === DASHBOARD ANALÍTICO DO LOTE ===
+                with st.expander("📊 Analytics do Lote Lido", expanded=True):
+                    if not df_filtrado.empty:
+                        col_dash1, col_dash2 = st.columns(2)
+                        with col_dash1:
+                            st.markdown("**Frentes de Serviço por Encarregado**")
+                            enc_count = df_filtrado['ENCARREGADO'].replace('', 'Não Informado').value_counts()
+                            st.bar_chart(enc_count, color="#0ea5e9")
+                            
+                        with col_dash2:
+                            st.markdown("**Frentes por Disciplina**")
+                            disc_count = df_filtrado['DISCIPLINA'].replace('', 'Não Informado').value_counts()
+                            st.bar_chart(disc_count, color="#4ade80")
+                            
+                        st.markdown("**Distribuição por Caldeira (PB/RB)**")
+                        caldeira_count = df_filtrado['CALDEIRA'].copy()
+                        caldeira_count = caldeira_count.replace('', 'Não Identificada').value_counts()
+                        st.bar_chart(caldeira_count, color="#f59e0b")
 
     with tab_ia_cc:
         st.markdown("### Robô Atualizador de C.C (Google Gemini)")
