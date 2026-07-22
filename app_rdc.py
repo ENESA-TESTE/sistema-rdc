@@ -3192,6 +3192,39 @@ if st.session_state.df is not None:
                 except Exception as e:
                     st.error(f"Erro ao gerar Excel: {e}")
 
+        # === VISUALIZADOR DE ESCALAS SALVAS ===
+        st.markdown("---")
+        with st.expander("📂 Ver Banco de Dados da Escala (Histórico)", expanded=False):
+            if os.path.exists(caminho_escala_csv):
+                try:
+                    df_historico_view = pd.read_csv(caminho_escala_csv)
+                    if not df_historico_view.empty:
+                        col_filtro1, col_filtro2 = st.columns(2)
+                        with col_filtro1:
+                            filtro_data = st.date_input("Filtrar por Data:", value=None, key="filtro_data_hist")
+                        with col_filtro2:
+                            encarregados_hist = ["Todos"] + sorted(df_historico_view['ENCARREGADO'].dropna().unique().tolist())
+                            filtro_enc = st.selectbox("Filtrar por Encarregado:", encarregados_hist, key="filtro_enc_hist")
+                            
+                        df_view_filtrado = df_historico_view.copy()
+                        if filtro_data:
+                            df_view_filtrado = df_view_filtrado[df_view_filtrado["DATA"] == filtro_data.strftime("%Y-%m-%d")]
+                        if filtro_enc != "Todos":
+                            df_view_filtrado = df_view_filtrado[df_view_filtrado["ENCARREGADO"] == filtro_enc]
+                            
+                        st.dataframe(df_view_filtrado, use_container_width=True, hide_index=True)
+                        
+                        # Resumo
+                        if 'ESCALADO' in df_view_filtrado.columns:
+                            qtd_escalados = len(df_view_filtrado[df_view_filtrado['ESCALADO'] == True])
+                            st.caption(f"Mostrando {len(df_view_filtrado)} registros no total. (Pessoas escaladas: {qtd_escalados})")
+                    else:
+                        st.info("Nenhuma escala salva ainda.")
+                except Exception as e:
+                    st.error(f"Erro ao ler histórico: {e}")
+            else:
+                st.info("O banco de dados de escalas ainda não existe. Salve uma escala primeiro.")
+
     with tab_f1:
         st.markdown("### 🏎️ Competição F1 - Entrega de RDC")
         st.markdown("Acompanhamento mensal da entrega dos Relatórios Diários de Campo (RDC).")
