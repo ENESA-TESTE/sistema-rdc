@@ -1936,7 +1936,7 @@ if arquivo_pde is not None:
         st.session_state.df = df_carregado
         if conn and not st.session_state.get('force_use_local', False):
             try:
-                conn.update(worksheet="Página1", data=st.session_state.df)
+                conn.update(worksheet="PDE", data=st.session_state.df)
                 st.toast("☁️ Base salva! C.Cs preservados com sucesso!", icon="✅")
             except Exception as e:
                 st.sidebar.error(f"Erro Nuvem: {e}")
@@ -1957,7 +1957,7 @@ elif st.session_state.df is None:
                 
                 # Backup invisível para a Página1 antiga (caso a mestre caia no futuro)
                 if conn:
-                    try: conn.update(worksheet="Página1", data=df_mestre)
+                    try: conn.update(worksheet="PDE", data=df_mestre)
                     except: pass
         except Exception as e:
             st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre: {e}")
@@ -1965,7 +1965,7 @@ elif st.session_state.df is None:
         # 2. FAILSAFE: Se a mestre falhar, tenta ler o backup antigo
         if not carregado_nuvem and conn:
             try:
-                df_gsheets = conn.read(worksheet="Página1", ttl=5)
+                df_gsheets = conn.read(worksheet="PDE", ttl=5)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
@@ -4498,7 +4498,7 @@ if st.session_state.df is not None:
                         
                         status_cc.update(label="Sincronizando C.Cs atualizados com a nuvem...", state="running")
                         conn_update = st.connection("gsheets", type=GSheetsConnection)
-                        conn_update.update(worksheet="Página1", data=df_atual)
+                        conn_update.update(worksheet="PDE", data=df_atual)
                         st.cache_data.clear()
                     except Exception as e:
                         st.error(f"Erro ao salvar na nuvem: {e}")
@@ -5057,10 +5057,10 @@ if st.session_state.df is not None:
                     st.session_state.df = df_atual
                     try:
                         if conn:
-                            conn.update(worksheet="Página1", data=df_atual)
+                            conn.update(worksheet="PDE", data=df_atual)
                             st.toast("☁️ Sincronizado com Google Sheets!", icon="✅")
-                    except Exception:
-                        pass
+                    except Exception as e_gs:
+                        st.error(f"⚠️ Erro ao salvar no Google Sheets: {e_gs}")
                     st.success("✅ Alterações salvas com sucesso!")
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
@@ -5069,7 +5069,7 @@ if st.session_state.df is not None:
             if st.button("🔄 Puxar do Google Sheets", key="btn_sync_pde", use_container_width=True):
                 try:
                     if conn:
-                        df_gs = conn.read(worksheet="Página1", ttl=0)
+                        df_gs = conn.read(worksheet="PDE", ttl=0)
                         df_gs = df_gs.dropna(how='all')
                         df_gs.to_csv(caminho_base_salva_csv, index=False)
                         st.success("✅ Dados sincronizados do Google Sheets!")
@@ -5307,7 +5307,7 @@ if st.session_state.df is not None:
                 if st.button("🔄 Sincronizar Google Sheets", key="btn_sync_admin", use_container_width=True):
                     try:
                         if conn:
-                            conn.update(worksheet="Página1", data=df_atual)
+                            conn.update(worksheet="PDE", data=df_atual)
                             if st.session_state.get('df_historico_f1') is not None:
                                 conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
                             st.success("✅ Sincronização com Google Sheets concluída!")
