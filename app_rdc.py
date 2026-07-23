@@ -1946,7 +1946,7 @@ elif st.session_state.df is None:
     
     # 1. LER DA NOVA PLANILHA MESTRE DO GOOGLE SHEETS
     if not st.session_state.get('force_use_local', False):
-        url_pde_mestre = "https://docs.google.com/spreadsheets/d/1Hw3zOXFauxs9_DOqDauByAV71LnOvBpo_C-Nry7iIBI/export?format=csv"
+        url_pde_mestre = "https://docs.google.com/spreadsheets/d/1qbzFQtlBSAoS394SE3C8cHTt0Ku0yxWU/export?format=csv"
         try:
             df_mestre = pd.read_csv(url_pde_mestre)
             df_mestre = df_mestre.dropna(how='all')
