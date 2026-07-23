@@ -802,6 +802,7 @@ caminho_hist_cc = os.path.join(pasta_base, "historico_cc.csv")
 caminho_historico_f1_csv = os.path.join(pasta_base, "historico_f1_local.csv")
 caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
 caminho_escala_csv = os.path.join(pasta_base, "escala_diaria.csv")
+caminho_rdc_registros_csv = os.path.join(pasta_base, "rdc_registros.csv")
 
 celula_encarregado = "I4"
 celula_matricula = "B9"
@@ -2501,7 +2502,7 @@ if st.session_state.df is not None:
         
         st.stop()  # Impede o resto da página de renderizar
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}"])
+    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital, tab_pde, tab_banco_rdc, tab_admin = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}", f"👷 {t('Gerenciar PDE')}", f"📑 {t('Banco de RDCs')}", f"⚙️ {t('Admin')}"])
 
     if st.session_state.get("role_usuario") == "apontador":
         st.markdown("""
@@ -2511,7 +2512,10 @@ if st.session_state.df is not None:
             div[data-baseweb="tab-list"] button:nth-child(5),
             div[data-baseweb="tab-list"] button:nth-child(7),
             div[data-baseweb="tab-list"] button:nth-child(8),
-            div[data-baseweb="tab-list"] button:nth-child(9) {
+            div[data-baseweb="tab-list"] button:nth-child(9),
+            div[data-baseweb="tab-list"] button:nth-child(10),
+            div[data-baseweb="tab-list"] button:nth-child(11),
+            div[data-baseweb="tab-list"] button:nth-child(12) {
                 display: none !important;
             }
         </style>
@@ -4132,6 +4136,27 @@ if st.session_state.df is not None:
                                 
                     st.session_state.df_ia = pd.concat([df_restante, df_filtrado], ignore_index=True)
                     
+                    # === PERSISTIR RDCs NO BANCO DE DADOS ===
+                    try:
+                        colunas_rdc = ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA']
+                        df_salvar_rdc = df_editado.copy()
+                        for col in colunas_rdc:
+                            if col not in df_salvar_rdc.columns:
+                                df_salvar_rdc[col] = ''
+                        df_salvar_rdc = df_salvar_rdc[colunas_rdc]
+                        df_salvar_rdc['CRIADO_EM'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        
+                        if os.path.exists(caminho_rdc_registros_csv):
+                            df_rdc_existente = pd.read_csv(caminho_rdc_registros_csv)
+                            df_rdc_final = pd.concat([df_rdc_existente, df_salvar_rdc], ignore_index=True)
+                        else:
+                            df_rdc_final = df_salvar_rdc
+                        
+                        df_rdc_final.to_csv(caminho_rdc_registros_csv, index=False)
+                        st.toast(f"💾 {len(df_salvar_rdc)} RDCs salvos permanentemente no Banco de Dados!", icon="✅")
+                    except Exception as e_rdc_save:
+                        st.warning(f"⚠️ RDCs processados, mas erro ao salvar no banco permanente: {e_rdc_save}")
+                    
                     # Salva no F1
                     novos_registros = []
                     for _, row in df_editado.iterrows():
@@ -4942,6 +4967,396 @@ if st.session_state.df is not None:
                         st.error(f"❌ Erro de conexão. Código HTTP: {response.status_code}")
                 except Exception as e:
                     st.error(f"❌ Falha de rede ao tentar conectar com a nuvem: {e}")
+
+    # ==============================================================
+    # ABA 10: GERENCIAR PDE
+    # ==============================================================
+    with tab_pde:
+        st.markdown("### 👷 Gerenciar PDE — Base de Funcionários")
+        st.markdown("Visualize, edite e exporte a base completa de efetivo.")
+
+        # Filters
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            encarregado_filtro = st.selectbox("Encarregado", options=["Todos"] + sorted(list(df_atual["ENCARREGADO"].dropna().unique())), key="pde_enc_filtro")
+        with col2:
+            disciplina_filtro = st.selectbox("Disciplina", options=["Todos"] + sorted(list(df_atual["DISCIPLINA"].dropna().unique())), key="pde_disc_filtro")
+        with col3:
+            status_filtro = st.selectbox("Status", options=["Todos"] + sorted(list(df_atual["STATUS"].dropna().unique())), key="pde_status_filtro")
+
+        # Apply filters
+        df_pde_filtrado = df_atual.copy()
+        if encarregado_filtro != "Todos":
+            df_pde_filtrado = df_pde_filtrado[df_pde_filtrado["ENCARREGADO"] == encarregado_filtro]
+        if disciplina_filtro != "Todos":
+            df_pde_filtrado = df_pde_filtrado[df_pde_filtrado["DISCIPLINA"] == disciplina_filtro]
+        if status_filtro != "Todos":
+            df_pde_filtrado = df_pde_filtrado[df_pde_filtrado["STATUS"] == status_filtro]
+
+        # Summary Metrics
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total de Funcionários", len(df_pde_filtrado))
+        m2.metric("Total de Encarregados", df_pde_filtrado["ENCARREGADO"].nunique())
+        m3.metric("Total de C.C", df_pde_filtrado["C.C"].nunique())
+
+        # Editable data
+        st.markdown("#### Base Atual")
+        colunas_pde = ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "ENCARREGADO", "TURNO", "STATUS", "DISCIPLINA", "MÃO DE OBRA"]
+        colunas_pde_existentes = [c for c in colunas_pde if c in df_pde_filtrado.columns]
+        df_editado_pde = st.data_editor(
+            df_pde_filtrado[colunas_pde_existentes],
+            key="editor_pde",
+            use_container_width=True
+        )
+
+        # Add employee
+        with st.expander("➕ Adicionar Funcionário"):
+            with st.form("form_add_func"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    new_mat = st.text_input("MATRICULA")
+                    new_nome = st.text_input("NOME")
+                    new_funcao = st.text_input("FUNÇÃO")
+                with c2:
+                    new_cc = st.text_input("C.C")
+                    new_enc = st.text_input("ENCARREGADO")
+                    new_turno = st.text_input("TURNO")
+                with c3:
+                    new_status = st.text_input("STATUS", value="ATIVO")
+                    new_disc = st.text_input("DISCIPLINA")
+                    new_mo = st.text_input("MÃO DE OBRA")
+
+                submitted_add = st.form_submit_button("➕ Adicionar ao Sistema")
+                if submitted_add:
+                    try:
+                        novo_dado = pd.DataFrame([{
+                            "MATRICULA": new_mat, "NOME": new_nome, "FUNÇÃO": new_funcao,
+                            "C.C": new_cc, "ENCARREGADO": new_enc, "TURNO": new_turno,
+                            "STATUS": new_status, "DISCIPLINA": new_disc, "MÃO DE OBRA": new_mo
+                        }])
+                        st.session_state.df = pd.concat([df_atual, novo_dado], ignore_index=True)
+                        st.session_state.df.to_csv(caminho_base_salva_csv, index=False)
+                        st.success("✅ Funcionário adicionado com sucesso!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar: {e}")
+
+        # Action Buttons
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button("💾 Salvar Alterações na PDE", key="btn_salvar_pde", type="primary", use_container_width=True):
+                try:
+                    # Atualizar o DataFrame principal com as edições
+                    for col in colunas_pde_existentes:
+                        if col in df_editado_pde.columns:
+                            df_pde_filtrado[col] = df_editado_pde[col].values
+                    # Aplicar de volta no df_atual
+                    df_atual.update(df_pde_filtrado)
+                    df_atual.to_csv(caminho_base_salva_csv, index=False)
+                    st.session_state.df = df_atual
+                    try:
+                        if conn:
+                            conn.update(worksheet="Página1", data=df_atual)
+                            st.toast("☁️ Sincronizado com Google Sheets!", icon="✅")
+                    except Exception:
+                        pass
+                    st.success("✅ Alterações salvas com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
+
+        with b2:
+            if st.button("🔄 Puxar do Google Sheets", key="btn_sync_pde", use_container_width=True):
+                try:
+                    if conn:
+                        df_gs = conn.read(worksheet="Página1", ttl=0)
+                        df_gs = df_gs.dropna(how='all')
+                        df_gs.to_csv(caminho_base_salva_csv, index=False)
+                        st.success("✅ Dados sincronizados do Google Sheets!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.warning("Conexão com Google Sheets não disponível.")
+                except Exception as e:
+                    st.error(f"Erro ao sincronizar: {e}")
+
+        with b3:
+            try:
+                buffer_pde = io.BytesIO()
+                with pd.ExcelWriter(buffer_pde, engine='openpyxl') as writer:
+                    df_pde_filtrado.to_excel(writer, index=False, sheet_name='PDE')
+                st.download_button(
+                    label="⬇️ Exportar Excel",
+                    data=buffer_pde.getvalue(),
+                    file_name="Base_PDE_Filtrada.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_export_pde",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Erro ao gerar Excel: {e}")
+
+    # ==============================================================
+    # ABA 11: BANCO DE RDCs
+    # ==============================================================
+    with tab_banco_rdc:
+        st.markdown("### 📑 Banco de RDCs — Histórico Completo")
+        st.markdown("Todos os RDCs lidos pela IA, salvos permanentemente no sistema.")
+
+        try:
+            if os.path.exists(caminho_rdc_registros_csv):
+                df_rdc_banco = pd.read_csv(caminho_rdc_registros_csv)
+
+                if not df_rdc_banco.empty:
+                    # Filters
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        data_inicio_rdc = st.date_input("De:", value=None, key="rdc_data_de")
+                    with c2:
+                        data_fim_rdc = st.date_input("Até:", value=None, key="rdc_data_ate")
+                    with c3:
+                        encarregados_rdc = ["Todos"] + sorted(list(df_rdc_banco["ENCARREGADO"].dropna().unique()))
+                        enc_filtro_rdc = st.selectbox("Encarregado", options=encarregados_rdc, key="rdc_enc_filtro")
+
+                    c4, c5, c6 = st.columns(3)
+                    with c4:
+                        disc_rdc = ["Todos"] + sorted(list(df_rdc_banco["DISCIPLINA"].dropna().unique()))
+                        disc_filtro_rdc = st.selectbox("Disciplina", options=disc_rdc, key="rdc_disc_filtro")
+                    with c5:
+                        if "CALDEIRA" in df_rdc_banco.columns:
+                            caldeira_rdc = ["Todos"] + sorted([x for x in df_rdc_banco["CALDEIRA"].dropna().unique() if str(x).strip()])
+                        else:
+                            caldeira_rdc = ["Todos"]
+                        cald_filtro_rdc = st.selectbox("Caldeira", options=caldeira_rdc, key="rdc_cald_filtro")
+                    with c6:
+                        busca_atividade = st.text_input("🔎 Buscar na atividade", key="rdc_busca")
+
+                    # Apply filters
+                    df_rdc_filtrado = df_rdc_banco.copy()
+                    if "DATA" in df_rdc_filtrado.columns and (data_inicio_rdc or data_fim_rdc):
+                        df_rdc_filtrado["_DATA_DT"] = pd.to_datetime(df_rdc_filtrado["DATA"], errors='coerce')
+                        if data_inicio_rdc:
+                            df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["_DATA_DT"].dt.date >= data_inicio_rdc]
+                        if data_fim_rdc:
+                            df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["_DATA_DT"].dt.date <= data_fim_rdc]
+                        df_rdc_filtrado = df_rdc_filtrado.drop(columns=["_DATA_DT"])
+
+                    if enc_filtro_rdc != "Todos":
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["ENCARREGADO"] == enc_filtro_rdc]
+                    if disc_filtro_rdc != "Todos":
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["DISCIPLINA"] == disc_filtro_rdc]
+                    if cald_filtro_rdc != "Todos" and "CALDEIRA" in df_rdc_filtrado.columns:
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["CALDEIRA"] == cald_filtro_rdc]
+                    if busca_atividade and "ATIVIDADE" in df_rdc_filtrado.columns:
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["ATIVIDADE"].astype(str).str.contains(busca_atividade, case=False, na=False)]
+
+                    # Summary
+                    st.caption(f"📊 Mostrando **{len(df_rdc_filtrado)}** de **{len(df_rdc_banco)}** RDCs")
+
+                    # Data Editor
+                    cols_to_show = [c for c in ["DATA", "DISCIPLINA", "ENCARREGADO", "TURNO", "CALDEIRA", "ATIVIDADE", "DDS", "PROBLEMAS"] if c in df_rdc_filtrado.columns]
+                    df_editado_rdc = st.data_editor(
+                        df_rdc_filtrado[cols_to_show] if cols_to_show else df_rdc_filtrado,
+                        key="editor_banco_rdc",
+                        use_container_width=True
+                    )
+
+                    with st.expander("📝 Ver Transcrições Completas"):
+                        if "TRANSCRICAO" in df_rdc_filtrado.columns:
+                            for _, row in df_rdc_filtrado.iterrows():
+                                st.markdown(f"**{row.get('ENCARREGADO', '?')}** — {row.get('DATA', '?')}")
+                                st.text(str(row.get('TRANSCRICAO', '')))
+                                st.markdown("---")
+                        else:
+                            st.info("Coluna de transcrição não disponível.")
+
+                    # Action buttons
+                    b1, b2, b3 = st.columns(3)
+                    with b1:
+                        if st.button("💾 Salvar Edições", key="btn_salvar_rdc", type="primary", use_container_width=True):
+                            try:
+                                # Aplicar edições de volta no dataframe completo
+                                for col in cols_to_show:
+                                    if col in df_editado_rdc.columns:
+                                        df_rdc_filtrado[col] = df_editado_rdc[col].values
+                                df_rdc_banco.update(df_rdc_filtrado)
+                                df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
+                                st.success("✅ Registros atualizados!")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar: {e}")
+                    with b2:
+                        try:
+                            buffer_rdc_xls = io.BytesIO()
+                            with pd.ExcelWriter(buffer_rdc_xls, engine='openpyxl') as writer:
+                                df_rdc_filtrado.to_excel(writer, index=False, sheet_name='RDCs')
+                            st.download_button(
+                                label="⬇️ Excel",
+                                data=buffer_rdc_xls.getvalue(),
+                                file_name="Banco_RDC_Filtrado.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="btn_export_rdc_xls",
+                                use_container_width=True
+                            )
+                        except Exception as e:
+                            st.error(f"Erro ao gerar Excel: {e}")
+                    with b3:
+                        csv_rdc = df_rdc_filtrado.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="⬇️ CSV",
+                            data=csv_rdc,
+                            file_name="Banco_RDC_Filtrado.csv",
+                            mime="text/csv",
+                            key="btn_export_rdc_csv",
+                            use_container_width=True
+                        )
+
+                    with st.expander("🗑️ Excluir Registros"):
+                        st.warning("⚠️ Atenção: Esta ação é irreversível.")
+                        id_delete = st.number_input("Índice do registro para excluir:", min_value=0, max_value=max(0, len(df_rdc_banco)-1), step=1, key="rdc_id_delete")
+                        if st.button("🗑️ Confirmar Exclusão", type="primary", key="btn_delete_rdc"):
+                            try:
+                                df_rdc_banco = df_rdc_banco.drop(index=id_delete).reset_index(drop=True)
+                                df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
+                                st.success(f"✅ Registro {id_delete} excluído com sucesso!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao excluir: {e}")
+                else:
+                    st.info("📭 Banco de RDCs vazio. Processe alguns RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para popular esta tabela.")
+            else:
+                st.info("📭 Nenhum RDC salvo ainda. Processe RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para começar a guardar.")
+        except Exception as e:
+            st.error(f"Erro ao carregar banco de RDCs: {e}")
+
+    # ==============================================================
+    # ABA 12: ADMIN
+    # ==============================================================
+    with tab_admin:
+        st.markdown("### ⚙️ Painel Administrativo")
+        st.markdown("Controle central do banco de dados e configurações do sistema.")
+
+        try:
+            # Database Status Table
+            st.markdown("#### 📦 Status do Banco de Dados")
+            tabelas_info = []
+            arquivos_banco = {
+                "Colaboradores (PDE)": caminho_base_salva_csv,
+                "Escala Diária": caminho_escala_csv,
+                "Registros RDC": caminho_rdc_registros_csv,
+                "Histórico F1": caminho_historico_f1_csv,
+                "Histórico C.C": caminho_hist_cc,
+                "Exceções F1": os.path.join(pasta_base, "f1_excecoes.csv")
+            }
+
+            for nome_tabela, caminho_tabela in arquivos_banco.items():
+                if os.path.exists(caminho_tabela):
+                    tamanho = os.path.getsize(caminho_tabela) / 1024
+                    modificado = datetime.datetime.fromtimestamp(os.path.getmtime(caminho_tabela)).strftime('%d/%m/%Y %H:%M')
+                    try:
+                        linhas = len(pd.read_csv(caminho_tabela))
+                    except:
+                        linhas = 0
+                    status_tb = "✅ Ativo"
+                else:
+                    tamanho = 0
+                    modificado = "-"
+                    linhas = 0
+                    status_tb = "❌ Não encontrado"
+
+                tabelas_info.append({
+                    "Tabela": nome_tabela,
+                    "Status": status_tb,
+                    "Registros": linhas,
+                    "Tamanho (KB)": round(tamanho, 1),
+                    "Última Atualização": modificado
+                })
+
+            df_status = pd.DataFrame(tabelas_info)
+            st.dataframe(df_status, use_container_width=True, hide_index=True)
+
+            # Action Buttons
+            st.markdown("#### 🔧 Ações")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                try:
+                    buffer_backup = io.BytesIO()
+                    with pd.ExcelWriter(buffer_backup, engine='openpyxl') as writer:
+                        for item in tabelas_info:
+                            caminho_item = arquivos_banco[item["Tabela"]]
+                            if os.path.exists(caminho_item):
+                                try:
+                                    df_temp = pd.read_csv(caminho_item)
+                                    sheet_name = item["Tabela"][:31]
+                                    df_temp.to_excel(writer, index=False, sheet_name=sheet_name)
+                                except:
+                                    pass
+
+                    st.download_button(
+                        label="📥 Backup Geral (Excel)",
+                        data=buffer_backup.getvalue(),
+                        file_name=f"Backup_Geral_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="btn_backup_geral",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"Erro ao gerar backup: {e}")
+
+            with c2:
+                if st.button("🔄 Sincronizar Google Sheets", key="btn_sync_admin", use_container_width=True):
+                    try:
+                        if conn:
+                            conn.update(worksheet="Página1", data=df_atual)
+                            if st.session_state.get('df_historico_f1') is not None:
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                            st.success("✅ Sincronização com Google Sheets concluída!")
+                        else:
+                            st.warning("Conexão com Google Sheets não disponível.")
+                    except Exception as e:
+                        st.error(f"Erro ao sincronizar: {e}")
+
+            with c3:
+                with st.popover("🗑️ Limpar Tabela"):
+                    st.warning("⚠️ Cuidado! Isso apagará todos os dados da tabela selecionada.")
+                    tabela_limpar = st.selectbox("Selecione a tabela:", options=list(arquivos_banco.keys()), key="admin_tabela_limpar")
+                    confirmacao = st.text_input("Digite 'CONFIRMAR' para prosseguir:", key="admin_confirmacao")
+                    if st.button("🗑️ Apagar Tabela", type="primary", key="btn_apagar_tabela"):
+                        if confirmacao == "CONFIRMAR":
+                            caminho_apagar = arquivos_banco[tabela_limpar]
+                            if os.path.exists(caminho_apagar):
+                                try:
+                                    df_empty = pd.read_csv(caminho_apagar).head(0)
+                                    df_empty.to_csv(caminho_apagar, index=False)
+                                    st.success(f"✅ Tabela '{tabela_limpar}' limpa com sucesso!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao limpar: {e}")
+                            else:
+                                st.error("Arquivo não encontrado.")
+                        else:
+                            st.error("Confirmação incorreta. Digite exatamente 'CONFIRMAR'.")
+
+            # Encarregados Manager
+            with st.expander("👥 Gerenciar Encarregados (Lista Oficial)"):
+                if "ENCARREGADO" in df_atual.columns:
+                    encarregados_ativos = sorted(df_atual["ENCARREGADO"].dropna().unique().tolist())
+                    df_enc = pd.DataFrame({"Nome do Encarregado": encarregados_ativos, "Efetivo": [len(df_atual[df_atual["ENCARREGADO"] == e]) for e in encarregados_ativos]})
+                    st.dataframe(df_enc, use_container_width=True, hide_index=True)
+                    st.caption(f"Total: {len(encarregados_ativos)} encarregados ativos")
+                else:
+                    st.info("Coluna 'ENCARREGADO' não encontrada na base atual.")
+
+            # Activity Logs
+            st.markdown("#### 🕒 Atividade Recente")
+            logs_ordenados = sorted(tabelas_info, key=lambda x: x["Última Atualização"], reverse=True)
+            for item in logs_ordenados:
+                if item["Última Atualização"] != "-":
+                    st.markdown(f"• **{item['Tabela']}** — {item['Registros']} registros — atualizada em {item['Última Atualização']}")
+
+        except Exception as e:
+            st.error(f"Erro no painel administrativo: {e}")
 
 
 else:
