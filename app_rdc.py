@@ -767,6 +767,312 @@ st.markdown(f"""
         50% {{ transform: translateY(-3px); opacity: 1; }}
         100% {{ transform: translateY(0px); opacity: 0.7; }}
     }}
+    
+    /* ================================================ */
+    /* 📱 DESIGN MOBILE - EXPERIÊNCIA DE APP            */
+    /* ================================================ */
+    
+    /* === TABLETS (até 1024px) === */
+    @media screen and (max-width: 1024px) {{
+        .block-container {{
+            max-width: 100% !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }}
+        
+        /* Sidebar vira overlay em tablet */
+        [data-testid="stSidebar"] {{
+            width: 280px !important;
+            min-width: 280px !important;
+        }}
+    }}
+    
+    /* === CELULARES (até 768px) === */
+    @media screen and (max-width: 768px) {{
+        
+        /* --- Layout Geral --- */
+        .block-container {{
+            max-width: 100% !important;
+            padding: 0.5rem 0.75rem !important;
+            padding-top: 0.5rem !important;
+        }}
+        
+        .stApp {{
+            margin-top: -30px !important;
+        }}
+        
+        /* --- Esconder Sidebar por padrão no celular --- */
+        [data-testid="stSidebar"] {{
+            width: 260px !important;
+            min-width: 260px !important;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease !important;
+            z-index: 999 !important;
+        }}
+        [data-testid="stSidebar"][aria-expanded="true"] {{
+            transform: translateX(0) !important;
+        }}
+        
+        /* --- Cabeçalho Compacto --- */
+        .enesa-header {{
+            padding: 18px 14px !important;
+            margin-top: -15px !important;
+            margin-bottom: 16px !important;
+            border-radius: 12px !important;
+        }}
+        .enesa-header h1 {{
+            font-size: 1.3rem !important;
+        }}
+        .enesa-header p {{
+            font-size: 0.8rem !important;
+        }}
+        
+        /* --- Tipografia Mobile --- */
+        h1 {{
+            font-size: 1.4rem !important;
+        }}
+        h2 {{
+            font-size: 1.2rem !important;
+        }}
+        h3 {{
+            font-size: 1.05rem !important;
+        }}
+        p, span, label, div {{
+            font-size: 0.9rem !important;
+        }}
+        
+        /* --- Tabs: Scroll Horizontal (Swipe) --- */
+        .stTabs [data-baseweb="tab-list"] {{
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            flex-wrap: nowrap !important;
+            -webkit-overflow-scrolling: touch !important;
+            scroll-snap-type: x mandatory !important;
+            gap: 4px !important;
+            padding: 4px !important;
+            border-radius: 10px !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+        }}
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {{
+            display: none !important;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            flex-shrink: 0 !important;
+            scroll-snap-align: start !important;
+            padding: 8px 14px !important;
+            font-size: 0.78rem !important;
+            min-width: max-content !important;
+            white-space: nowrap !important;
+        }}
+        
+        /* --- Botões Grandes e Touch-Friendly --- */
+        .stButton button {{
+            min-height: 52px !important;
+            font-size: 0.95rem !important;
+            border-radius: 12px !important;
+            padding: 14px 20px !important;
+            width: 100% !important;
+            touch-action: manipulation !important;
+            -webkit-tap-highlight-color: transparent !important;
+        }}
+        .stButton button:active {{
+            transform: scale(0.97) !important;
+            transition: transform 0.1s ease !important;
+        }}
+        
+        /* --- Download Buttons --- */
+        .stDownloadButton button {{
+            min-height: 52px !important;
+            font-size: 0.95rem !important;
+            border-radius: 12px !important;
+            padding: 14px 20px !important;
+            width: 100% !important;
+        }}
+        
+        /* --- Inputs Maiores (Dedo-Friendly) --- */
+        .stTextInput input {{
+            min-height: 48px !important;
+            font-size: 16px !important;
+            border-radius: 10px !important;
+            padding: 12px 14px !important;
+        }}
+        .stSelectbox > div > div {{
+            min-height: 48px !important;
+            font-size: 16px !important;
+        }}
+        .stTextArea textarea {{
+            font-size: 16px !important;
+            min-height: 100px !important;
+        }}
+        .stDateInput input {{
+            min-height: 48px !important;
+            font-size: 16px !important;
+        }}
+        .stNumberInput input {{
+            min-height: 48px !important;
+            font-size: 16px !important;
+        }}
+        
+        /* --- Métricas: Cards Compactos --- */
+        [data-testid="stMetric"] {{
+            padding: 12px 14px !important;
+            border-radius: 12px !important;
+        }}
+        [data-testid="stMetricValue"] {{
+            font-size: 1.6rem !important;
+        }}
+        [data-testid="stMetricLabel"] {{
+            font-size: 0.75rem !important;
+        }}
+        
+        /* --- Colunas: Empilhar Verticalmente --- */
+        [data-testid="stHorizontalBlock"] {{
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+        }}
+        [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"] {{
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }}
+        
+        /* --- Tabelas: Scroll Horizontal --- */
+        .stDataFrame {{
+            border-radius: 10px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }}
+        [data-testid="stDataFrame"] table thead th {{
+            font-size: 0.65rem !important;
+            padding: 6px 8px !important;
+        }}
+        [data-testid="stDataFrame"] table tbody td {{
+            font-size: 0.75rem !important;
+            padding: 6px 8px !important;
+        }}
+        
+        /* --- Expanders Touch-Friendly --- */
+        [data-testid="stExpander"] {{
+            border-radius: 10px !important;
+        }}
+        [data-testid="stExpander"] summary {{
+            min-height: 48px !important;
+            padding: 12px 16px !important;
+            font-size: 0.9rem !important;
+            display: flex !important;
+            align-items: center !important;
+        }}
+        
+        /* --- File Uploader Maior --- */
+        [data-testid="stFileUploader"] {{
+            border-radius: 12px !important;
+            padding: 16px !important;
+        }}
+        [data-testid="stFileUploaderDropzone"] {{
+            min-height: 80px !important;
+        }}
+        
+        /* --- Alerts Compactos --- */
+        [data-testid="stAlert"] {{
+            border-radius: 10px !important;
+            padding: 12px !important;
+            font-size: 0.85rem !important;
+        }}
+        
+        /* --- Forms dentro de Expanders --- */
+        .stForm {{
+            padding: 8px !important;
+        }}
+        
+        /* --- Popover Mobile --- */
+        [data-testid="stPopover"] {{
+            width: 90vw !important;
+            max-width: 90vw !important;
+        }}
+        
+        /* --- Watermark menor no mobile --- */
+        .watermark-edson {{
+            font-size: 8px !important;
+            bottom: 4px !important;
+            right: 4px !important;
+        }}
+        
+        /* --- Toast/Notificações no mobile --- */
+        [data-testid="stToast"] {{
+            bottom: 70px !important;
+            right: 10px !important;
+            left: 10px !important;
+            max-width: calc(100vw - 20px) !important;
+        }}
+        
+        /* --- Scrollbar elegante no mobile --- */
+        * {{
+            scrollbar-width: thin !important;
+            scrollbar-color: rgba(14, 165, 233, 0.3) transparent !important;
+        }}
+        *::-webkit-scrollbar {{
+            width: 4px !important;
+            height: 4px !important;
+        }}
+        *::-webkit-scrollbar-thumb {{
+            background: rgba(14, 165, 233, 0.4) !important;
+            border-radius: 4px !important;
+        }}
+        *::-webkit-scrollbar-track {{
+            background: transparent !important;
+        }}
+    }}
+    
+    /* === CELULARES PEQUENOS (até 480px) === */
+    @media screen and (max-width: 480px) {{
+        .block-container {{
+            padding: 0.3rem 0.5rem !important;
+        }}
+        
+        .enesa-header {{
+            padding: 14px 10px !important;
+            margin-bottom: 12px !important;
+        }}
+        .enesa-header h1 {{
+            font-size: 1.1rem !important;
+        }}
+        
+        h1 {{
+            font-size: 1.2rem !important;
+        }}
+        h2 {{
+            font-size: 1.05rem !important;
+        }}
+        h3 {{
+            font-size: 0.95rem !important;
+        }}
+        
+        [data-testid="stMetricValue"] {{
+            font-size: 1.3rem !important;
+        }}
+        
+        .stTabs [data-baseweb="tab"] {{
+            padding: 6px 10px !important;
+            font-size: 0.72rem !important;
+        }}
+        
+        .stButton button {{
+            min-height: 48px !important;
+            font-size: 0.88rem !important;
+            padding: 12px 16px !important;
+        }}
+    }}
+    
+    /* === MODO PAISAGEM NO CELULAR === */
+    @media screen and (max-height: 500px) and (orientation: landscape) {{
+        .block-container {{
+            padding-top: 0.3rem !important;
+        }}
+        .enesa-header {{
+            padding: 10px !important;
+            margin-bottom: 8px !important;
+        }}
+    }}
     </style>
     
     <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
