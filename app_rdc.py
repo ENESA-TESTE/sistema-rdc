@@ -1073,6 +1073,351 @@ st.markdown(f"""
             margin-bottom: 8px !important;
         }}
     }}
+    
+    /* ================================================ */
+    /* 🌊 GLASSMORPHISM EXTREMO - VIDRO FOSCO PREMIUM   */
+    /* ================================================ */
+    
+    /* Cards de Métrica com Vidro Profundo */
+    [data-testid="stMetric"] {{
+        background: rgba(15, 23, 42, 0.35) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 
+            0 8px 32px rgba(0, 0, 0, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    }}
+    
+    /* Tabs com Vidro */
+    .stTabs [data-baseweb="tab-list"] {{
+        background: rgba(15, 23, 42, 0.3) !important;
+        backdrop-filter: blur(16px) saturate(160%) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    }}
+    
+    /* Expanders com Vidro */
+    [data-testid="stExpander"] {{
+        background: rgba(15, 23, 42, 0.3) !important;
+        backdrop-filter: blur(16px) saturate(150%) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    }}
+    
+    /* Alerts com Vidro */
+    [data-testid="stAlert"] {{
+        background: rgba(15, 23, 42, 0.35) !important;
+        backdrop-filter: blur(16px) saturate(150%) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    }}
+    
+    /* Inputs com Vidro */
+    .stTextInput input, .stSelectbox > div > div, .stTextArea textarea,
+    .stDateInput input, .stNumberInput input {{
+        background: rgba(15, 23, 42, 0.35) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    }}
+    .stTextInput input:focus, .stSelectbox > div > div:focus-within, .stTextArea textarea:focus {{
+        border-color: rgba(14, 165, 233, 0.5) !important;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15), 0 0 20px rgba(14, 165, 233, 0.1) !important;
+    }}
+    
+    /* DataFrames com Vidro */
+    .stDataFrame {{
+        background: rgba(15, 23, 42, 0.25) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+    }}
+    
+    /* Sidebar com Vidro Profundo */
+    [data-testid="stSidebar"] {{
+        background: rgba(10, 15, 30, 0.6) !important;
+        backdrop-filter: blur(24px) saturate(200%) !important;
+        -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+        border-right: 1px solid rgba(14, 165, 233, 0.15) !important;
+        box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3), inset -1px 0 0 rgba(255, 255, 255, 0.04) !important;
+    }}
+    
+    /* File Uploader com Vidro */
+    [data-testid="stFileUploader"] {{
+        background: rgba(15, 23, 42, 0.3) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px dashed rgba(14, 165, 233, 0.35) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+    }}
+    
+    /* Botões com Vidro e Brilho */
+    div.stButton > button[data-baseweb="button"] {{
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(14, 165, 233, 0.85) 100%) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    }}
+    div.stButton > button[data-baseweb="button"]:hover {{
+        box-shadow: 0 8px 30px rgba(14, 165, 233, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 40px rgba(14, 165, 233, 0.15) !important;
+    }}
+    
+    /* ================================================ */
+    /* ✨ MICRO-ANIMAÇÕES E TRANSIÇÕES SUAVES           */
+    /* ================================================ */
+    
+    /* Fade-Up: Elementos aparecem flutuando */
+    @keyframes fadeUpIn {{
+        from {{
+            opacity: 0;
+            transform: translateY(20px);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateY(0);
+        }}
+    }}
+    
+    @keyframes fadeUpInDelayed {{
+        0% {{
+            opacity: 0;
+            transform: translateY(25px);
+        }}
+        30% {{
+            opacity: 0;
+            transform: translateY(25px);
+        }}
+        100% {{
+            opacity: 1;
+            transform: translateY(0);
+        }}
+    }}
+    
+    /* Pulse Glow para botões */
+    @keyframes pulseGlow {{
+        0% {{
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
+        }}
+        50% {{
+            box-shadow: 0 4px 25px rgba(14, 165, 233, 0.45), 0 0 40px rgba(14, 165, 233, 0.1);
+        }}
+        100% {{
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
+        }}
+    }}
+    
+    @keyframes shimmer {{
+        0% {{
+            background-position: -200% 0;
+        }}
+        100% {{
+            background-position: 200% 0;
+        }}
+    }}
+    
+    /* Aplicar fade-up nos blocos */
+    .block-container {{
+        animation: fadeUpIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }}
+    
+    /* Métricas aparecem com delay escalonado */
+    [data-testid="stMetric"] {{
+        animation: fadeUpIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }}
+    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(1) [data-testid="stMetric"] {{
+        animation-delay: 0.05s !important;
+    }}
+    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(2) [data-testid="stMetric"] {{
+        animation-delay: 0.12s !important;
+    }}
+    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(3) [data-testid="stMetric"] {{
+        animation-delay: 0.19s !important;
+    }}
+    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(4) [data-testid="stMetric"] {{
+        animation-delay: 0.26s !important;
+    }}
+    
+    /* Botão Principal com pulso neon suave */
+    div.stButton > button[kind="primary"],
+    div.stButton > button[data-baseweb="button"] {{
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }}
+    div.stButton > button[kind="primary"]:hover,
+    div.stButton > button[data-baseweb="button"]:hover {{
+        animation: pulseGlow 2s ease-in-out infinite !important;
+        transform: translateY(-2px) scale(1.02) !important;
+    }}
+    div.stButton > button[data-baseweb="button"]:active {{
+        transform: translateY(1px) scale(0.97) !important;
+        transition: transform 0.1s ease !important;
+    }}
+    
+    /* Tabs com transição suave */
+    .stTabs [data-baseweb="tab"] {{
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }}
+    .stTabs [aria-selected="true"] {{
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        box-shadow: 0 4px 20px rgba(14, 165, 233, 0.35), 0 0 30px rgba(14, 165, 233, 0.1) !important;
+    }}
+    
+    /* Expanders com transição suave */
+    [data-testid="stExpander"] {{
+        transition: all 0.3s ease !important;
+    }}
+    [data-testid="stExpander"]:hover {{
+        transform: translateY(-1px) !important;
+        border-color: rgba(14, 165, 233, 0.25) !important;
+        box-shadow: 0 8px 25px rgba(14, 165, 233, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    }}
+    
+    /* DataFrames com hover suave */
+    .stDataFrame {{
+        transition: all 0.3s ease !important;
+    }}
+    .stDataFrame:hover {{
+        transform: translateY(-2px) !important;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25), 0 0 30px rgba(14, 165, 233, 0.08) !important;
+        border-color: rgba(14, 165, 233, 0.3) !important;
+    }}
+    
+    /* Inputs com transição de foco suave */
+    .stTextInput input, .stSelectbox > div > div, .stTextArea textarea {{
+        transition: all 0.3s ease !important;
+    }}
+    .stTextInput input:focus, .stTextArea textarea:focus {{
+        transform: scale(1.005) !important;
+    }}
+    
+    /* File Uploader com animação */
+    [data-testid="stFileUploader"] {{
+        transition: all 0.3s ease !important;
+    }}
+    [data-testid="stFileUploader"]:hover {{
+        border-color: rgba(14, 165, 233, 0.6) !important;
+        background: rgba(14, 165, 233, 0.05) !important;
+        box-shadow: 0 0 25px rgba(14, 165, 233, 0.1) !important;
+        transform: translateY(-1px) !important;
+    }}
+    
+    /* Alerts com entrada suave */
+    [data-testid="stAlert"] {{
+        animation: fadeUpIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }}
+    
+    /* Shimmer decorativo no cabeçalho */
+    .enesa-header {{
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }}
+    .enesa-header::after {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -200%;
+        width: 200%;
+        height: 100%;
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(14, 165, 233, 0.04),
+            rgba(255, 255, 255, 0.06),
+            rgba(14, 165, 233, 0.04),
+            transparent
+        );
+        background-size: 200% 100%;
+        animation: shimmer 8s linear infinite;
+        pointer-events: none;
+    }}
+    .enesa-header:hover {{
+        transform: translateY(-3px) !important;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 0 30px rgba(14, 165, 233, 0.08) !important;
+    }}
+    
+    /* ================================================ */
+    /* 📱 BARRA DE NAVEGAÇÃO INFERIOR (MOBILE ONLY)     */
+    /* ================================================ */
+    @media screen and (max-width: 768px) {{
+        
+        /* Reposicionar as tabs principais para o rodapé */
+        .stTabs [data-baseweb="tab-list"] {{
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 998 !important;
+            border-radius: 20px 20px 0 0 !important;
+            background: rgba(10, 15, 30, 0.85) !important;
+            backdrop-filter: blur(24px) saturate(200%) !important;
+            -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+            border: none !important;
+            border-top: 1px solid rgba(14, 165, 233, 0.2) !important;
+            box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.4), 0 -1px 0 rgba(255, 255, 255, 0.05) !important;
+            padding: 6px 8px 10px 8px !important;
+            gap: 2px !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            flex-wrap: nowrap !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+        }}
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {{
+            display: none !important;
+        }}
+        
+        /* Abas do rodapé com estilo de ícone */
+        .stTabs [data-baseweb="tab"] {{
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 6px 10px !important;
+            font-size: 0.65rem !important;
+            min-width: 60px !important;
+            min-height: 50px !important;
+            border-radius: 12px !important;
+            gap: 2px !important;
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+            line-height: 1.1 !important;
+        }}
+        
+        /* Tab ativa com brilho neon */
+        .stTabs [aria-selected="true"] {{
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(59, 130, 246, 0.2)) !important;
+            color: #0ea5e9 !important;
+            border: 1px solid rgba(14, 165, 233, 0.3) !important;
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+        }}
+        
+        /* Espaço extra no final da página para não ficar escondido pela barra */
+        .block-container {{
+            padding-bottom: 85px !important;
+        }}
+        
+        /* Indicador de brilho na barra inferior */
+        .stTabs [data-baseweb="tab-list"]::before {{
+            content: '' !important;
+            position: absolute !important;
+            top: -1px !important;
+            left: 10% !important;
+            right: 10% !important;
+            height: 2px !important;
+            background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.5), transparent) !important;
+            border-radius: 2px !important;
+            z-index: 1 !important;
+            animation: none !important;
+        }}
+    }}
     </style>
     
     <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
