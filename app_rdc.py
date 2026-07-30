@@ -2092,7 +2092,7 @@ if st.session_state.df is not None:
         with open(caminho_f1_json, "w", encoding="utf-8") as f:
             json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
     
-    lista_completa_encarregados = sorted([e.upper() for e in encarregados_f1_oficial])
+    lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
     
     # Carregar exceções (Abonos)
     if "df_f1_excecoes" not in st.session_state:
