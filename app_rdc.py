@@ -4266,6 +4266,23 @@ if st.session_state.df is not None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
+        # --- BOTÃO PUXAR DA NUVEM ---
+        if st.button("☁️ Puxar Histórico F1 da Nuvem", key="btn_puxar_f1_nuvem", use_container_width=True):
+            try:
+                if conn:
+                    df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
+                    df_nuvem = df_nuvem.dropna(how='all')
+                    if not df_nuvem.empty:
+                        st.session_state.df_historico_f1 = df_nuvem
+                        df_nuvem.to_csv(caminho_historico_f1_csv, index=False)
+                        st.success(f"✅ Histórico F1 atualizado da nuvem! ({len(df_nuvem)} registros)")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ A aba Historico_F1 na nuvem está vazia.")
+                else:
+                    st.error("❌ Sem conexão com o Google Sheets.")
+            except Exception as e:
+                st.error(f"❌ Erro ao puxar da nuvem: {e}")
         # ------------------------
         st.markdown("---")
         st.markdown("#### 🏆 Pódio do Mês (Top Melhores Entregas)")
