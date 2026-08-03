@@ -15,3 +15,5 @@ qrcode[pil]
 
 openai
 PyMuPDF
+
+supabase
