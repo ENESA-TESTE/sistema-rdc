@@ -1914,21 +1914,43 @@ def salvar_base_localmente(arquivo_upload):
     try:
         nome = arquivo_upload.name
         arquivo_upload.seek(0)
-        conteudo = arquivo_upload.read()
-        arquivo_upload.seek(0)
         
         if nome.endswith(".xlsx") or nome.endswith(".xls"):
-            with open(caminho_base_salva_xlsx, "wb") as f:
-                f.write(conteudo)
-            if os.path.exists(caminho_base_salva_csv):
-                os.remove(caminho_base_salva_csv)
+            df_up = pd.read_excel(arquivo_upload)
         else:
-            with open(caminho_base_salva_csv, "wb") as f:
-                f.write(conteudo)
-            if os.path.exists(caminho_base_salva_xlsx):
-                os.remove(caminho_base_salva_xlsx)
+            df_up = pd.read_csv(arquivo_upload)
+            
+        df_up = df_up.dropna(how='all')
+        
+        registros = []
+        for index, row in df_up.iterrows():
+            nome_func = str(row.get('NOME', row.get('FUNCIONARIO', row.get('COLABORADOR', ''))))
+            if not nome_func or nome_func == 'nan':
+                keys = list(row.keys())
+                if len(keys) >= 6:
+                    nome_func = str(row.iloc[1])
+            
+            if nome_func and nome_func != 'nan':
+                keys = list(row.keys())
+                registros.append({
+                    'matricula': str(row.get('MATRICULA', row.iloc[0] if len(keys)>=6 else '')),
+                    'nome': nome_func,
+                    'funcao': str(row.get('FUNCAO', row.iloc[2] if len(keys)>=6 else '')),
+                    'disciplina': str(row.get('DISCIPLINA', row.get('C.C', row.iloc[3] if len(keys)>=6 else ''))),
+                    'status': str(row.get('STATUS', row.iloc[4] if len(keys)>=6 else '')),
+                    'situacao': str(row.get('SITUACAO', row.get('SITUAÇÃO', row.iloc[5] if len(keys)>=6 else '')))
+                })
+        
+        # Limpar tabela e inserir novos do arquivo
+        supabase.table("funcionarios").delete().neq("id", -1).execute()
+        
+        batch_size = 500
+        for i in range(0, len(registros), batch_size):
+            supabase.table("funcionarios").insert(registros[i:i+batch_size]).execute()
+            
         return True
-    except Exception:
+    except Exception as e:
+        st.error(f"Erro ao processar arquivo para o Banco: {e}")
         return False
 
 def preparar_dataframe(df):
