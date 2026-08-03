@@ -121,13 +121,6 @@ def t(texto):
     return texto
 
 from streamlit_gsheets import GSheetsConnection
-from supabase import create_client, Client
-import json
-
-# Setup Supabase client
-supabase_url = st.secrets["supabase"]["url"]
-supabase_key = st.secrets["supabase"]["key"]
-supabase: Client = create_client(supabase_url, supabase_key)
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 # Força a criação do arquivo de tema Escuro automaticamente
@@ -1914,43 +1907,21 @@ def salvar_base_localmente(arquivo_upload):
     try:
         nome = arquivo_upload.name
         arquivo_upload.seek(0)
+        conteudo = arquivo_upload.read()
+        arquivo_upload.seek(0)
         
         if nome.endswith(".xlsx") or nome.endswith(".xls"):
-            df_up = pd.read_excel(arquivo_upload)
+            with open(caminho_base_salva_xlsx, "wb") as f:
+                f.write(conteudo)
+            if os.path.exists(caminho_base_salva_csv):
+                os.remove(caminho_base_salva_csv)
         else:
-            df_up = pd.read_csv(arquivo_upload)
-            
-        df_up = df_up.dropna(how='all')
-        
-        registros = []
-        for index, row in df_up.iterrows():
-            nome_func = str(row.get('NOME', row.get('FUNCIONARIO', row.get('COLABORADOR', ''))))
-            if not nome_func or nome_func == 'nan':
-                keys = list(row.keys())
-                if len(keys) >= 6:
-                    nome_func = str(row.iloc[1])
-            
-            if nome_func and nome_func != 'nan':
-                keys = list(row.keys())
-                registros.append({
-                    'matricula': str(row.get('MATRICULA', row.iloc[0] if len(keys)>=6 else '')),
-                    'nome': nome_func,
-                    'funcao': str(row.get('FUNCAO', row.iloc[2] if len(keys)>=6 else '')),
-                    'disciplina': str(row.get('DISCIPLINA', row.get('C.C', row.iloc[3] if len(keys)>=6 else ''))),
-                    'status': str(row.get('STATUS', row.iloc[4] if len(keys)>=6 else '')),
-                    'situacao': str(row.get('SITUACAO', row.get('SITUAÇÃO', row.iloc[5] if len(keys)>=6 else '')))
-                })
-        
-        # Limpar tabela e inserir novos do arquivo
-        supabase.table("funcionarios").delete().neq("id", -1).execute()
-        
-        batch_size = 500
-        for i in range(0, len(registros), batch_size):
-            supabase.table("funcionarios").insert(registros[i:i+batch_size]).execute()
-            
+            with open(caminho_base_salva_csv, "wb") as f:
+                f.write(conteudo)
+            if os.path.exists(caminho_base_salva_xlsx):
+                os.remove(caminho_base_salva_xlsx)
         return True
-    except Exception as e:
-        st.error(f"Erro ao processar arquivo para o Banco: {e}")
+    except Exception:
         return False
 
 def preparar_dataframe(df):
@@ -2158,19 +2129,18 @@ if 'df_ia' not in st.session_state:
     st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
 if 'df_historico_f1' not in st.session_state:
     _f1_carregado = False
-    # PRIORIDADE 1: Tentar carregar da NUVEM (Supabase) para nunca perder dados
+    # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
     try:
-        response = supabase.table("historico_f1").select("*").execute()
-        if response.data:
-            _df_f1_nuvem = pd.DataFrame(response.data)
-            # Converter colunas para maiúsculo para compatibilidade
-            _df_f1_nuvem.columns = [c.upper() for c in _df_f1_nuvem.columns]
+        _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
+        _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=0)
+        _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
+        if not _df_f1_nuvem.empty:
             st.session_state.df_historico_f1 = _df_f1_nuvem
             # Salvar cópia local como backup
             _df_f1_nuvem.to_csv(caminho_historico_f1_csv, index=False)
             _f1_carregado = True
-    except Exception as e:
-        st.sidebar.error(f"Erro ao carregar F1 do banco: {e}")
+    except Exception:
+        pass
     # PRIORIDADE 2: Se a nuvem falhou, tentar o CSV local
     if not _f1_carregado:
         if os.path.exists(caminho_historico_f1_csv):
@@ -2192,82 +2162,20 @@ import extra_streamlit_components as stx
 
 cookie_manager = stx.CookieManager()
 
+caminho_usuarios = "usuarios.json"
+import json
+if not os.path.exists(caminho_usuarios):
+    with open(caminho_usuarios, "w", encoding="utf-8") as f:
+        json.dump({"admin": {"senha": "123", "nome": "Administrador", "role": "admin"}}, f)
+
 def carregar_usuarios():
-    try:
-        response = supabase.table("usuarios").select("*").execute()
-        users_dict = {}
-        for row in response.data:
-            users_dict[row["username"]] = {
-                "senha": row["senha"],
-                "nome": row["nome"],
-                "role": row["role"]
-            }
-        return users_dict
-    except Exception as e:
-        st.error(f"Erro ao carregar usuários do Supabase: {e}")
-        return {"admin": {"senha": "123", "nome": "Administrador Local", "role": "admin"}}
+    if not os.path.exists(caminho_usuarios): return {}
+    with open(caminho_usuarios, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 def salvar_usuarios(users):
-    try:
-        for username, data in users.items():
-            supabase.table("usuarios").upsert({
-                "username": username,
-                "senha": data["senha"],
-                "nome": data["nome"],
-                "role": data["role"]
-            }, on_conflict="username").execute()
-    except Exception as e:
-        st.error(f"Erro ao salvar usuário no Supabase: {e}")
-
-def salvar_f1_supabase(df):
-    try:
-        # Pega a lista de dados
-        df_copy = df.copy()
-        if not df_copy.empty:
-            df_copy["DATA"] = df_copy["DATA"].astype(str)
-            # Para evitar erro de duplicate keys, deleta as existentes e insere as novas, ou faz upsert se ID existisse (não existe).
-            # O mais simples é deletar tudo daquela data específica e inserir de novo, mas Upsert é melhor se tivermos as chaves, 
-            # como não temos Primary Key composta nativamente no insert do supabase sem conflito, vamos dar truncate e insert se for pequeno
-            # Ou apenas deletar tudo e inserir a df inteira. (Como é pequeno)
-            supabase.table("historico_f1").delete().neq("id", -1).execute() # Deleta tudo
-            
-            # Insere em lotes
-            records = []
-            for _, row in df_copy.iterrows():
-                records.append({
-                    "data": row["DATA"],
-                    "encarregado": row["ENCARREGADO"]
-                })
-            if records:
-                # O Supabase permite inserir lista de dicionários
-                supabase.table("historico_f1").insert(records).execute()
-    except Exception as e:
-        print(f"Erro ao salvar F1 no banco: {e}")
-
-def salvar_rdc_supabase(dados_dict):
-    try:
-        # Mapeia as colunas do dicionário python para as colunas minúsculas do Supabase
-        registro = {
-            "item": str(dados_dict.get("ITEM", "")),
-            "sub": str(dados_dict.get("SUB", "")),
-            "data": str(dados_dict.get("DATA", "")),
-            "disciplina": str(dados_dict.get("DISCIPLINA", "")),
-            "encarregado": str(dados_dict.get("ENCARREGADO", "")),
-            "turno": str(dados_dict.get("TURNO", "")),
-            "dds": str(dados_dict.get("DDS", "")),
-            "transcricao": str(dados_dict.get("TRANSCRICAO", "")),
-            "atividade": str(dados_dict.get("ATIVIDADE", "")),
-            "sub_atividade": str(dados_dict.get("SUB_ATIVIDADE", "")),
-            "local_especifico": str(dados_dict.get("LOCAL_ESPECIFICO", "")),
-            "efetivo_atividade": int(dados_dict.get("EFETIVO_ATIVIDADE", 0)) if dados_dict.get("EFETIVO_ATIVIDADE") else 0,
-            "problemas": str(dados_dict.get("PROBLEMAS", "")),
-            "local": str(dados_dict.get("LOCAL", "")),
-            "area": str(dados_dict.get("AREA", "")),
-            "caldeira": str(dados_dict.get("CALDEIRA", ""))
-        }
-        supabase.table("rdcs").insert(registro).execute()
-    except Exception as e:
-        print(f"Erro ao salvar RDC no banco: {e}")
+    with open(caminho_usuarios, "w", encoding="utf-8") as f:
+        json.dump(users, f)
 
 if "usuario_logado" not in st.session_state:
     st.session_state.usuario_logado = None
@@ -2446,46 +2354,7 @@ with st.sidebar:
         if arquivo_modelo is not None:
             if salvar_modelo_no_disco(arquivo_modelo):
                 st.success("💾 Modelo salvo!")
-                
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🚀 Migrar PDE do Google Sheets para o Banco (1-Clique)", use_container_width=True):
-            with st.spinner("Baixando do Google Sheets e inserindo no Banco de Dados..."):
-                try:
-                    url_pde_mestre = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/export?format=csv&gid=0"
-                    df_mestre = pd.read_csv(url_pde_mestre)
-                    df_mestre = df_mestre.dropna(how='all')
-                    
-                    registros = []
-                    for index, row in df_mestre.iterrows():
-                        nome = str(row.get('NOME', row.get('FUNCIONARIO', row.get('COLABORADOR', ''))))
-                        if not nome or nome == 'nan':
-                            # tenta indices
-                            keys = list(row.keys())
-                            if len(keys) >= 6:
-                                nome = str(row.iloc[1])
-                        
-                        if nome and nome != 'nan':
-                            registros.append({
-                                'matricula': str(row.get('MATRICULA', row.iloc[0] if len(keys)>=6 else '')),
-                                'nome': nome,
-                                'funcao': str(row.get('FUNCAO', row.iloc[2] if len(keys)>=6 else '')),
-                                'disciplina': str(row.get('DISCIPLINA', row.get('C.C', row.iloc[3] if len(keys)>=6 else ''))),
-                                'status': str(row.get('STATUS', row.iloc[4] if len(keys)>=6 else '')),
-                                'situacao': str(row.get('SITUACAO', row.get('SITUAÇÃO', row.iloc[5] if len(keys)>=6 else '')))
-                            })
-                    
-                    supabase.table("funcionarios").delete().neq("id", -1).execute()
-                    
-                    # Batch insert for Supabase limits
-                    batch_size = 500
-                    for i in range(0, len(registros), batch_size):
-                        supabase.table("funcionarios").insert(registros[i:i+batch_size]).execute()
-                    
-                    st.success(f"✅ Sucesso! {len(registros)} funcionários migrados para o banco de dados. O sistema já está pronto.")
-                    time.sleep(3)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro na migração: {e}")
+
     
     st.markdown("---")
     
@@ -2743,19 +2612,34 @@ if arquivo_pde is not None:
 elif st.session_state.df is None:
     carregado_nuvem = False
     
-    # 1. LER DO SUPABASE
+    # 1. LER DA NOVA PLANILHA MESTRE DO GOOGLE SHEETS
     if not st.session_state.get('force_use_local', False):
+        url_pde_mestre = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/export?format=csv&gid=0"
         try:
-            response = supabase.table("funcionarios").select("*").execute()
-            if response.data:
-                df_mestre = pd.DataFrame(response.data)
-                # Converter nomes de colunas para maiúsculas para manter compatibilidade com o resto do código
-                df_mestre.columns = [c.upper() for c in df_mestre.columns]
+            df_mestre = pd.read_csv(url_pde_mestre)
+            df_mestre = df_mestre.dropna(how='all')
+            if not df_mestre.empty:
                 st.session_state.df = preparar_dataframe(df_mestre)
                 carregado_nuvem = True
-                st.toast(f"PDE carregado do Banco de Dados! {len(df_mestre)} funcionários.", icon="☁️")
+                st.toast(f"PDE Mestre carregado! {len(df_mestre)} funcionários.", icon="☁️")
+                
+                # Backup invisível para a Página1 antiga (caso a mestre caia no futuro)
+                if conn:
+                    try: conn.update(worksheet="PDE", data=df_mestre)
+                    except: pass
         except Exception as e:
-            st.sidebar.warning(f"⚠️ Erro ao ler Banco de Dados: {e}")
+            st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre: {e}")
+            
+        # 2. FAILSAFE: Se a mestre falhar, tenta ler o backup antigo
+        if not carregado_nuvem and conn:
+            try:
+                df_gsheets = conn.read(worksheet="PDE", ttl=5)
+                df_gsheets = df_gsheets.dropna(how='all')
+                if not df_gsheets.empty:
+                    st.session_state.df = preparar_dataframe(df_gsheets)
+                    carregado_nuvem = True
+            except Exception:
+                pass
             
     # Resetar a flag (dentro do elif st.session_state.df is None)
     if st.session_state.get('force_use_local', False):
@@ -3649,7 +3533,7 @@ if st.session_state.df is not None:
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                salvar_f1_supabase(df_final)
+                                conn.update(worksheet="Historico_F1", data=df_final)
                                 st.session_state.df_historico_f1 = df_final
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 st.cache_data.clear()
@@ -4167,7 +4051,7 @@ if st.session_state.df is not None:
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                salvar_f1_supabase(df_final)
+                                conn.update(worksheet="Historico_F1", data=df_final)
                                 st.session_state.df_historico_f1 = df_final
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 st.cache_data.clear()
@@ -4352,7 +4236,7 @@ if st.session_state.df is not None:
                             
                             if conn and not st.session_state.get('force_use_local', False):
                                 try:
-                                    salvar_f1_supabase(st.session_state.df_historico_f1)
+                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
                                     st.cache_data.clear()
                                 except Exception:
                                     pass
@@ -4373,7 +4257,7 @@ if st.session_state.df is not None:
                         if removidos > 0:
                             if conn and not st.session_state.get('force_use_local', False):
                                 try:
-                                    salvar_f1_supabase(st.session_state.df_historico_f1)
+                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
                                     st.cache_data.clear()
                                 except Exception:
                                     pass
@@ -4824,7 +4708,7 @@ if st.session_state.df is not None:
                                     ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                                     dados['ITEM'] = int(ultimo_item) + 1
                                     st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
-                                    salvar_rdc_supabase(dados)
+
                                 
                                 st.toast(f"✅ {nome_atual} processado com sucesso!")
                             except Exception as e:
@@ -4985,7 +4869,7 @@ if st.session_state.df is not None:
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                salvar_f1_supabase(df_final)
+                                conn.update(worksheet="Historico_F1", data=df_final)
                                 st.session_state.df_historico_f1 = df_final
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 st.cache_data.clear()
@@ -6111,7 +5995,7 @@ if st.session_state.df is not None:
                         if conn:
                             conn.update(worksheet="PDE", data=df_atual)
                             if st.session_state.get('df_historico_f1') is not None:
-                                salvar_f1_supabase(st.session_state.df_historico_f1)
+                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
                             st.success("✅ Sincronização com Google Sheets concluída!")
                         else:
                             st.warning("Conexão com Google Sheets não disponível.")
