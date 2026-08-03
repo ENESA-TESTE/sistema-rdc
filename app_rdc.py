@@ -2614,32 +2614,16 @@ elif st.session_state.df is None:
     
     # 1. LER DA NOVA PLANILHA MESTRE DO GOOGLE SHEETS
     if not st.session_state.get('force_use_local', False):
-        url_pde_mestre = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/export?format=csv&gid=0"
-        try:
-            df_mestre = pd.read_csv(url_pde_mestre)
-            df_mestre = df_mestre.dropna(how='all')
-            if not df_mestre.empty:
-                st.session_state.df = preparar_dataframe(df_mestre)
-                carregado_nuvem = True
-                st.toast(f"PDE Mestre carregado! {len(df_mestre)} funcionários.", icon="☁️")
-                
-                # Backup invisível para a Página1 antiga (caso a mestre caia no futuro)
-                if conn:
-                    try: conn.update(worksheet="PDE", data=df_mestre)
-                    except: pass
-        except Exception as e:
-            st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre: {e}")
-            
-        # 2. FAILSAFE: Se a mestre falhar, tenta ler o backup antigo
-        if not carregado_nuvem and conn:
+        if conn:
             try:
                 df_gsheets = conn.read(worksheet="PDE", ttl=5)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
                     carregado_nuvem = True
-            except Exception:
-                pass
+                    st.toast(f"PDE Mestre carregado! {len(df_gsheets)} funcionários.", icon="☁️")
+            except Exception as e:
+                st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre autenticado: {e}")
             
     # Resetar a flag (dentro do elif st.session_state.df is None)
     if st.session_state.get('force_use_local', False):
