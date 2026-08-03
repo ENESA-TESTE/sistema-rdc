@@ -2128,13 +2128,29 @@ if 'df' not in st.session_state:
 if 'df_ia' not in st.session_state:
     st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
 if 'df_historico_f1' not in st.session_state:
-    if os.path.exists(caminho_historico_f1_csv):
-        try:
-            st.session_state.df_historico_f1 = pd.read_csv(caminho_historico_f1_csv)
-            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-        except:
-            st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
-    else:
+    _f1_carregado = False
+    # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
+    try:
+        _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
+        _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=0)
+        _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
+        if not _df_f1_nuvem.empty:
+            st.session_state.df_historico_f1 = _df_f1_nuvem
+            # Salvar cópia local como backup
+            _df_f1_nuvem.to_csv(caminho_historico_f1_csv, index=False)
+            _f1_carregado = True
+    except Exception:
+        pass
+    # PRIORIDADE 2: Se a nuvem falhou, tentar o CSV local
+    if not _f1_carregado:
+        if os.path.exists(caminho_historico_f1_csv):
+            try:
+                st.session_state.df_historico_f1 = pd.read_csv(caminho_historico_f1_csv)
+                _f1_carregado = True
+            except Exception:
+                pass
+    # PRIORIDADE 3: Se nada funcionou, criar DataFrame vazio
+    if not _f1_carregado:
         st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
 if 'mostrar_upload' not in st.session_state:
     st.session_state.mostrar_upload = False
