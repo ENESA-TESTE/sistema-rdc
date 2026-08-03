@@ -2424,6 +2424,46 @@ with st.sidebar:
         if arquivo_modelo is not None:
             if salvar_modelo_no_disco(arquivo_modelo):
                 st.success("💾 Modelo salvo!")
+                
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚀 Migrar PDE do Google Sheets para o Banco (1-Clique)", use_container_width=True):
+            with st.spinner("Baixando do Google Sheets e inserindo no Banco de Dados..."):
+                try:
+                    url_pde_mestre = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/export?format=csv&gid=0"
+                    df_mestre = pd.read_csv(url_pde_mestre)
+                    df_mestre = df_mestre.dropna(how='all')
+                    
+                    registros = []
+                    for index, row in df_mestre.iterrows():
+                        nome = str(row.get('NOME', row.get('FUNCIONARIO', row.get('COLABORADOR', ''))))
+                        if not nome or nome == 'nan':
+                            # tenta indices
+                            keys = list(row.keys())
+                            if len(keys) >= 6:
+                                nome = str(row.iloc[1])
+                        
+                        if nome and nome != 'nan':
+                            registros.append({
+                                'matricula': str(row.get('MATRICULA', row.iloc[0] if len(keys)>=6 else '')),
+                                'nome': nome,
+                                'funcao': str(row.get('FUNCAO', row.iloc[2] if len(keys)>=6 else '')),
+                                'disciplina': str(row.get('DISCIPLINA', row.get('C.C', row.iloc[3] if len(keys)>=6 else ''))),
+                                'status': str(row.get('STATUS', row.iloc[4] if len(keys)>=6 else '')),
+                                'situacao': str(row.get('SITUACAO', row.get('SITUAÇÃO', row.iloc[5] if len(keys)>=6 else '')))
+                            })
+                    
+                    supabase.table("funcionarios").delete().neq("id", -1).execute()
+                    
+                    # Batch insert for Supabase limits
+                    batch_size = 500
+                    for i in range(0, len(registros), batch_size):
+                        supabase.table("funcionarios").insert(registros[i:i+batch_size]).execute()
+                    
+                    st.success(f"✅ Sucesso! {len(registros)} funcionários migrados para o banco de dados. O sistema já está pronto.")
+                    time.sleep(3)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro na migração: {e}")
     
     st.markdown("---")
     
