@@ -4515,34 +4515,78 @@ if st.session_state.df is not None:
                     for arquivo_scan in arquivos_scan:
                         nome = arquivo_scan.name
                         if nome.lower().endswith('.pdf'):
-                            doc = fitz.open(stream=arquivo_scan.getvalue(), filetype="pdf")
+                            pdf_bytes = arquivo_scan.getvalue()
+                            
+                            # Tentar abrir via stream
+                            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
                             num_pages = len(doc)
                             
+                            # FALLBACK 1: Se stream falhou, salvar no disco e abrir do disco
                             if num_pages == 0:
-                                st.warning(f"O PDF {nome} parece estar vazio ou corrompido.")
-                                continue
-                                
-                            if num_pages > 15:
+                                doc.close()
+                                tmp_raw = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+                                tmp_raw.write(pdf_bytes)
+                                tmp_raw.close()
+                                doc = fitz.open(tmp_raw.name)
+                                num_pages = len(doc)
+                                os.unlink(tmp_raw.name)
+                            
+                            # FALLBACK 2: Se ainda 0 páginas, verificar se é uma imagem renomeada para PDF (ex: TIFF)
+                            if num_pages == 0:
+                                doc.close()
+                                try:
+                                    from PIL import Image
+                                    import io
+                                    
+                                    # Tenta abrir com PIL
+                                    img = Image.open(io.BytesIO(pdf_bytes))
+                                    # Se conseguiu, é uma imagem! Vamos converter pra JPG e mandar pra IA
+                                    tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+                                    # Converte pra RGB caso seja TIFF CMYK ou RGBA
+                                    if img.mode != 'RGB':
+                                        img = img.convert('RGB')
+                                    img.save(tmp_img.name, "JPEG")
+                                    tmp_img.close()
+                                    arquivos_processar.append({'name': f"{nome} (Recuperado)", 'tmp_path': tmp_img.name})
+                                    st.info(f"⚙️ {nome}: Arquivo corrigido (era uma imagem salva como PDF).")
+                                except Exception:
+                                    # Se nem o PIL abrir, o arquivo está realmente quebrado
+                                    st.error(f"❌ O arquivo {nome} está corrompido ou o scanner falhou ao gerar o PDF (0 páginas válidas).")
+                                    continue
+                            elif num_pages > 15:
                                 chunk_size = 15
                                 for start_idx in range(0, num_pages, chunk_size):
                                     chunk_doc = fitz.open()
                                     chunk_doc.insert_pdf(doc, from_page=start_idx, to_page=min(start_idx + chunk_size - 1, num_pages - 1))
                                     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
                                     tmp.close()
-                                    # Use deflate for better compression and structure fixing
                                     chunk_doc.save(tmp.name, deflate=True)
                                     chunk_doc.close()
                                     arquivos_processar.append({'name': f"{nome} (Pág {start_idx+1}-{min(start_idx+chunk_size, num_pages)})", 'tmp_path': tmp.name})
+                                doc.close()
                             else:
-                                # ALWAYS rebuild the PDF to fix structural issues that cause Gemini "The document has no pages"
+                                # Rebuild PDF limpo
                                 chunk_doc = fitz.open()
                                 chunk_doc.insert_pdf(doc)
                                 tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
                                 tmp.close()
                                 chunk_doc.save(tmp.name, deflate=True)
                                 chunk_doc.close()
-                                arquivos_processar.append({'name': nome, 'tmp_path': tmp.name})
-                            doc.close()
+                                doc.close()
+                                
+                                # Verificar se o rebuild funcionou
+                                check = fitz.open(tmp.name)
+                                if len(check) == 0:
+                                    check.close()
+                                    os.unlink(tmp.name)
+                                    # Último recurso: enviar bytes originais
+                                    tmp2 = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+                                    tmp2.write(pdf_bytes)
+                                    tmp2.close()
+                                    arquivos_processar.append({'name': nome, 'tmp_path': tmp2.name})
+                                else:
+                                    check.close()
+                                    arquivos_processar.append({'name': nome, 'tmp_path': tmp.name})
                         else:
                             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{nome.split('.')[-1]}")
                             tmp.write(arquivo_scan.getvalue())
