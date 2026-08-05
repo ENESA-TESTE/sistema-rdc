@@ -4517,6 +4517,11 @@ if st.session_state.df is not None:
                         if nome.lower().endswith('.pdf'):
                             doc = fitz.open(stream=arquivo_scan.getvalue(), filetype="pdf")
                             num_pages = len(doc)
+                            
+                            if num_pages == 0:
+                                st.warning(f"O PDF {nome} parece estar vazio ou corrompido.")
+                                continue
+                                
                             if num_pages > 15:
                                 chunk_size = 15
                                 for start_idx in range(0, num_pages, chunk_size):
@@ -4524,13 +4529,18 @@ if st.session_state.df is not None:
                                     chunk_doc.insert_pdf(doc, from_page=start_idx, to_page=min(start_idx + chunk_size - 1, num_pages - 1))
                                     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
                                     tmp.close()
-                                    chunk_doc.save(tmp.name)
+                                    # Use deflate for better compression and structure fixing
+                                    chunk_doc.save(tmp.name, deflate=True)
                                     chunk_doc.close()
                                     arquivos_processar.append({'name': f"{nome} (Pág {start_idx+1}-{min(start_idx+chunk_size, num_pages)})", 'tmp_path': tmp.name})
                             else:
+                                # ALWAYS rebuild the PDF to fix structural issues that cause Gemini "The document has no pages"
+                                chunk_doc = fitz.open()
+                                chunk_doc.insert_pdf(doc)
                                 tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-                                tmp.write(arquivo_scan.getvalue())
                                 tmp.close()
+                                chunk_doc.save(tmp.name, deflate=True)
+                                chunk_doc.close()
                                 arquivos_processar.append({'name': nome, 'tmp_path': tmp.name})
                             doc.close()
                         else:
