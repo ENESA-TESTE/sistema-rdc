@@ -3154,7 +3154,7 @@ if st.session_state.df is not None:
         
         st.stop()  # Impede o resto da página de renderizar
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital, tab_pde, tab_banco_rdc, tab_admin = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}", f"👷 {t('Gerenciar PDE')}", f"📑 {t('Banco de RDCs')}", f"⚙️ {t('Admin')}"])
+    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital, tab_pde, tab_banco_rdc, tab_banco_dados, tab_admin = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}", f"👷 {t('Gerenciar PDE')}", f"📑 {t('Banco de RDCs')}", f"📊 {t('Banco de Dados')}", f"⚙️ {t('Admin')}"])
 
     if st.session_state.get("role_usuario") == "apontador":
         st.markdown("""
@@ -3167,7 +3167,8 @@ if st.session_state.df is not None:
             div[data-baseweb="tab-list"] button:nth-child(9),
             div[data-baseweb="tab-list"] button:nth-child(10),
             div[data-baseweb="tab-list"] button:nth-child(11),
-            div[data-baseweb="tab-list"] button:nth-child(12) {
+            div[data-baseweb="tab-list"] button:nth-child(12),
+            div[data-baseweb="tab-list"] button:nth-child(13) {
                 display: none !important;
             }
         </style>
@@ -5954,7 +5955,57 @@ if st.session_state.df is not None:
             st.error(f"Erro ao carregar banco de RDCs: {e}")
 
     # ==============================================================
-    # ABA 12: ADMIN
+    # ABA 12: BANCO DE DADOS (GOOGLE SHEETS EMBUTIDO)
+    # ==============================================================
+    with tab_banco_dados:
+        st.markdown("### 📊 Banco de Dados (Planilha ao Vivo)")
+        st.markdown("Edite a planilha diretamente aqui. As fórmulas (PROCV, etc.) funcionam normalmente!")
+        
+        # URL do Google Sheets para embed (modo de edição)
+        sheets_url = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/edit?usp=sharing&rm=minimal"
+        
+        # Botões de ação
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("🔄 Atualizar Planilha", use_container_width=True, key="btn_refresh_sheets"):
+                st.cache_data.clear()
+                st.rerun()
+        with col_btn2:
+            st.link_button("🔗 Abrir em Nova Aba", sheets_url, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Iframe com a planilha embutida
+        import streamlit.components.v1 as components
+        components.html(f"""
+            <style>
+                body {{ margin: 0; padding: 0; background: transparent; }}
+                .sheets-container {{
+                    width: 100%;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    border: 2px solid rgba(14, 165, 233, 0.3);
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+                }}
+                iframe {{
+                    width: 100%;
+                    height: 750px;
+                    border: none;
+                }}
+            </style>
+            <div class="sheets-container">
+                <iframe src="{sheets_url}" 
+                        allow="clipboard-read; clipboard-write"
+                        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox">
+                </iframe>
+            </div>
+        """, height=780)
+        
+        st.markdown("---")
+        st.info("💡 **Dica:** Depois de editar a planilha acima, clique em '🔄 Atualizar Planilha' para o sistema recarregar os dados atualizados.")
+
+    # ==============================================================
+    # ABA 13: ADMIN
     # ==============================================================
     with tab_admin:
         st.markdown("### ⚙️ Painel Administrativo")
