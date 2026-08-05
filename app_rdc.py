@@ -5959,49 +5959,61 @@ if st.session_state.df is not None:
     # ==============================================================
     with tab_banco_dados:
         st.markdown("### 📊 Banco de Dados (Planilha ao Vivo)")
-        st.markdown("Edite a planilha diretamente aqui. As fórmulas (PROCV, etc.) funcionam normalmente!")
         
-        # URL do Google Sheets para embed (modo de edição completo)
         sheets_url_edit = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/edit?usp=sharing"
         
-        # Botões de ação
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("🔄 Atualizar Dados no Site", use_container_width=True, key="btn_refresh_sheets"):
+        # Painel principal com instruções
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #1e3a5f, #0f2027); border-radius: 16px; padding: 25px; border: 1px solid rgba(14,165,233,0.3); margin-bottom: 20px;">
+            <h3 style="color: #0ea5e9; margin-top: 0;">📝 Como editar o Banco de Dados</h3>
+            <ol style="color: #94a3b8; font-size: 15px; line-height: 1.8;">
+                <li>Clique no botão <b style="color: #22c55e;">verde</b> abaixo para abrir a planilha no Google Sheets</li>
+                <li>Faça suas edições normalmente (as fórmulas PROCV funcionam!)</li>
+                <li>Volte aqui e clique em <b style="color: #0ea5e9;">"🔄 Atualizar Dados no Site"</b></li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col_open, col_refresh = st.columns(2)
+        with col_open:
+            st.link_button("📝 ABRIR PLANILHA PARA EDITAR", sheets_url_edit, use_container_width=True, type="primary")
+        with col_refresh:
+            if st.button("🔄 Atualizar Dados no Site", use_container_width=True, key="btn_refresh_sheets", type="secondary"):
                 st.session_state.df = None
                 st.cache_data.clear()
                 st.rerun()
-        with col_btn2:
-            st.link_button("🔗 Abrir Planilha em Nova Aba", sheets_url_edit, use_container_width=True)
         
         st.markdown("---")
         
-        st.warning("⚠️ **IMPORTANTE:** Após editar a planilha, clique em **'🔄 Atualizar Dados no Site'** para o sistema recarregar com os novos dados.")
-        
-        # Iframe com a planilha embutida - SEM sandbox para permitir edição completa
-        import streamlit.components.v1 as components
-        components.html(f"""
-            <style>
-                body {{ margin: 0; padding: 0; background: transparent; }}
-                .sheets-container {{
-                    width: 100%;
-                    border-radius: 12px;
-                    overflow: hidden;
-                    border: 2px solid rgba(14, 165, 233, 0.3);
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-                }}
-                iframe {{
-                    width: 100%;
-                    height: 750px;
-                    border: none;
-                }}
-            </style>
-            <div class="sheets-container">
-                <iframe src="{sheets_url_edit}"
-                        allow="clipboard-read; clipboard-write">
-                </iframe>
-            </div>
-        """, height=780)
+        # Mostrar preview dos dados atuais do PDE
+        st.markdown("#### 👁️ Visualização Atual do PDE no Sistema")
+        if st.session_state.df is not None and not st.session_state.df.empty:
+            df_preview = st.session_state.df.copy()
+            
+            col_info1, col_info2, col_info3 = st.columns(3)
+            with col_info1:
+                st.metric("👷 Total de Funcionários", len(df_preview))
+            with col_info2:
+                if 'DISCIPLINA' in df_preview.columns:
+                    st.metric("📂 Disciplinas", df_preview['DISCIPLINA'].nunique())
+                elif 'C.C' in df_preview.columns:
+                    st.metric("📂 C.C", df_preview['C.C'].nunique())
+            with col_info3:
+                if 'FUNCAO' in df_preview.columns:
+                    st.metric("🔧 Funções", df_preview['FUNCAO'].nunique())
+            
+            st.markdown("")
+            
+            # Filtro de busca
+            busca = st.text_input("🔍 Buscar por nome, matrícula ou função:", key="busca_banco_dados")
+            if busca:
+                mask = df_preview.apply(lambda row: busca.upper() in str(row.values).upper(), axis=1)
+                df_preview = df_preview[mask]
+                st.caption(f"Mostrando {len(df_preview)} resultado(s) para '{busca}'")
+            
+            st.dataframe(df_preview, use_container_width=True, height=500)
+        else:
+            st.info("ℹ️ Nenhum dado carregado. Clique em '🔄 Atualizar Dados no Site' para carregar.")
 
     # ==============================================================
     # ABA 13: ADMIN
