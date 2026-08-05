@@ -5961,21 +5961,24 @@ if st.session_state.df is not None:
         st.markdown("### 📊 Banco de Dados (Planilha ao Vivo)")
         st.markdown("Edite a planilha diretamente aqui. As fórmulas (PROCV, etc.) funcionam normalmente!")
         
-        # URL do Google Sheets para embed (modo de edição)
-        sheets_url = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/edit?usp=sharing&rm=minimal"
+        # URL do Google Sheets para embed (modo de edição completo)
+        sheets_url_edit = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/edit?usp=sharing"
         
         # Botões de ação
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("🔄 Atualizar Planilha", use_container_width=True, key="btn_refresh_sheets"):
+            if st.button("🔄 Atualizar Dados no Site", use_container_width=True, key="btn_refresh_sheets"):
+                st.session_state.df = None
                 st.cache_data.clear()
                 st.rerun()
         with col_btn2:
-            st.link_button("🔗 Abrir em Nova Aba", sheets_url, use_container_width=True)
+            st.link_button("🔗 Abrir Planilha em Nova Aba", sheets_url_edit, use_container_width=True)
         
         st.markdown("---")
         
-        # Iframe com a planilha embutida
+        st.warning("⚠️ **IMPORTANTE:** Após editar a planilha, clique em **'🔄 Atualizar Dados no Site'** para o sistema recarregar com os novos dados.")
+        
+        # Iframe com a planilha embutida - SEM sandbox para permitir edição completa
         import streamlit.components.v1 as components
         components.html(f"""
             <style>
@@ -5994,15 +5997,11 @@ if st.session_state.df is not None:
                 }}
             </style>
             <div class="sheets-container">
-                <iframe src="{sheets_url}" 
-                        allow="clipboard-read; clipboard-write"
-                        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox">
+                <iframe src="{sheets_url_edit}"
+                        allow="clipboard-read; clipboard-write">
                 </iframe>
             </div>
         """, height=780)
-        
-        st.markdown("---")
-        st.info("💡 **Dica:** Depois de editar a planilha acima, clique em '🔄 Atualizar Planilha' para o sistema recarregar os dados atualizados.")
 
     # ==============================================================
     # ABA 13: ADMIN
