@@ -2133,20 +2133,26 @@ if 'df_historico_f1' not in st.session_state:
     try:
         _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
         _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=0)
-        _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
-        if not _df_f1_nuvem.empty:
-            st.session_state.df_historico_f1 = _df_f1_nuvem
-            # Salvar cópia local como backup
-            _df_f1_nuvem.to_csv(caminho_historico_f1_csv, index=False)
-            _f1_carregado = True
-    except Exception:
-        pass
+        if _df_f1_nuvem is not None:
+            _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
+            # SÓ aceitar se tiver dados reais (pelo menos 1 linha com DATA e ENCARREGADO)
+            if not _df_f1_nuvem.empty and 'DATA' in _df_f1_nuvem.columns and 'ENCARREGADO' in _df_f1_nuvem.columns:
+                _df_f1_nuvem = _df_f1_nuvem[_df_f1_nuvem['ENCARREGADO'].notna() & (_df_f1_nuvem['ENCARREGADO'] != '')]
+                if len(_df_f1_nuvem) > 0:
+                    st.session_state.df_historico_f1 = _df_f1_nuvem
+                    # Salvar cópia local como backup
+                    _df_f1_nuvem.to_csv(caminho_historico_f1_csv, index=False)
+                    _f1_carregado = True
+    except Exception as e:
+        st.sidebar.caption(f"⚠️ F1 nuvem: {e}")
     # PRIORIDADE 2: Se a nuvem falhou, tentar o CSV local
     if not _f1_carregado:
         if os.path.exists(caminho_historico_f1_csv):
             try:
-                st.session_state.df_historico_f1 = pd.read_csv(caminho_historico_f1_csv)
-                _f1_carregado = True
+                _df_local = pd.read_csv(caminho_historico_f1_csv)
+                if not _df_local.empty and 'ENCARREGADO' in _df_local.columns:
+                    st.session_state.df_historico_f1 = _df_local
+                    _f1_carregado = True
             except Exception:
                 pass
     # PRIORIDADE 3: Se nada funcionou, criar DataFrame vazio
@@ -2167,6 +2173,7 @@ import json
 if not os.path.exists(caminho_usuarios):
     with open(caminho_usuarios, "w", encoding="utf-8") as f:
         json.dump({"admin": {"senha": "123", "nome": "Administrador", "role": "admin"}}, f)
+
 
 def carregar_usuarios():
     if not os.path.exists(caminho_usuarios): return {}
@@ -2645,17 +2652,32 @@ elif st.session_state.df is None:
                 st.session_state.df = df_carregado
 
 # =================================================================
-# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM
+# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
 # =================================================================
 if conn and not st.session_state.get('force_use_local', False):
     try:
-        # ttl=0 garante que ele vai puxar ao vivo a cada clique no site
         df_f1 = conn.read(worksheet="Historico_F1", ttl=0)
-        if not df_f1.empty:
+        if df_f1 is not None:
             df_f1 = df_f1.dropna(how='all')
-            # Garante que a base do F1 não tem datas corrompidas e atualiza a sessão local
-            st.session_state.df_historico_f1 = df_f1
-            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+            # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
+            if not df_f1.empty and 'ENCARREGADO' in df_f1.columns:
+                df_f1 = df_f1[df_f1['ENCARREGADO'].notna() & (df_f1['ENCARREGADO'] != '')]
+            
+            qtd_nuvem = len(df_f1) if not df_f1.empty else 0
+            qtd_local = len(st.session_state.df_historico_f1) if not st.session_state.df_historico_f1.empty else 0
+            
+            # SÓ ATUALIZAR SE: nuvem tem dados E (nuvem tem MAIS dados OU local está vazio)
+            # Isso IMPEDE que uma leitura vazia da nuvem apague dados bons
+            if qtd_nuvem > 0 and (qtd_nuvem >= qtd_local or qtd_local == 0):
+                st.session_state.df_historico_f1 = df_f1
+                df_f1.to_csv(caminho_historico_f1_csv, index=False)
+            elif qtd_nuvem == 0 and qtd_local > 0:
+                # Nuvem está vazia mas local tem dados - REENVIAR para a nuvem!
+                try:
+                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                    st.sidebar.caption(f"☁️ F1: {qtd_local} registros reenviados à nuvem (estava vazia).")
+                except Exception:
+                    pass
     except Exception:
         pass
 
