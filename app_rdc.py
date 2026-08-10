@@ -3656,7 +3656,7 @@ if st.session_state.df is not None:
             st.markdown("")
             
 
-            col_btn1, col_btn2, col_btn3 = st.columns(3)
+            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
             with col_btn1:
                 if st.button("🟢 GERAR EXCEL", type="primary", use_container_width=True):
                     wb = preencher_excel(equipe, encarregado_sel)
@@ -3740,9 +3740,42 @@ if st.session_state.df is not None:
                             except:
                                 pass
                                 
-                            st.success(f"✅ {qtd} planilhas geradas!")
+                            st.success(f"✅ {qtd} PDFs gerados no ZIP!")
                         except Exception as e:
                             st.error(f"Erro: {e}")
+            with col_btn4:
+                if st.button("🖨️ PDF ÚNICO (Impressão)", use_container_width=True):
+                    with st.spinner("Gerando PDF único com todos os RDCs..."):
+                        try:
+                            import fitz  # PyMuPDF
+                            pdf_final = fitz.open()  # PDF vazio que vai receber tudo
+                            qtd_enc = 0
+                            for enc in lista_encarregados_base:
+                                eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                if len(eq) > 0:
+                                    pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                    if pdf_b:
+                                        pdf_individual = fitz.open(stream=pdf_b, filetype="pdf")
+                                        pdf_final.insert_pdf(pdf_individual)
+                                        pdf_individual.close()
+                                        qtd_enc += 1
+                            if qtd_enc > 0:
+                                buffer_pdf_unico = io.BytesIO(pdf_final.tobytes(deflate=True))
+                                pdf_final.close()
+                                nome_pdf_unico = f"TODOS_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.pdf"
+                                st.download_button(
+                                    f"⬇️ Baixar PDF Único ({qtd_enc} encarregados)",
+                                    data=buffer_pdf_unico,
+                                    file_name=nome_pdf_unico,
+                                    mime="application/pdf",
+                                    use_container_width=True
+                                )
+                                st.success(f"✅ PDF único gerado com {qtd_enc} RDCs! Agora é só abrir e mandar imprimir.")
+                            else:
+                                pdf_final.close()
+                                st.warning("⚠️ Nenhum RDC encontrado para gerar.")
+                        except Exception as e:
+                            st.error(f"Erro ao gerar PDF único: {e}")
 
     with tab_escala:
         st.markdown("### 📋 Escala Diária de Efetivo")
