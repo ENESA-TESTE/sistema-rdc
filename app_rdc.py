@@ -1924,6 +1924,47 @@ def salvar_base_localmente(arquivo_upload):
     except Exception:
         return False
 
+def salvar_f1_seguro(conn, df_f1, caminho_csv):
+    """Salva o Histórico F1 no Google Sheets COM PROTEÇÃO ANTI-PERDA.
+    NUNCA sobrescreve a nuvem com dados vazios ou muito menores.
+    """
+    if df_f1 is None or df_f1.empty:
+        return False, "Bloqueado: tentativa de salvar dados vazios na nuvem."
+    
+    # Filtrar linhas inválidas antes de salvar
+    if 'ENCARREGADO' in df_f1.columns:
+        df_f1 = df_f1[df_f1['ENCARREGADO'].notna() & (df_f1['ENCARREGADO'] != '')]
+    
+    if df_f1.empty:
+        return False, "Bloqueado: todos os registros são inválidos."
+    
+    # Verificar quantos registros existem na nuvem antes de sobrescrever
+    try:
+        df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
+        if df_nuvem is not None:
+            df_nuvem = df_nuvem.dropna(how='all')
+            qtd_nuvem = len(df_nuvem)
+        else:
+            qtd_nuvem = 0
+    except Exception:
+        qtd_nuvem = 0
+    
+    qtd_novo = len(df_f1)
+    
+    # PROTEÇÃO: Se os dados novos têm MUITO MENOS registros que a nuvem (mais de 50% menor),
+    # algo está errado. Bloquear a escrita para não perder dados.
+    if qtd_nuvem > 10 and qtd_novo < qtd_nuvem * 0.5:
+        return False, f"Bloqueado: tentativa de reduzir de {qtd_nuvem} para {qtd_novo} registros (perda >50%)."
+    
+    # Tudo OK, salvar
+    try:
+        conn.update(worksheet="Historico_F1", data=df_f1)
+        # Backup local
+        df_f1.to_csv(caminho_csv, index=False)
+        return True, f"OK: {qtd_novo} registros salvos."
+    except Exception as e:
+        return False, f"Erro ao salvar: {e}"
+
 def preparar_dataframe(df):
     # Auto-detect header row if the file has title rows above the headers
     unnamed_cols = [c for c in df.columns if str(c).startswith('Unnamed')]
@@ -2673,11 +2714,9 @@ if conn and not st.session_state.get('force_use_local', False):
                 df_f1.to_csv(caminho_historico_f1_csv, index=False)
             elif qtd_nuvem == 0 and qtd_local > 0:
                 # Nuvem está vazia mas local tem dados - REENVIAR para a nuvem!
-                try:
-                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                ok, msg = salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                if ok:
                     st.sidebar.caption(f"☁️ F1: {qtd_local} registros reenviados à nuvem (estava vazia).")
-                except Exception:
-                    pass
     except Exception:
         pass
 
@@ -3540,9 +3579,9 @@ if st.session_state.df is not None:
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                conn.update(worksheet="Historico_F1", data=df_final)
-                                st.session_state.df_historico_f1 = df_final
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                                if ok:
+                                    st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
                                 st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
                             except Exception as e:
@@ -4090,9 +4129,9 @@ if st.session_state.df is not None:
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                conn.update(worksheet="Historico_F1", data=df_final)
-                                st.session_state.df_historico_f1 = df_final
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                                if ok:
+                                    st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
                                 st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
                             except Exception as e:
@@ -4275,7 +4314,7 @@ if st.session_state.df is not None:
                             
                             if conn and not st.session_state.get('force_use_local', False):
                                 try:
-                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                                     st.cache_data.clear()
                                 except Exception:
                                     pass
@@ -4296,7 +4335,7 @@ if st.session_state.df is not None:
                         if removidos > 0:
                             if conn and not st.session_state.get('force_use_local', False):
                                 try:
-                                    conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                                     st.cache_data.clear()
                                 except Exception:
                                     pass
@@ -4962,9 +5001,9 @@ if st.session_state.df is not None:
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                conn.update(worksheet="Historico_F1", data=df_final)
-                                st.session_state.df_historico_f1 = df_final
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                                if ok:
+                                    st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
                                 st.toast(f"{len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!", icon="✅")
                             except Exception as e:
@@ -6149,7 +6188,7 @@ if st.session_state.df is not None:
                         if conn:
                             conn.update(worksheet="PDE", data=df_atual)
                             if st.session_state.get('df_historico_f1') is not None:
-                                conn.update(worksheet="Historico_F1", data=st.session_state.df_historico_f1)
+                                salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                             st.success("✅ Sincronização com Google Sheets concluída!")
                         else:
                             st.warning("Conexão com Google Sheets não disponível.")
