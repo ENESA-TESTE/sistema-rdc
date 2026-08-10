@@ -3705,6 +3705,7 @@ if st.session_state.df is not None:
                                 for enc in lista_encarregados_base:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
+                                        # Salvar histórico local em Excel (backup)
                                         wb_e = preencher_excel(eq, enc)
                                         if wb_e:
                                             buf = io.BytesIO()
@@ -3719,13 +3720,11 @@ if st.session_state.df is not None:
                                                     f.write(buf.getvalue())
                                             except Exception:
                                                 pass
-                                            buf.seek(0)
-                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}.xlsx", buf.read())
-                                            qtd += 1
-                                        # Também gera PDF no ZIP
+                                        # Gerar PDF e adicionar ao ZIP (SOMENTE PDF)
                                         pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
                                         if pdf_b:
                                             zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
+                                            qtd += 1
                             zip_buffer.seek(0)
                             nome_zip = f"LOTE_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
                             st.download_button(f"⬇️ Baixar Todos ({qtd} arquivos)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
