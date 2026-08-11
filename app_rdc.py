@@ -5899,6 +5899,155 @@ if st.session_state.df is not None:
                     use_container_width=True,
                     hide_index=True
                 )
+            
+            # ========== BOTÃO BAIXAR EXCEL COM TABELA DINÂMICA ==========
+            st.markdown("")
+            if st.button("📥 Baixar Tabela Dinâmica em Excel", use_container_width=True, key="btn_baixar_pivot_excel"):
+                try:
+                    from openpyxl import Workbook
+                    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                    from openpyxl.utils import get_column_letter
+                    
+                    wb_pv = Workbook()
+                    
+                    # ---- ABA 1: TABELA DINÂMICA (Matriz Disciplina x Função) ----
+                    ws_pivot = wb_pv.active
+                    ws_pivot.title = "Tabela Dinamica"
+                    
+                    todas_funcoes = sorted(df_atual["FUNÇÃO"].dropna().unique())
+                    todas_disciplinas = sorted(df_atual["DISCIPLINA"].dropna().unique())
+                    
+                    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+                    header_font = Font(bold=True, color="FFFFFF", size=11)
+                    total_fill = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+                    total_font = Font(bold=True, size=11)
+                    borda = Border(
+                        left=Side(style="thin"), right=Side(style="thin"),
+                        top=Side(style="thin"), bottom=Side(style="thin")
+                    )
+                    
+                    # Título
+                    ws_pivot.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(todas_disciplinas) + 2)
+                    ws_pivot.cell(row=1, column=1, value="TABELA DINAMICA - FUNCOES POR DISCIPLINA")
+                    ws_pivot.cell(row=1, column=1).font = Font(bold=True, size=14, color="1F4E79")
+                    ws_pivot.cell(row=1, column=1).alignment = Alignment(horizontal="center")
+                    
+                    # Cabeçalhos
+                    ws_pivot.cell(row=3, column=1, value="FUNCAO")
+                    ws_pivot.cell(row=3, column=1).font = header_font
+                    ws_pivot.cell(row=3, column=1).fill = header_fill
+                    ws_pivot.cell(row=3, column=1).border = borda
+                    ws_pivot.column_dimensions["A"].width = 40
+                    
+                    for j, disc in enumerate(todas_disciplinas):
+                        col = j + 2
+                        ws_pivot.cell(row=3, column=col, value=disc)
+                        ws_pivot.cell(row=3, column=col).font = header_font
+                        ws_pivot.cell(row=3, column=col).fill = header_fill
+                        ws_pivot.cell(row=3, column=col).alignment = Alignment(horizontal="center")
+                        ws_pivot.cell(row=3, column=col).border = borda
+                        ws_pivot.column_dimensions[get_column_letter(col)].width = 18
+                    
+                    col_total = len(todas_disciplinas) + 2
+                    ws_pivot.cell(row=3, column=col_total, value="TOTAL")
+                    ws_pivot.cell(row=3, column=col_total).font = header_font
+                    ws_pivot.cell(row=3, column=col_total).fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    ws_pivot.cell(row=3, column=col_total).alignment = Alignment(horizontal="center")
+                    ws_pivot.cell(row=3, column=col_total).border = borda
+                    ws_pivot.column_dimensions[get_column_letter(col_total)].width = 12
+                    
+                    # Dados
+                    lookup = df_pivot.set_index(["FUNÇÃO", "DISCIPLINA"])["QTD"]
+                    
+                    for i, func in enumerate(todas_funcoes):
+                        row = i + 4
+                        ws_pivot.cell(row=row, column=1, value=func)
+                        ws_pivot.cell(row=row, column=1).border = borda
+                        total_linha = 0
+                        
+                        for j, disc in enumerate(todas_disciplinas):
+                            col = j + 2
+                            try:
+                                qtd = int(lookup.get((func, disc), 0))
+                            except Exception:
+                                qtd = 0
+                            if qtd > 0:
+                                ws_pivot.cell(row=row, column=col, value=qtd)
+                            ws_pivot.cell(row=row, column=col).alignment = Alignment(horizontal="center")
+                            ws_pivot.cell(row=row, column=col).border = borda
+                            total_linha += qtd
+                        
+                        ws_pivot.cell(row=row, column=col_total, value=total_linha)
+                        ws_pivot.cell(row=row, column=col_total).font = Font(bold=True)
+                        ws_pivot.cell(row=row, column=col_total).alignment = Alignment(horizontal="center")
+                        ws_pivot.cell(row=row, column=col_total).border = borda
+                    
+                    # Linha TOTAL
+                    row_total = len(todas_funcoes) + 4
+                    ws_pivot.cell(row=row_total, column=1, value="TOTAL GERAL")
+                    ws_pivot.cell(row=row_total, column=1).font = total_font
+                    ws_pivot.cell(row=row_total, column=1).fill = total_fill
+                    ws_pivot.cell(row=row_total, column=1).border = borda
+                    grande_total = 0
+                    
+                    for j, disc in enumerate(todas_disciplinas):
+                        col = j + 2
+                        soma_col = sum(int(lookup.get((f, disc), 0)) for f in todas_funcoes)
+                        ws_pivot.cell(row=row_total, column=col, value=soma_col)
+                        ws_pivot.cell(row=row_total, column=col).font = total_font
+                        ws_pivot.cell(row=row_total, column=col).fill = total_fill
+                        ws_pivot.cell(row=row_total, column=col).alignment = Alignment(horizontal="center")
+                        ws_pivot.cell(row=row_total, column=col).border = borda
+                        grande_total += soma_col
+                    
+                    ws_pivot.cell(row=row_total, column=col_total, value=grande_total)
+                    ws_pivot.cell(row=row_total, column=col_total).font = Font(bold=True, color="FFFFFF", size=12)
+                    ws_pivot.cell(row=row_total, column=col_total).fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    ws_pivot.cell(row=row_total, column=col_total).alignment = Alignment(horizontal="center")
+                    ws_pivot.cell(row=row_total, column=col_total).border = borda
+                    
+                    # ---- ABA 2: DETALHADO ----
+                    ws_det = wb_pv.create_sheet("Detalhado")
+                    ws_det.append(["DISCIPLINA", "FUNCAO", "QUANTIDADE"])
+                    for cell in ws_det[1]:
+                        cell.font = header_font
+                        cell.fill = header_fill
+                        cell.border = borda
+                    for _, r in df_pivot.iterrows():
+                        ws_det.append([r["DISCIPLINA"], r["FUNÇÃO"], r["QTD"]])
+                    ws_det.column_dimensions["A"].width = 30
+                    ws_det.column_dimensions["B"].width = 40
+                    ws_det.column_dimensions["C"].width = 15
+                    
+                    # ---- ABA 3: RESUMO ----
+                    ws_res = wb_pv.create_sheet("Resumo")
+                    ws_res.append(["DISCIPLINA", "TOTAL PESSOAS", "FUNCOES DISTINTAS"])
+                    for cell in ws_res[1]:
+                        cell.font = header_font
+                        cell.fill = header_fill
+                        cell.border = borda
+                    for _, r in df_resumo_disc.iterrows():
+                        ws_res.append([r["DISCIPLINA"], r["Total_Pessoas"], r["Total_Funcoes"]])
+                    ws_res.column_dimensions["A"].width = 30
+                    ws_res.column_dimensions["B"].width = 18
+                    ws_res.column_dimensions["C"].width = 22
+                    
+                    buf_pivot = io.BytesIO()
+                    wb_pv.save(buf_pivot)
+                    wb_pv.close()
+                    buf_pivot.seek(0)
+                    
+                    st.download_button(
+                        label="⬇️ Clique aqui para Baixar",
+                        data=buf_pivot,
+                        file_name=f"Tabela_Dinamica_Funcoes_{datetime.datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        key="btn_download_pivot_file"
+                    )
+                    st.success("✅ Planilha gerada com 3 abas: Tabela Dinâmica, Detalhado e Resumo!")
+                except Exception as e:
+                    st.error(f"Erro ao gerar Excel: {e}")
         else:
             st.info("ℹ️ As colunas DISCIPLINA e FUNÇÃO não foram encontradas no PDE.")
         
