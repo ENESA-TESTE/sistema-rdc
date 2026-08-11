@@ -5812,10 +5812,97 @@ if st.session_state.df is not None:
             df_pde_filtrado = df_pde_filtrado[df_pde_filtrado["STATUS"] == status_filtro]
 
         # Summary Metrics
-        m1, m2, m3 = st.columns(3)
+        m1, m2, m3, m4 = st.columns(4)
         m1.metric("Total de Funcionários", len(df_pde_filtrado))
         m2.metric("Total de Encarregados", df_pde_filtrado["ENCARREGADO"].nunique())
         m3.metric("Total de C.C", df_pde_filtrado["C.C"].nunique())
+        
+        # Detectar colaboradores sem encarregado
+        mask_sem_enc = (
+            df_atual["ENCARREGADO"].isna() | 
+            (df_atual["ENCARREGADO"].astype(str).str.strip() == "") | 
+            (df_atual["ENCARREGADO"].astype(str).str.strip().str.upper() == "NAN") |
+            (df_atual["ENCARREGADO"].astype(str).str.strip() == "-") |
+            (df_atual["ENCARREGADO"].astype(str).str.strip() == "0")
+        )
+        df_sem_encarregado = df_atual[mask_sem_enc]
+        qtd_sem = len(df_sem_encarregado)
+        
+        # Métrica com destaque vermelho se houver
+        if qtd_sem > 0:
+            m4.metric("⚠️ Sem Encarregado", qtd_sem)
+        else:
+            m4.metric("✅ Sem Encarregado", 0)
+        
+        # Alerta e tabela expansível
+        if qtd_sem > 0:
+            st.warning(f"⚠️ **{qtd_sem} colaborador(es) estão SEM ENCARREGADO definido!** Clique abaixo para ver a lista.")
+            with st.expander(f"👁️ Ver {qtd_sem} Colaboradores sem Encarregado", expanded=False):
+                colunas_mostrar = ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "DISCIPLINA", "STATUS"]
+                colunas_existentes = [c for c in colunas_mostrar if c in df_sem_encarregado.columns]
+                st.dataframe(
+                    df_sem_encarregado[colunas_existentes].reset_index(drop=True),
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # Botão para exportar a lista
+                csv_sem_enc = df_sem_encarregado[colunas_existentes].to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 Baixar Lista (CSV)",
+                    data=csv_sem_enc,
+                    file_name="colaboradores_sem_encarregado.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+        # ==============================================================
+        # QUADRO DE FUNÇÕES POR DISCIPLINA
+        # ==============================================================
+        st.markdown("---")
+        st.markdown("#### 📊 Quantidade de Funções por Disciplina")
+        
+        if "DISCIPLINA" in df_atual.columns and "FUNÇÃO" in df_atual.columns:
+            # Tabela pivot: Disciplina x Função com contagem
+            df_pivot = df_atual.groupby(["DISCIPLINA", "FUNÇÃO"]).size().reset_index(name="QTD")
+            df_pivot = df_pivot.sort_values(["DISCIPLINA", "QTD"], ascending=[True, False])
+            
+            # Resumo por disciplina (total de pessoas e total de funções distintas)
+            df_resumo_disc = df_atual.groupby("DISCIPLINA").agg(
+                Total_Pessoas=("NOME", "count"),
+                Total_Funcoes=("FUNÇÃO", "nunique")
+            ).reset_index().sort_values("Total_Pessoas", ascending=False)
+            
+            # Mostrar tabela resumo
+            st.dataframe(
+                df_resumo_disc.rename(columns={
+                    "DISCIPLINA": "Disciplina",
+                    "Total_Pessoas": "👷 Pessoas",
+                    "Total_Funcoes": "🔧 Funções Distintas"
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Detalhamento por disciplina (expansível)
+            disciplinas_unicas = df_resumo_disc["DISCIPLINA"].tolist()
+            
+            with st.expander(f"🔍 Ver Detalhamento ({len(disciplinas_unicas)} disciplinas)", expanded=False):
+                disc_selecionada = st.selectbox("Selecione a Disciplina:", disciplinas_unicas, key="sel_disc_detalhe")
+                
+                df_detalhe = df_pivot[df_pivot["DISCIPLINA"] == disc_selecionada][["FUNÇÃO", "QTD"]].reset_index(drop=True)
+                total_disc = df_detalhe["QTD"].sum()
+                
+                st.markdown(f"**{disc_selecionada}** — {total_disc} pessoas em {len(df_detalhe)} função(ões)")
+                st.dataframe(
+                    df_detalhe.rename(columns={"FUNÇÃO": "Função", "QTD": "Quantidade"}),
+                    use_container_width=True,
+                    hide_index=True
+                )
+        else:
+            st.info("ℹ️ As colunas DISCIPLINA e FUNÇÃO não foram encontradas no PDE.")
+        
+        st.markdown("---")
 
         # Editable data
         st.markdown("#### Base Atual")
