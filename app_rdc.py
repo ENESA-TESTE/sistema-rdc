@@ -2971,6 +2971,297 @@ if st.session_state.df is not None:
         pdf.ln(5)
         
         return bytes(pdf.output())
+
+    def gerar_relatorio_pptx_dashboard(df, nome_site, caminho_logo, lista_completa_encarregados):
+        import io
+        import datetime as dt_mod
+        from pptx import Presentation as PptxPresentation
+        from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor
+        from pptx.enum.text import PP_ALIGN
+        
+        prs = PptxPresentation()
+        prs.slide_width = Inches(13.333)
+        prs.slide_height = Inches(7.5)
+        
+        # Paleta de Cores
+        COR_FUNDO = RGBColor(15, 23, 42)
+        COR_AZUL = RGBColor(14, 165, 233)
+        COR_BRANCO = RGBColor(224, 228, 234)
+        COR_CINZA = RGBColor(148, 163, 184)
+        COR_VERDE = RGBColor(34, 197, 94)
+        COR_AMARELO = RGBColor(245, 158, 11)
+        COR_CARD_BG = RGBColor(30, 41, 59)
+        
+        def set_slide_bg(slide, cor):
+            background = slide.background
+            fill = background.fill
+            fill.solid()
+            fill.fore_color.rgb = cor
+        
+        def add_text_box(slide, left, top, width, height, text, font_size=18, bold=False, color=COR_BRANCO, alignment=PP_ALIGN.LEFT):
+            txBox = slide.shapes.add_textbox(left, top, width, height)
+            tf = txBox.text_frame
+            tf.word_wrap = True
+            p = tf.paragraphs[0]
+            p.text = text
+            p.font.size = Pt(font_size)
+            p.font.bold = bold
+            p.font.color.rgb = color
+            p.alignment = alignment
+            return txBox
+        
+        def add_card(slide, left, top, width, height, titulo, valor, cor_valor=COR_AZUL):
+            shape = slide.shapes.add_shape(1, left, top, width, height)
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = COR_CARD_BG
+            shape.line.color.rgb = RGBColor(51, 65, 85)
+            shape.line.width = Pt(1)
+            
+            txBox = slide.shapes.add_textbox(left + Inches(0.15), top + Inches(0.15), width - Inches(0.3), Inches(0.35))
+            tf = txBox.text_frame
+            p = tf.paragraphs[0]
+            p.text = titulo
+            p.font.size = Pt(11)
+            p.font.color.rgb = COR_CINZA
+            
+            txBox2 = slide.shapes.add_textbox(left + Inches(0.15), top + Inches(0.5), width - Inches(0.3), Inches(0.55))
+            tf2 = txBox2.text_frame
+            p2 = tf2.paragraphs[0]
+            p2.text = str(valor)
+            p2.font.size = Pt(26)
+            p2.font.bold = True
+            p2.font.color.rgb = cor_valor
+
+        # Cálculos de Métricas
+        total_efetivo = len(df)
+        qtd_mod = len(df[df["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"])
+        qtd_moi = len(df[df["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"])
+        total_mo = qtd_mod + qtd_moi
+        pct_mod = round((qtd_mod / total_mo * 100), 1) if total_mo > 0 else 0
+        
+        encs_validos = [e for e in df["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados]
+        qtd_enc = len(encs_validos)
+        span = round(total_efetivo / qtd_enc, 1) if qtd_enc > 0 else 0
+        total_funcoes = df["FUNÇÃO"].nunique() if "FUNÇÃO" in df.columns else 0
+
+        # ============================================
+        # SLIDE 1: CAPA
+        # ============================================
+        slide1 = prs.slides.add_slide(prs.slide_layouts[6])
+        set_slide_bg(slide1, COR_FUNDO)
+        
+        if os.path.exists(caminho_logo):
+            try:
+                slide1.shapes.add_picture(caminho_logo, Inches(5.4), Inches(1.0), height=Inches(1.5))
+            except:
+                pass
+        
+        line = slide1.shapes.add_shape(1, Inches(3), Inches(3.0), Inches(7.333), Inches(0.04))
+        line.fill.solid()
+        line.fill.fore_color.rgb = COR_AZUL
+        line.line.fill.background()
+        
+        add_text_box(slide1, Inches(1.5), Inches(3.2), Inches(10.333), Inches(1.0),
+            "CENTRO DE COMANDO & CONTROLE OPERACIONAL", font_size=32, bold=True, color=COR_BRANCO, alignment=PP_ALIGN.CENTER)
+        add_text_box(slide1, Inches(1.5), Inches(4.2), Inches(10.333), Inches(0.8),
+            nome_site, font_size=24, bold=False, color=COR_AZUL, alignment=PP_ALIGN.CENTER)
+        add_text_box(slide1, Inches(1.5), Inches(5.0), Inches(10.333), Inches(0.6),
+            f"Relatório de Efetivo e Produtividade — {dt_mod.datetime.now().strftime('%d/%m/%Y')}", font_size=16, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+        add_text_box(slide1, Inches(1.5), Inches(5.7), Inches(10.333), Inches(0.5),
+            f"Gerado em: {dt_mod.datetime.now().strftime('%d/%m/%Y às %H:%M')}", font_size=12, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+
+        # ============================================
+        # SLIDE 2: PAINEL DE EFETIVO E ESTRUTURA
+        # ============================================
+        slide2 = prs.slides.add_slide(prs.slide_layouts[6])
+        set_slide_bg(slide2, COR_FUNDO)
+        
+        add_text_box(slide2, Inches(0.5), Inches(0.3), Inches(12), Inches(0.6),
+            "INDICADORES DE EFETIVO GLOBAL", font_size=26, bold=True, color=COR_BRANCO)
+        
+        line2 = slide2.shapes.add_shape(1, Inches(0.5), Inches(0.95), Inches(12.333), Inches(0.03))
+        line2.fill.solid()
+        line2.fill.fore_color.rgb = COR_AZUL
+        line2.line.fill.background()
+        
+        card_w = Inches(2.3)
+        card_h = Inches(1.15)
+        card_y = Inches(1.2)
+        gap = Inches(0.2)
+        start_x = Inches(0.5)
+        
+        add_card(slide2, start_x, card_y, card_w, card_h, "Efetivo Total", total_efetivo, COR_AZUL)
+        add_card(slide2, start_x + card_w + gap, card_y, card_w, card_h, "Encarregados", qtd_enc, COR_VERDE)
+        add_card(slide2, start_x + 2*(card_w + gap), card_y, card_w, card_h, "% MOD Global", f"{pct_mod}%", COR_AZUL)
+        add_card(slide2, start_x + 3*(card_w + gap), card_y, card_w, card_h, "Funções Distintas", total_funcoes, COR_AMARELO)
+        add_card(slide2, start_x + 4*(card_w + gap), card_y, card_w, card_h, "Span of Control", span, RGBColor(139, 92, 246))
+        
+        # Tabela 1: Mão de Obra (MOD vs MOI)
+        add_text_box(slide2, Inches(0.5), Inches(2.7), Inches(5.8), Inches(0.5),
+            "COMPOSIÇÃO DA MÃO DE OBRA", font_size=16, bold=True, color=COR_AZUL)
+        
+        tbl_mo = slide2.shapes.add_table(3, 3, Inches(0.5), Inches(3.3), Inches(5.8), Inches(1.2)).table
+        tbl_mo.columns[0].width = Inches(2.8)
+        tbl_mo.columns[1].width = Inches(1.5)
+        tbl_mo.columns[2].width = Inches(1.5)
+        
+        for j, h in enumerate(["Classificação", "Efetivo", "Proporção"]):
+            c = tbl_mo.cell(0, j)
+            c.text = h
+            c.fill.solid()
+            c.fill.fore_color.rgb = COR_AZUL
+            for p in c.text_frame.paragraphs:
+                p.font.size = Pt(11)
+                p.font.bold = True
+                p.font.color.rgb = COR_FUNDO
+        
+        mo_data = [
+            ("Mão de Obra Direta (MOD)", str(qtd_mod), f"{pct_mod}%"),
+            ("Mão de Obra Indireta (MOI)", str(qtd_moi), f"{round(100 - pct_mod, 1)}%")
+        ]
+        for i, (tipo, qtd_s, prop_s) in enumerate(mo_data):
+            row_idx = i + 1
+            for j, val in enumerate([tipo, qtd_s, prop_s]):
+                c = tbl_mo.cell(row_idx, j)
+                c.text = val
+                c.fill.solid()
+                c.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                for p in c.text_frame.paragraphs:
+                    p.font.size = Pt(10)
+                    p.font.color.rgb = COR_BRANCO
+
+        # Tabela 2: Efetivo por Área
+        add_text_box(slide2, Inches(6.8), Inches(2.7), Inches(6.0), Inches(0.5),
+            "DISTRIBUIÇÃO DE EFETIVO POR ÁREA", font_size=16, bold=True, color=COR_AZUL)
+        
+        df_area_dash = df.copy()
+        df_area_dash['ÁREA_RESUMO'] = df_area_dash['C.C'].apply(lambda x: 'PB' if '125.02' in str(x) and '.005' not in str(x) else ('RB' if '125.01' in str(x) and '.005' not in str(x) else ('ESP' if '.005' in str(x) else 'OUTROS')))
+        area_counts = df_area_dash[df_area_dash['ÁREA_RESUMO'] != 'OUTROS'].groupby('ÁREA_RESUMO').size().reset_index(name='Quantidade')
+        
+        if not area_counts.empty:
+            rows_area = len(area_counts) + 1
+            tbl_area = slide2.shapes.add_table(rows_area, 3, Inches(6.8), Inches(3.3), Inches(6.0), Inches(0.4 * rows_area)).table
+            tbl_area.columns[0].width = Inches(2.5)
+            tbl_area.columns[1].width = Inches(1.8)
+            tbl_area.columns[2].width = Inches(1.7)
+            
+            for j, h in enumerate(["Área", "Colaboradores", "% do Efetivo"]):
+                c = tbl_area.cell(0, j)
+                c.text = h
+                c.fill.solid()
+                c.fill.fore_color.rgb = COR_AMARELO
+                for p in c.text_frame.paragraphs:
+                    p.font.size = Pt(11)
+                    p.font.bold = True
+                    p.font.color.rgb = COR_FUNDO
+            
+            total_area_s = area_counts['Quantidade'].sum()
+            for i, r in area_counts.iterrows():
+                row_idx = i + 1
+                prop_area = f"{round(r['Quantidade'] / total_area_s * 100, 1)}%" if total_area_s > 0 else "0%"
+                for j, val in enumerate([f"Área {r['ÁREA_RESUMO']}", str(r['Quantidade']), prop_area]):
+                    c = tbl_area.cell(row_idx, j)
+                    c.text = val
+                    c.fill.solid()
+                    c.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                    for p in c.text_frame.paragraphs:
+                        p.font.size = Pt(10)
+                        p.font.color.rgb = COR_BRANCO
+
+        # ============================================
+        # SLIDE 3: TOP 10 EQUIPES E FUNÇÕES
+        # ============================================
+        slide3 = prs.slides.add_slide(prs.slide_layouts[6])
+        set_slide_bg(slide3, COR_FUNDO)
+        
+        add_text_box(slide3, Inches(0.5), Inches(0.3), Inches(12), Inches(0.6),
+            "DISTRIBUIÇÃO DE EQUIPES & FUNÇÕES", font_size=26, bold=True, color=COR_BRANCO)
+        
+        line3 = slide3.shapes.add_shape(1, Inches(0.5), Inches(0.95), Inches(12.333), Inches(0.03))
+        line3.fill.solid()
+        line3.fill.fore_color.rgb = COR_AZUL
+        line3.line.fill.background()
+        
+        # Top 10 Encarregados
+        df_enc_pptx = df[(df["ENCARREGADO"].str.strip() != "") & (df["ENCARREGADO"].isin(lista_completa_encarregados))]
+        if not df_enc_pptx.empty:
+            top_enc_pptx = df_enc_pptx["ENCARREGADO"].value_counts().head(10).reset_index()
+            top_enc_pptx.columns = ["Encarregado", "Efetivo"]
+            
+            add_text_box(slide3, Inches(0.5), Inches(1.2), Inches(6.0), Inches(0.45),
+                "TOP 10 MAIORES EQUIPES", font_size=16, bold=True, color=COR_VERDE)
+            
+            rows_top = len(top_enc_pptx) + 1
+            tbl_top = slide3.shapes.add_table(rows_top, 2, Inches(0.5), Inches(1.75), Inches(6.0), Inches(0.38 * rows_top)).table
+            tbl_top.columns[0].width = Inches(4.2)
+            tbl_top.columns[1].width = Inches(1.8)
+            
+            for j, h in enumerate(["Encarregado", "Colaboradores"]):
+                c = tbl_top.cell(0, j)
+                c.text = h
+                c.fill.solid()
+                c.fill.fore_color.rgb = COR_VERDE
+                for p in c.text_frame.paragraphs:
+                    p.font.size = Pt(11)
+                    p.font.bold = True
+                    p.font.color.rgb = COR_FUNDO
+            
+            for i, r in top_enc_pptx.iterrows():
+                row_idx = i + 1
+                for j, val in enumerate([str(r["Encarregado"]), str(r["Efetivo"])]):
+                    c = tbl_top.cell(row_idx, j)
+                    c.text = val
+                    c.fill.solid()
+                    c.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                    for p in c.text_frame.paragraphs:
+                        p.font.size = Pt(9.5)
+                        p.font.color.rgb = COR_BRANCO
+
+        # Top Funções Mais Demandadas
+        if "FUNÇÃO" in df.columns:
+            top_func = df["FUNÇÃO"].value_counts().head(10).reset_index()
+            top_func.columns = ["Função", "Quantidade"]
+            
+            add_text_box(slide3, Inches(6.8), Inches(1.2), Inches(6.0), Inches(0.45),
+                "FUNÇÕES COM MAIOR CONTINGENTE", font_size=16, bold=True, color=COR_AMARELO)
+            
+            rows_func = len(top_func) + 1
+            tbl_func = slide3.shapes.add_table(rows_func, 2, Inches(6.8), Inches(1.75), Inches(6.0), Inches(0.38 * rows_func)).table
+            tbl_func.columns[0].width = Inches(4.2)
+            tbl_func.columns[1].width = Inches(1.8)
+            
+            for j, h in enumerate(["Cargo / Função", "Efetivo"]):
+                c = tbl_func.cell(0, j)
+                c.text = h
+                c.fill.solid()
+                c.fill.fore_color.rgb = COR_AMARELO
+                for p in c.text_frame.paragraphs:
+                    p.font.size = Pt(11)
+                    p.font.bold = True
+                    p.font.color.rgb = COR_FUNDO
+            
+            for i, r in top_func.iterrows():
+                row_idx = i + 1
+                for j, val in enumerate([str(r["Função"]), str(r["Quantidade"])]):
+                    c = tbl_func.cell(row_idx, j)
+                    c.text = val
+                    c.fill.solid()
+                    c.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                    for p in c.text_frame.paragraphs:
+                        p.font.size = Pt(9.5)
+                        p.font.color.rgb = COR_BRANCO
+
+        # Rodapé
+        add_text_box(slide3, Inches(0.5), Inches(6.8), Inches(12.333), Inches(0.4),
+            f"{nome_site} — Relatório Executivo Gerado Automaticamente — {dt_mod.datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            font_size=9, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+
+        buffer_pptx = io.BytesIO()
+        prs.save(buffer_pptx)
+        buffer_pptx.seek(0)
+        return buffer_pptx.getvalue()
+
     mapa_area_sufixo = {
         'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
         'DUTO': '002', 'DUTOS': '002',
@@ -3260,20 +3551,34 @@ if st.session_state.df is not None:
         """
         components.html(html_relogio, height=110)
         
-        col_dash_tit, col_dash_btn = st.columns([3, 1])
+        col_dash_tit, col_dash_btn_pdf, col_dash_btn_pptx = st.columns([2, 1, 1])
         with col_dash_tit:
             st.markdown("### 🎛️ Centro de Comando (Overview)")
-        with col_dash_btn:
+        with col_dash_btn_pdf:
             st.markdown("<br>", unsafe_allow_html=True)
             pdf_bytes = gerar_relatorio_pdf(df_atual)
             st.download_button(
-                label="📥 Baixar Relatório PDF",
+                label="📥 Baixar PDF",
                 data=pdf_bytes,
                 file_name=f"Relatorio_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
                 mime="application/pdf",
                 use_container_width=True,
-                type="primary"
+                type="secondary"
             )
+        with col_dash_btn_pptx:
+            st.markdown("<br>", unsafe_allow_html=True)
+            try:
+                pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo, lista_completa_encarregados)
+                st.download_button(
+                    label="📑 Baixar PowerPoint (.pptx)",
+                    data=pptx_dash_bytes,
+                    file_name=f"Dashboard_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    use_container_width=True,
+                    type="primary"
+                )
+            except Exception as e_pptx_dash:
+                st.error(f"Erro ao gerar PPTX: {e_pptx_dash}")
         
         # Filtro de MOI / MOD, Local, Turno e Status
         col_filtros1, col_filtros2, col_filtros3, col_filtros4 = st.columns(4)
