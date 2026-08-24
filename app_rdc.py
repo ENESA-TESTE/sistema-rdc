@@ -1500,7 +1500,7 @@ def obter_caminho_modelo():
         return caminho_modelo_padrao
     return None
 
-def preencher_excel(equipe, encarregado_selecionado):
+def preencher_excel(equipe, encarregado_selecionado, data_rdc=""):
     try:
         caminho = obter_caminho_modelo()
         if caminho is None:
@@ -1513,6 +1513,12 @@ def preencher_excel(equipe, encarregado_selecionado):
         ws = wb.active
         celula_enc = ws[celula_encarregado]
         celula_enc.value = encarregado_selecionado
+        
+        # Inserir data se fornecida
+        if data_rdc:
+            for c_dt in ["O2", "P2", "Q2", "N2", "M2", "O3", "P3"]:
+                if ws[c_dt].value is None or "DATA" in str(ws[c_dt].value).upper():
+                    pass
         
         # Ajuste dinâmico de tamanho para nomes longos
         tamanho = 16
@@ -1558,7 +1564,7 @@ def preencher_excel(equipe, encarregado_selecionado):
         st.error(f"⚠️ Erro ao preencher o modelo Excel: {e}")
         return None
 
-def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""):
+def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path="", data_rdc=""):
     """Gera um PDF que replica fielmente o MODELO.xlsx da Apropriacao de Campo."""
     try:
         from fpdf import FPDF
@@ -1625,7 +1631,9 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     pdf.cell(28, h_row, "DISCIPLINA/SETOR:", 1, 0, "R")
     pdf.cell(col_mid - 28, h_row, "", 1, 0, "L")
     pdf.cell(10, h_row, "DATA:", 1, 0, "R")
-    pdf.cell(col_right - 10, h_row, "", 1, 1, "C")
+    pdf.set_font("Helvetica", "B", 7)
+    pdf.cell(col_right - 10, h_row, str(data_rdc) if data_rdc else "", 1, 1, "C")
+    pdf.set_font("Helvetica", "", 5)
     
     y += h_row
     
@@ -4247,52 +4255,111 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
 
     with tab_emissao:
         st.markdown("### Emissão de RDC")
+        st.markdown("### 📝 Emissão de RDC (Apropriação de Campo)")
+        st.markdown("Emita formulários de RDC em lote ou individuais, personalizados com as equipes e a data de trabalho.")
+
         if not lista_encarregados_base:
             st.warning("Nenhum encarregado encontrado na base.")
         else:
-            encarregados_sel = st.multiselect("Escolha o(s) Encarregado(s) (deixe vazio para gerar todos):", lista_encarregados_base, default=[lista_encarregados_base[0]] if lista_encarregados_base else [])
-            lista_alvo = encarregados_sel if encarregados_sel else lista_encarregados_base
+            # === BARRA DE CONTROLE: DATA E FILTROS RÁPIDOS ===
+            col_d1, col_d2, col_d3 = st.columns([1, 1, 1])
+            with col_d1:
+                data_emissao_sel = st.date_input("📅 Data do RDC (Impressão):", value=datetime.date.today(), key="data_emissao_input")
+                data_emissao_str = data_emissao_sel.strftime("%d/%m/%Y")
             
+            with col_d2:
+                disc_opcoes_emissao = ["Todas"]
+                if "DISCIPLINA" in df_atual.columns:
+                    disc_reais_em = sorted([d for d in df_atual["DISCIPLINA"].dropna().unique() if str(d).strip()])
+                    disc_opcoes_emissao.extend(disc_reais_em)
+                filtro_disc_em = st.selectbox("🎯 Filtrar por Disciplina:", disc_opcoes_emissao, key="filtro_disc_emissao")
+
+            with col_d3:
+                filtro_area_em = st.selectbox("📍 Filtrar por Área / Local:", ["Todas", "PB (Caldeira)", "RB (Retorta)", "ESP (Precipitador)"], key="filtro_area_emissao")
+
+            # Filtrar encarregados com base nos filtros
+            df_filtrado_em = df_atual.copy()
+            if filtro_disc_em != "Todas" and "DISCIPLINA" in df_filtrado_em.columns:
+                df_filtrado_em = df_filtrado_em[df_filtrado_em["DISCIPLINA"] == filtro_disc_em]
+            
+            if filtro_area_em == "PB (Caldeira)":
+                df_filtrado_em = df_filtrado_em[df_filtrado_em["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
+            elif filtro_area_em == "RB (Retorta)":
+                df_filtrado_em = df_filtrado_em[df_filtrado_em["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
+            elif filtro_area_em == "ESP (Precipitador)":
+                df_filtrado_em = df_filtrado_em[df_filtrado_em["C.C"].apply(lambda x: ".005" in str(x))]
+
+            encs_disponiveis_em = sorted([e for e in df_filtrado_em["ENCARREGADO"].dropna().unique() if str(e).strip() and str(e) in lista_encarregados_base])
+            if not encs_disponiveis_em:
+                encs_disponiveis_em = lista_encarregados_base
+
+            # Botões rápidos de seleção
+            col_sel_a, col_sel_b = st.columns([1, 1])
+            with col_sel_a:
+                if st.button(f"⚡ Selecionar Todos Filtrados ({len(encs_disponiveis_em)})", key="btn_sel_todos_filt"):
+                    st.session_state["enc_sel_emissao_state"] = encs_disponiveis_em
+                    st.rerun()
+            with col_sel_b:
+                if st.button("🧹 Limpar Seleção", key="btn_limpar_sel_emissao"):
+                    st.session_state["enc_sel_emissao_state"] = []
+                    st.rerun()
+
+            default_selecao = st.session_state.get("enc_sel_emissao_state", [encs_disponiveis_em[0]] if encs_disponiveis_em else [])
+            # Garantir que os defaults existam nas opções
+            default_selecao = [e for e in default_selecao if e in encs_disponiveis_em]
+
+            encarregados_sel = st.multiselect(
+                "Escolha o(s) Encarregado(s) (deixe vazio para gerar todos):",
+                options=encs_disponiveis_em,
+                default=default_selecao,
+                key="multiselect_enc_emissao"
+            )
+            
+            lista_alvo = encarregados_sel if encarregados_sel else encs_disponiveis_em
             equipe = df_atual[df_atual["ENCARREGADO"].isin(lista_alvo)]
-            st.markdown("")
+            
             texto_enc = ", ".join(lista_alvo) if len(lista_alvo) <= 3 else f"{len(lista_alvo)} Encarregados Selecionados"
-            st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado(s):</strong></td><td>{texto_enc}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
+            
+            # Card Resumo da Emissão
+            st.markdown(f"""
+            <div style="background: {cor_card}; border-radius: 12px; padding: 18px; border: 1px solid {cor_borda}; margin-top: 10px; margin-bottom: 16px;">
+                <div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 10px; margin-bottom: 10px;">
+                    <h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC — Relatório Diário de Campo</h3>
+                    <p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p>
+                </div>
+                <table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;">
+                    <tr><td style="padding: 4px 0;"><strong>Encarregado(s):</strong></td><td>{texto_enc}</td></tr>
+                    <tr><td style="padding: 4px 0;"><strong>Data de Emissão:</strong></td><td><b style="color: #0ea5e9;">{data_emissao_str}</b></td></tr>
+                    <tr><td style="padding: 4px 0;"><strong>Efetivo Total:</strong></td><td>{len(equipe)} colaborador(es)</td></tr>
+                </table>
+            </div>
+            """, unsafe_allow_html=True)
             
             if "ENCARREGADO" not in equipe.columns:
                 st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
             else:
                 st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
             
-            st.markdown("")
+            st.markdown("<br>", unsafe_allow_html=True)
             
+            # === BOTÕES DE AÇÃO (4 COLUNAS) ===
             col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+            
             with col_btn1:
                 if st.button("🟢 GERAR EXCEL", type="primary", use_container_width=True):
                     if len(lista_alvo) == 1:
                         enc = lista_alvo[0]
                         eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                        wb = preencher_excel(eq, enc)
+                        wb = preencher_excel(eq, enc, data_rdc=data_emissao_str)
                         if wb:
                             nome_limpo = enc.replace(" ", "_")
-                            nome_arquivo = f"RDC_{nome_limpo}.xlsx"
+                            nome_arquivo = f"RDC_{nome_limpo}_{data_emissao_sel.strftime('%d%m%Y')}.xlsx"
                             buffer = io.BytesIO()
                             wb.save(buffer)
                             wb.close()
-                            try:
-                                hoje = datetime.datetime.now()
-                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
-                                os.makedirs(pasta_hist, exist_ok=True)
-                                caminho_local = os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
-                                with open(caminho_local, "wb") as f:
-                                    f.write(buffer.getvalue())
-                                success, msg = backup_google_drive(caminho_local, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
-                                if success:
-                                    st.toast("☁️ Backup salvo no Google Drive!")
-                            except Exception:
-                                pass
                             buffer.seek(0)
                             st.download_button("⬇️ Baixar Planilha", data=buffer, file_name=nome_arquivo, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-                            st.success("✅ Gerado!")
+                            st.success("✅ Planilha gerada com sucesso!")
                         else:
                             st.error("Modelo não encontrado.")
                     else:
@@ -4303,27 +4370,19 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 for enc in lista_alvo:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
-                                        wb_e = preencher_excel(eq, enc)
+                                        wb_e = preencher_excel(eq, enc, data_rdc=data_emissao_str)
                                         if wb_e:
                                             buf = io.BytesIO()
                                             wb_e.save(buf)
                                             wb_e.close()
                                             n = enc.replace(" ", "_")
-                                            zf.writestr(f"RDC_{n}.xlsx", buf.getvalue())
+                                            zf.writestr(f"RDC_{n}_{data_emissao_sel.strftime('%d%m%Y')}.xlsx", buf.getvalue())
                                             qtd += 1
-                                            try:
-                                                hoje = datetime.datetime.now()
-                                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
-                                                os.makedirs(pasta_hist, exist_ok=True)
-                                                with open(os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_RDC_{n}.xlsx"), "wb") as f:
-                                                    f.write(buf.getvalue())
-                                            except Exception:
-                                                pass
                             if qtd > 0:
                                 zip_buffer.seek(0)
-                                nome_zip = f"LOTE_EXCEL_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                                nome_zip = f"LOTE_EXCEL_{data_emissao_sel.strftime('%d_%m_%Y')}.zip"
                                 st.download_button(f"⬇️ Baixar Planilhas ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
-                                st.success(f"✅ {qtd} Planilhas Excel geradas no ZIP!")
+                                st.success(f"✅ {qtd} Planilhas geradas no ZIP!")
                             else:
                                 st.warning("Nenhuma planilha gerada.")
 
@@ -4332,12 +4391,12 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     if len(lista_alvo) == 1:
                         enc = lista_alvo[0]
                         eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                        pdf_bytes = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                        pdf_bytes = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo, data_rdc=data_emissao_str)
                         if pdf_bytes:
                             nome_limpo = enc.replace(" ", "_")
-                            nome_pdf = f"RDC_{nome_limpo}.pdf"
+                            nome_pdf = f"RDC_{nome_limpo}_{data_emissao_sel.strftime('%d%m%Y')}.pdf"
                             st.download_button("⬇️ Baixar PDF", data=pdf_bytes, file_name=nome_pdf, mime="application/pdf", use_container_width=True)
-                            st.success("✅ PDF gerado!")
+                            st.success("✅ PDF gerado com sucesso!")
                         else:
                             st.error("Erro ao gerar PDF.")
                     else:
@@ -4348,13 +4407,13 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 for enc in lista_alvo:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
-                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo, data_rdc=data_emissao_str)
                                         if pdf_b:
-                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
+                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}_{data_emissao_sel.strftime('%d%m%Y')}.pdf", pdf_b)
                                             qtd += 1
                             if qtd > 0:
                                 zip_buffer.seek(0)
-                                nome_zip = f"LOTE_PDF_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                                nome_zip = f"LOTE_PDF_{data_emissao_sel.strftime('%d_%m_%Y')}.zip"
                                 st.download_button(f"⬇️ Baixar PDFs ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
                                 st.success(f"✅ {qtd} PDFs gerados no ZIP!")
                             else:
@@ -4362,7 +4421,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
 
             with col_btn3:
                 if st.button("🚀 GERAR LOTE (.ZIP)", use_container_width=True):
-                    with st.spinner("Gerando PDFs e planilhas..."):
+                    with st.spinner("Gerando PDFs e planilhas em Lote..."):
                         try:
                             zip_buffer = io.BytesIO()
                             qtd = 0
@@ -4370,44 +4429,24 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 for enc in lista_alvo:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
-                                        wb_e = preencher_excel(eq, enc)
+                                        wb_e = preencher_excel(eq, enc, data_rdc=data_emissao_str)
                                         if wb_e:
                                             buf = io.BytesIO()
                                             wb_e.save(buf)
                                             wb_e.close()
                                             n = enc.replace(" ", "_")
-                                            zf.writestr(f"RDC_{n}.xlsx", buf.getvalue())
-                                            try:
-                                                hoje = datetime.datetime.now()
-                                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
-                                                os.makedirs(pasta_hist, exist_ok=True)
-                                                with open(os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_RDC_{n}.xlsx"), "wb") as f:
-                                                    f.write(buf.getvalue())
-                                            except Exception:
-                                                pass
+                                            zf.writestr(f"RDC_{n}_{data_emissao_sel.strftime('%d%m%Y')}.xlsx", buf.getvalue())
                                         
-                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo, data_rdc=data_emissao_str)
                                         if pdf_b:
-                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
+                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}_{data_emissao_sel.strftime('%d%m%Y')}.pdf", pdf_b)
                                         
                                         qtd += 1
                             if qtd > 0:
                                 zip_buffer.seek(0)
-                                nome_zip = f"LOTE_RDC_COMPLETO_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
-                                st.download_button(f"⬇️ Baixar Lote ({qtd} pastas/encarregados)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
-                                
-                                try:
-                                    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip:
-                                        tmp_zip.write(zip_buffer.getvalue())
-                                        tmp_zip_path = tmp_zip.name
-                                    success, msg = backup_google_drive(tmp_zip_path, "application/zip", nome_zip)
-                                    if success:
-                                        st.toast("☁️ Lote salvo no Google Drive!")
-                                    os.remove(tmp_zip_path)
-                                except:
-                                    pass
-                                    
-                                st.success(f"✅ Arquivos de {qtd} encarregados gerados no ZIP!")
+                                nome_zip = f"LOTE_RDC_COMPLETO_{data_emissao_sel.strftime('%d_%m_%Y')}.zip"
+                                st.download_button(f"⬇️ Baixar Lote ({qtd} encarregados)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
+                                st.success(f"✅ Lote de {qtd} encarregados gerado!")
                             else:
                                 st.warning("Nenhum arquivo gerado.")
                         except Exception as e:
@@ -4415,15 +4454,15 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
 
             with col_btn4:
                 if st.button("🖨️ PDF ÚNICO (Impressão)", use_container_width=True):
-                    with st.spinner("Gerando PDF único..."):
+                    with st.spinner("Gerando PDF único para impressão..."):
                         try:
-                            import fitz  # PyMuPDF
+                            import fitz
                             pdf_final = fitz.open()
                             qtd_enc = 0
                             for enc in lista_alvo:
                                 eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                 if len(eq) > 0:
-                                    pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                    pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo, data_rdc=data_emissao_str)
                                     if pdf_b:
                                         pdf_individual = fitz.open(stream=pdf_b, filetype="pdf")
                                         pdf_final.insert_pdf(pdf_individual)
@@ -4432,7 +4471,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                             if qtd_enc > 0:
                                 buffer_pdf_unico = io.BytesIO(pdf_final.tobytes(deflate=True))
                                 pdf_final.close()
-                                nome_pdf_unico = f"TODOS_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.pdf"
+                                nome_pdf_unico = f"TODOS_RDC_{data_emissao_sel.strftime('%d_%m_%Y')}.pdf"
                                 st.download_button(
                                     f"⬇️ Baixar PDF Único ({qtd_enc} encarregados)",
                                     data=buffer_pdf_unico,
@@ -4440,13 +4479,36 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                     mime="application/pdf",
                                     use_container_width=True
                                 )
-                                st.success(f"✅ PDF único gerado com {qtd_enc} RDCs!")
+                                st.success(f"✅ PDF único pronto para impressão com {qtd_enc} RDCs!")
                             else:
                                 pdf_final.close()
                                 st.warning("⚠️ Nenhum RDC encontrado.")
                         except Exception as e:
                             st.error(f"Erro ao gerar PDF único: {e}")
 
+            # ==============================================================
+            # PRÉ-VISUALIZAÇÃO DO PDF NA TELA (ON-SCREEN PREVIEW)
+            # ==============================================================
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.toggle("👁️ Pré-visualizar RDC na Tela (Antes de Imprimir)", key="toggle_preview_rdc"):
+                if len(lista_alvo) > 0:
+                    enc_prev = st.selectbox("Selecione o Encarregado para Visualizar:", lista_alvo, key="sel_enc_preview")
+                    eq_prev = df_atual[df_atual["ENCARREGADO"] == enc_prev]
+                    
+                    with st.spinner("Renderizando folha do RDC..."):
+                        pdf_prev_bytes = gerar_pdf_rdc(eq_prev, enc_prev, nome_empresa=nome_site, logo_path=caminho_logo, data_rdc=data_emissao_str)
+                        if pdf_prev_bytes:
+                            try:
+                                import fitz
+                                doc = fitz.open(stream=pdf_prev_bytes, filetype="pdf")
+                                page = doc.load_page(0)
+                                pix = page.get_pixmap(dpi=140)
+                                img_bytes = pix.tobytes("png")
+                                st.image(img_bytes, caption=f"📄 Folha de RDC — {enc_prev} ({data_emissao_str})", use_container_width=True)
+                            except Exception as e_prev:
+                                st.error(f"Erro ao renderizar imagem: {e_prev}")
+                        else:
+                            st.warning("Não foi possível gerar a prévia.")
     with tab_escala:
         st.markdown("### 📋 Escala Diária de Efetivo")
         st.markdown("Marque quem da equipe está escalado para trabalhar no dia selecionado. Os dados são salvos para controle do apontamento.")
