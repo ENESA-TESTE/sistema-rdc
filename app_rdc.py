@@ -6370,20 +6370,18 @@ if st.session_state.df is not None:
 
                     # === FILTROS ===
                     st.markdown("#### 🎛️ Filtros")
-                    col_f1, col_f2, col_f3 = st.columns(3)
+                    datas_disponiveis_g = sorted(df_gargalos["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
+                    col_f1, col_f2 = st.columns(2)
                     with col_f1:
-                        data_ini_g = st.date_input("De:", value=None, key="garg_data_ini")
+                        datas_sel_g = st.multiselect("📅 Selecione a(s) Data(s):", datas_disponiveis_g, default=[], key="garg_datas", help="Deixe vazio para ver todos os RDCs")
                     with col_f2:
-                        data_fim_g = st.date_input("Até:", value=None, key="garg_data_fim")
-                    with col_f3:
                         disc_opcoes_g = sorted(df_gargalos["DISCIPLINA"].dropna().unique().tolist())
                         disc_sel_g = st.multiselect("Disciplina:", disc_opcoes_g, default=[], key="garg_disc")
 
                     df_g = df_gargalos.copy()
-                    if data_ini_g:
-                        df_g = df_g[df_g["_DATA_DT"].dt.date >= data_ini_g]
-                    if data_fim_g:
-                        df_g = df_g[df_g["_DATA_DT"].dt.date <= data_fim_g]
+                    if datas_sel_g:
+                        datas_filtro = [pd.to_datetime(d, format="%d/%m/%Y").date() for d in datas_sel_g]
+                        df_g = df_g[df_g["_DATA_DT"].dt.date.isin(datas_filtro)]
                     if disc_sel_g:
                         df_g = df_g[df_g["DISCIPLINA"].isin(disc_sel_g)]
 
