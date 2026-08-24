@@ -2446,7 +2446,7 @@ with st.sidebar:
             st.rerun()
         
         # --- Seletor de Modelo Gemini ---
-        modelos_gemini = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
+        modelos_gemini = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"]
         modelo_atual = st.session_state.get("modelo_gemini", "gemini-2.5-flash")
         idx_modelo = modelos_gemini.index(modelo_atual) if modelo_atual in modelos_gemini else 0
         modelo_sel = st.selectbox("🤖 Modelo de IA (Gemini)", modelos_gemini, index=idx_modelo, key="sel_modelo_gemini")
@@ -3687,109 +3687,177 @@ if st.session_state.df is not None:
         if not lista_encarregados_base:
             st.warning("Nenhum encarregado encontrado na base.")
         else:
-            encarregado_sel = st.selectbox("Escolha o Encarregado:", lista_encarregados_base)
-            equipe = df_atual[df_atual["ENCARREGADO"] == encarregado_sel]
+            encarregados_sel = st.multiselect("Escolha o(s) Encarregado(s) (deixe vazio para gerar todos):", lista_encarregados_base, default=[lista_encarregados_base[0]] if lista_encarregados_base else [])
+            lista_alvo = encarregados_sel if encarregados_sel else lista_encarregados_base
+            
+            equipe = df_atual[df_atual["ENCARREGADO"].isin(lista_alvo)]
             st.markdown("")
-            st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado:</strong></td><td>{encarregado_sel}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
-            st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
+            texto_enc = ", ".join(lista_alvo) if len(lista_alvo) <= 3 else f"{len(lista_alvo)} Encarregados Selecionados"
+            st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado(s):</strong></td><td>{texto_enc}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
+            
+            if "ENCARREGADO" not in equipe.columns:
+                st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
+            else:
+                st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
+            
             st.markdown("")
             
-
             col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
             with col_btn1:
                 if st.button("🟢 GERAR EXCEL", type="primary", use_container_width=True):
-                    wb = preencher_excel(equipe, encarregado_sel)
-                    if wb:
-                        nome_limpo = encarregado_sel.replace(" ", "_")
-                        nome_arquivo = f"RDC_{nome_limpo}.xlsx"
-                        buffer = io.BytesIO()
-                        wb.save(buffer)
-                        wb.close()
-                        try:
-                            hoje = datetime.datetime.now()
-                            pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
-                            os.makedirs(pasta_hist, exist_ok=True)
-                            
-                            caminho_local = os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
-                            with open(caminho_local, "wb") as f:
-                                f.write(buffer.getvalue())
-                                
-                            success, msg = backup_google_drive(caminho_local, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
-                            if success:
-                                st.toast("☁️ Backup salvo no Google Drive!")
-                        except Exception as e:
-                            pass
-                        buffer.seek(0)
-                        st.download_button("⬇️ Baixar Planilha", data=buffer, file_name=nome_arquivo, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-                        st.success("✅ Gerado!")
+                    if len(lista_alvo) == 1:
+                        enc = lista_alvo[0]
+                        eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                        wb = preencher_excel(eq, enc)
+                        if wb:
+                            nome_limpo = enc.replace(" ", "_")
+                            nome_arquivo = f"RDC_{nome_limpo}.xlsx"
+                            buffer = io.BytesIO()
+                            wb.save(buffer)
+                            wb.close()
+                            try:
+                                hoje = datetime.datetime.now()
+                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
+                                os.makedirs(pasta_hist, exist_ok=True)
+                                caminho_local = os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
+                                with open(caminho_local, "wb") as f:
+                                    f.write(buffer.getvalue())
+                                success, msg = backup_google_drive(caminho_local, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
+                                if success:
+                                    st.toast("☁️ Backup salvo no Google Drive!")
+                            except Exception:
+                                pass
+                            buffer.seek(0)
+                            st.download_button("⬇️ Baixar Planilha", data=buffer, file_name=nome_arquivo, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+                            st.success("✅ Gerado!")
+                        else:
+                            st.error("Modelo não encontrado.")
                     else:
-                        st.error("Modelo não encontrado. Faça upload do MODELO.xlsx.")
-            with col_btn2:
-                if st.button("📄 GERAR PDF", use_container_width=True):
-                    pdf_bytes = gerar_pdf_rdc(equipe, encarregado_sel, nome_empresa=nome_site, logo_path=caminho_logo)
-                    if pdf_bytes:
-                        nome_limpo = encarregado_sel.replace(" ", "_")
-                        nome_pdf = f"RDC_{nome_limpo}.pdf"
-                        st.download_button("⬇️ Baixar PDF", data=pdf_bytes, file_name=nome_pdf, mime="application/pdf", use_container_width=True)
-                        st.success("✅ PDF gerado!")
-                    else:
-                        st.error("Erro ao gerar PDF. Verifique se a biblioteca fpdf2 está instalada.")
-            with col_btn3:
-                if st.button("🚀 GERAR TODOS (.ZIP)", use_container_width=True):
-                    with st.spinner("Gerando..."):
-                        try:
+                        with st.spinner("Gerando planilhas Excel em Lote..."):
                             zip_buffer = io.BytesIO()
                             qtd = 0
                             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                                for enc in lista_encarregados_base:
+                                for enc in lista_alvo:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
-                                        # Salvar histórico local em Excel (backup)
                                         wb_e = preencher_excel(eq, enc)
                                         if wb_e:
                                             buf = io.BytesIO()
                                             wb_e.save(buf)
                                             wb_e.close()
+                                            n = enc.replace(" ", "_")
+                                            zf.writestr(f"RDC_{n}.xlsx", buf.getvalue())
+                                            qtd += 1
                                             try:
                                                 hoje = datetime.datetime.now()
                                                 pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
                                                 os.makedirs(pasta_hist, exist_ok=True)
-                                                n = enc.replace(" ", "_")
                                                 with open(os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_RDC_{n}.xlsx"), "wb") as f:
                                                     f.write(buf.getvalue())
                                             except Exception:
                                                 pass
-                                        # Gerar PDF e adicionar ao ZIP (SOMENTE PDF)
+                            if qtd > 0:
+                                zip_buffer.seek(0)
+                                nome_zip = f"LOTE_EXCEL_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                                st.download_button(f"⬇️ Baixar Planilhas ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
+                                st.success(f"✅ {qtd} Planilhas Excel geradas no ZIP!")
+                            else:
+                                st.warning("Nenhuma planilha gerada.")
+
+            with col_btn2:
+                if st.button("📄 GERAR PDF", use_container_width=True):
+                    if len(lista_alvo) == 1:
+                        enc = lista_alvo[0]
+                        eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                        pdf_bytes = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                        if pdf_bytes:
+                            nome_limpo = enc.replace(" ", "_")
+                            nome_pdf = f"RDC_{nome_limpo}.pdf"
+                            st.download_button("⬇️ Baixar PDF", data=pdf_bytes, file_name=nome_pdf, mime="application/pdf", use_container_width=True)
+                            st.success("✅ PDF gerado!")
+                        else:
+                            st.error("Erro ao gerar PDF.")
+                    else:
+                        with st.spinner("Gerando PDFs em Lote..."):
+                            zip_buffer = io.BytesIO()
+                            qtd = 0
+                            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                                for enc in lista_alvo:
+                                    eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                    if len(eq) > 0:
                                         pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
                                         if pdf_b:
                                             zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
                                             qtd += 1
-                            zip_buffer.seek(0)
-                            nome_zip = f"LOTE_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
-                            st.download_button(f"⬇️ Baixar Todos ({qtd} arquivos)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
-                            
-                            try:
-                                with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip:
-                                    tmp_zip.write(zip_buffer.getvalue())
-                                    tmp_zip_path = tmp_zip.name
-                                success, msg = backup_google_drive(tmp_zip_path, "application/zip", nome_zip)
-                                if success:
-                                    st.toast("☁️ Lote salvo no Google Drive!")
-                                os.remove(tmp_zip_path)
-                            except:
-                                pass
+                            if qtd > 0:
+                                zip_buffer.seek(0)
+                                nome_zip = f"LOTE_PDF_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                                st.download_button(f"⬇️ Baixar PDFs ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
+                                st.success(f"✅ {qtd} PDFs gerados no ZIP!")
+                            else:
+                                st.warning("Nenhum PDF gerado.")
+
+            with col_btn3:
+                if st.button("🚀 GERAR LOTE (.ZIP)", use_container_width=True):
+                    with st.spinner("Gerando PDFs e planilhas..."):
+                        try:
+                            zip_buffer = io.BytesIO()
+                            qtd = 0
+                            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                                for enc in lista_alvo:
+                                    eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                    if len(eq) > 0:
+                                        wb_e = preencher_excel(eq, enc)
+                                        if wb_e:
+                                            buf = io.BytesIO()
+                                            wb_e.save(buf)
+                                            wb_e.close()
+                                            n = enc.replace(" ", "_")
+                                            zf.writestr(f"RDC_{n}.xlsx", buf.getvalue())
+                                            try:
+                                                hoje = datetime.datetime.now()
+                                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
+                                                os.makedirs(pasta_hist, exist_ok=True)
+                                                with open(os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_RDC_{n}.xlsx"), "wb") as f:
+                                                    f.write(buf.getvalue())
+                                            except Exception:
+                                                pass
+                                        
+                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                        if pdf_b:
+                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
+                                        
+                                        qtd += 1
+                            if qtd > 0:
+                                zip_buffer.seek(0)
+                                nome_zip = f"LOTE_RDC_COMPLETO_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                                st.download_button(f"⬇️ Baixar Lote ({qtd} pastas/encarregados)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
                                 
-                            st.success(f"✅ {qtd} PDFs gerados no ZIP!")
+                                try:
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip:
+                                        tmp_zip.write(zip_buffer.getvalue())
+                                        tmp_zip_path = tmp_zip.name
+                                    success, msg = backup_google_drive(tmp_zip_path, "application/zip", nome_zip)
+                                    if success:
+                                        st.toast("☁️ Lote salvo no Google Drive!")
+                                    os.remove(tmp_zip_path)
+                                except:
+                                    pass
+                                    
+                                st.success(f"✅ Arquivos de {qtd} encarregados gerados no ZIP!")
+                            else:
+                                st.warning("Nenhum arquivo gerado.")
                         except Exception as e:
                             st.error(f"Erro: {e}")
+
             with col_btn4:
                 if st.button("🖨️ PDF ÚNICO (Impressão)", use_container_width=True):
-                    with st.spinner("Gerando PDF único com todos os RDCs..."):
+                    with st.spinner("Gerando PDF único..."):
                         try:
                             import fitz  # PyMuPDF
-                            pdf_final = fitz.open()  # PDF vazio que vai receber tudo
+                            pdf_final = fitz.open()
                             qtd_enc = 0
-                            for enc in lista_encarregados_base:
+                            for enc in lista_alvo:
                                 eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                 if len(eq) > 0:
                                     pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
@@ -3809,10 +3877,10 @@ if st.session_state.df is not None:
                                     mime="application/pdf",
                                     use_container_width=True
                                 )
-                                st.success(f"✅ PDF único gerado com {qtd_enc} RDCs! Agora é só abrir e mandar imprimir.")
+                                st.success(f"✅ PDF único gerado com {qtd_enc} RDCs!")
                             else:
                                 pdf_final.close()
-                                st.warning("⚠️ Nenhum RDC encontrado para gerar.")
+                                st.warning("⚠️ Nenhum RDC encontrado.")
                         except Exception as e:
                             st.error(f"Erro ao gerar PDF único: {e}")
 
