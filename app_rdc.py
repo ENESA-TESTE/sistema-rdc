@@ -4598,25 +4598,69 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
 
     with tab_f1:
         st.markdown("### 🏎️ Competição F1 - Entrega de RDC")
-        st.markdown("Acompanhamento mensal da entrega dos Relatórios Diários de Campo (RDC).")
-        
-        # A lista completa foi movida para cima para ser compartilhada com a aba de Resumo Diário
-        
+        st.markdown("### 🏎️ Competição F1 — Entrega de RDC")
+        st.markdown("Acompanhamento mensal, ranking de pontualidade e assiduidade dos Encarregados na entrega dos Relatórios Diários de Campo.")
+
+        # === MAPEAMENTO DE DISCIPLINAS POR ENCARREGADO ===
+        dict_enc_disciplina = {}
+        if "DISCIPLINA" in df_atual.columns and "ENCARREGADO" in df_atual.columns:
+            for enc_n in df_atual["ENCARREGADO"].dropna().unique():
+                enc_n_str = str(enc_n).strip().upper()
+                if enc_n_str:
+                    sub_d = df_atual[df_atual["ENCARREGADO"].astype(str).str.upper().str.strip() == enc_n_str]
+                    if not sub_d.empty:
+                        d_val = sub_d["DISCIPLINA"].dropna()
+                        if not d_val.empty:
+                            dict_enc_disciplina[enc_n_str] = str(d_val.iloc[0]).strip().upper()
+                        else:
+                            dict_enc_disciplina[enc_n_str] = "GERAL"
+
         # === PAINEL: GERENCIAR LISTA DE ENCARREGADOS ===
         if st.session_state.get("role_usuario") != "apontador" and st.toggle("👥 Gerenciar Lista de Encarregados do F1", key="toggle_gerenciar_lista_f1"):
             st.markdown("""
             <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
-                <p style="margin: 0; color: #94a3b8; font-size: 14px;">⚙️ Aqui você pode <b style="color: #0ea5e9;">adicionar</b> ou <b style="color: #ef4444;">remover</b> encarregados do controle F1. As alterações são salvas automaticamente.</p>
+                <p style="margin: 0; color: #94a3b8; font-size: 14px;">⚙️ Gerencie a lista oficial de encarregados. Você pode <b>adicionar</b>, <b>remover</b> ou <b>sincronizar automaticamente</b> com base na função 'ENCARREGADO' do PDE.</p>
             </div>
             """, unsafe_allow_html=True)
             
+            # Botão de Sincronização Automática por Função
+            col_auto_sync, col_auto_info = st.columns([1, 2])
+            with col_auto_sync:
+                if st.button("🔄 Auto-Sincronizar do PDE (Apenas Função 'ENCARREGADO')", key="btn_sync_enc_funcao", type="primary", use_container_width=True):
+                    if "FUNÇÃO" in df_atual.columns:
+                        mask_enc_func = df_atual["FUNÇÃO"].astype(str).str.upper().str.contains(r"ENCARREGAD|ENC|LIDER|LÍDER")
+                        df_encs_auto = df_atual[mask_enc_func]
+                        
+                        nomes_pde_func = []
+                        if "NOME" in df_encs_auto.columns:
+                            nomes_pde_func.extend(df_encs_auto["NOME"].dropna().astype(str).str.strip().str.upper().unique().tolist())
+                        if "ENCARREGADO" in df_encs_auto.columns:
+                            nomes_pde_func.extend(df_encs_auto["ENCARREGADO"].dropna().astype(str).str.strip().str.upper().unique().tolist())
+                            
+                        nomes_pde_func = [n for n in set(nomes_pde_func) if n and len(n) > 3 and n != "AJUSTAR NOME"]
+                        
+                        if nomes_pde_func:
+                            lista_unificada = sorted(list(set(encarregados_f1_oficial + nomes_pde_func)))
+                            with open(caminho_f1_json, "w", encoding="utf-8") as f:
+                                json.dump(lista_unificada, f, ensure_ascii=False, indent=2)
+                            st.success(f"✅ Sincronização concluída! {len(lista_unificada)} encarregados mapeados a partir da função no PDE.")
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Nenhum colaborador com 'ENCARREGADO' na coluna Função foi encontrado no PDE.")
+                    else:
+                        st.error("Coluna 'FUNÇÃO' não encontrada no PDE.")
+            with col_auto_info:
+                st.caption("Puxa automaticamente todos os colaboradores que possuem 'ENCARREGADO' ou 'LÍDER' cadastrados na coluna Função do PDE.")
+
+            st.markdown("<br>", unsafe_allow_html=True)
             col_add, col_rem = st.columns(2)
             
             with col_add:
                 with st.form("form_add_enc_f1"):
-                    st.markdown("**➕ Adicionar Encarregado**")
+                    st.markdown("**➕ Adicionar Encarregado Manualmente**")
                     novo_nome = st.text_input("Nome completo do Encarregado:", placeholder="Ex: JOÃO DA SILVA SOUZA")
-                    btn_add = st.form_submit_button("Adicionar à Lista", type="primary", use_container_width=True)
+                    btn_add = st.form_submit_button("Adicionar à Lista", type="secondary", use_container_width=True)
                     if btn_add and novo_nome.strip():
                         nome_upper = novo_nome.strip().upper()
                         if nome_upper in lista_completa_encarregados:
@@ -4633,7 +4677,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 with st.form("form_rem_enc_f1"):
                     st.markdown("**🗑️ Remover Encarregado**")
                     enc_remover = st.multiselect("Selecione quem remover:", lista_completa_encarregados)
-                    btn_rem = st.form_submit_button("Remover da Lista", type="primary", use_container_width=True)
+                    btn_rem = st.form_submit_button("Remover da Lista", type="secondary", use_container_width=True)
                     if btn_rem and enc_remover:
                         lista_atualizada = [e for e in encarregados_f1_oficial if e.upper() not in enc_remover]
                         with open(caminho_f1_json, "w", encoding="utf-8") as f:
@@ -4642,13 +4686,13 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                         time.sleep(2)
                         st.rerun()
             
-            st.caption(f"📋 Total atual na lista: **{len(lista_completa_encarregados)}** encarregados")
-        
+            st.caption(f"📋 Total atual na lista: **{len(lista_completa_encarregados)}** encarregados oficiais")
+
         # === PAINEL: ABONAR FALTAS ===
         if st.session_state.get("role_usuario") != "apontador" and st.toggle("⏸️ Abonar Faltas (Folga / Atestado / Feriado)", key="toggle_abono_f1"):
             st.markdown("""
             <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
-                <p style="margin: 0; color: #94a3b8; font-size: 14px;">📝 Marque os dias em que o encarregado <b style="color: #f59e0b;">não precisava</b> entregar o RDC. Esses dias aparecerão como <b style="color: #f59e0b;">⏸️</b> na tabela em vez de ❌.</p>
+                <p style="margin: 0; color: #94a3b8; font-size: 14px;">📝 Marque os dias em que o encarregado <b style="color: #f59e0b;">não precisava</b> entregar o RDC. Esses dias aparecerão como <b style="color: #f59e0b;">⏸️</b> e não penalizam a taxa de aproveitamento.</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -4664,7 +4708,6 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 btn_abono = st.form_submit_button("✅ Registrar Abono", type="primary", use_container_width=True)
                 if btn_abono and encs_abono:
                     novos_abonos = []
-                    # datas_abono pode ser uma data única ou uma tupla de datas
                     if isinstance(datas_abono, (list, tuple)):
                         lista_datas = [d.strftime("%Y-%m-%d") for d in datas_abono]
                     else:
@@ -4688,7 +4731,6 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     else:
                         st.info("ℹ️ Todos os abonos selecionados já estavam cadastrados.")
             
-            # Mostrar abonos existentes do mês atual
             if not st.session_state.df_f1_excecoes.empty:
                 st.markdown("**Abonos registrados:**")
                 df_exc_show = st.session_state.df_f1_excecoes.copy()
@@ -4702,7 +4744,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     st.success("✅ Todos os abonos foram removidos!")
                     time.sleep(2)
                     st.rerun()
-        
+
         # --- LANÇAMENTO MANUAL ---
         if st.session_state.get("role_usuario") != "apontador" and st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)"):
             with st.form("form_f1_manual"):
@@ -4720,7 +4762,6 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     data_str = data_manual.strftime("%Y-%m-%d")
                     
                     lista_suja = [n.strip().upper() for n in re.split(r'[\n,;]', nomes_colados) if n.strip()]
-                    
                     novos_registros = []
                     nomes_ja_existentes = 0
                     nomes_nao_encontrados = []
@@ -4739,10 +4780,8 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                # Puxar a versão mais fresca da nuvem para evitar sobrescrever a IA rodando em outra aba
                                 df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
@@ -4767,13 +4806,12 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
                     if nomes_nao_encontrados:
-                        st.error(f"❌ Não encontrei na lista oficial (verifique a escrita): {', '.join(nomes_nao_encontrados)}")
+                        st.error(f"❌ Não encontrei na lista oficial: {', '.join(nomes_nao_encontrados)}")
                         
-                    time.sleep(4)
+                    time.sleep(3)
                     st.rerun()
-        # -------------------------
 
-        # Preparar dados de data do histórico
+        # === FILTROS PRINCIPAIS: MÊS E DISCIPLINA ===
         df_hist = st.session_state.df_historico_f1.copy()
         if not df_hist.empty:
             df_hist["DATA"] = pd.to_datetime(df_hist["DATA"], format="%Y-%m-%d", errors="coerce")
@@ -4783,8 +4821,13 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
         else:
             meses_disponiveis = [datetime.date.today().strftime("%Y-%m")]
             
-        mes_selecionado = st.selectbox("📅 Selecione o Mês para Análise:", meses_disponiveis)
-        
+        col_f1_mes, col_f1_disc = st.columns([1, 1])
+        with col_f1_mes:
+            mes_selecionado = st.selectbox("📅 Selecione o Mês para Análise:", meses_disponiveis)
+        with col_f1_disc:
+            disciplinas_disponiveis = sorted(list(set([d for d in dict_enc_disciplina.values() if d and d != "GERAL"])))
+            filtro_f1_disc = st.selectbox("🎯 Filtrar por Disciplina:", ["Todas as Disciplinas"] + disciplinas_disponiveis)
+
         if not df_hist.empty:
             df_mes = df_hist[df_hist["MES_ANO"] == mes_selecionado]
         else:
@@ -4794,25 +4837,30 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
         ano, mes = map(int, mes_selecionado.split('-'))
         num_dias = calendar.monthrange(ano, mes)[1]
         
-        # Montar a Matriz com a lista oficial + qualquer outro nome que já tenha entregue no mês
         nomes_no_mes = df_mes["ENCARREGADO"].dropna().unique().tolist() if not df_mes.empty else []
         todos_encarregados_matriz = sorted(list(set(lista_completa_encarregados + nomes_no_mes)))
-        # Remover nomes inválidos da matriz
         todos_encarregados_matriz = [e for e in todos_encarregados_matriz if e.strip() != "" and e.upper() != "AJUSTAR NOME"]
+        
+        # Aplicar filtro por disciplina se selecionado
+        if filtro_f1_disc != "Todas as Disciplinas":
+            todos_encarregados_matriz = [e for e in todos_encarregados_matriz if dict_enc_disciplina.get(e, "GERAL") == filtro_f1_disc]
+            if not todos_encarregados_matriz:
+                st.info(f"Nenhum encarregado cadastrado na disciplina {filtro_f1_disc}.")
+                todos_encarregados_matriz = []
         
         dias_str = [str(d) for d in range(1, num_dias + 1)]
         
-        # Identificar sábados e domingos
+        # Identificar fins de semana
         dias_fim_de_semana = set()
         for d in range(1, num_dias + 1):
             data_check = datetime.date(ano, mes, d)
-            if data_check.weekday() >= 5:  # 5=Sábado, 6=Domingo
+            if data_check.weekday() >= 5:
                 dias_fim_de_semana.add(str(d))
         
         dias_uteis = [d for d in dias_str if d not in dias_fim_de_semana]
         
+        # Montar Matriz
         matriz = pd.DataFrame(index=todos_encarregados_matriz, columns=dias_str)
-        # Preencher dias úteis com ❌ e fins de semana com ➖
         for col in dias_str:
             if col in dias_fim_de_semana:
                 matriz[col] = "➖"
@@ -4825,7 +4873,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             if enc in matriz.index and dia not in dias_fim_de_semana:
                 matriz.loc[enc, dia] = "✅"
         
-        # Aplicar Abonos (substituir ❌ por ⏸️ para dias com exceção cadastrada)
+        # Aplicar Abonos
         if not st.session_state.df_f1_excecoes.empty:
             df_exc_mes = st.session_state.df_f1_excecoes.copy()
             df_exc_mes["DATA"] = pd.to_datetime(df_exc_mes["DATA"], errors='coerce')
@@ -4838,11 +4886,56 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 if enc_exc in matriz.index and dia_exc not in dias_fim_de_semana:
                     if matriz.loc[enc_exc, dia_exc] == "❌":
                         matriz.loc[enc_exc, dia_exc] = "⏸️"
-                
-        # Total conta apenas dias úteis (ignora fins de semana e abonos)
+        
+        # Identificar dias decorridos no mês (para cálculo correto da taxa até hoje)
+        hoje_ref = datetime.date.today()
+        if ano == hoje_ref.year and mes == hoje_ref.month:
+            dias_decorridos_uteis = [d for d in dias_uteis if int(d) <= hoje_ref.day]
+        elif (ano < hoje_ref.year) or (ano == hoje_ref.year and mes < hoje_ref.month):
+            dias_decorridos_uteis = dias_uteis.copy()
+        else:
+            dias_decorridos_uteis = []
+
+        # Totais e Aproveitamento (%)
         matriz["Total"] = (matriz[dias_uteis] == "✅").sum(axis=1)
         
-        # Adicionar o total do dia no próprio cabeçalho da coluna (em cima dos dias)
+        lista_aprov = []
+        lista_badges = []
+        lista_disciplinas_col = []
+        
+        for enc_i in matriz.index:
+            lista_disciplinas_col.append(dict_enc_disciplina.get(enc_i, "GERAL"))
+            
+            # Cálculo de aproveitamento considerando apenas dias úteis decorridos e sem abonos
+            if dias_decorridos_uteis:
+                dias_esp = sum(1 for d in dias_decorridos_uteis if matriz.loc[enc_i, d] != "⏸️")
+                entregues_ate_agora = sum(1 for d in dias_decorridos_uteis if matriz.loc[enc_i, d] == "✅")
+                aprov_val = round((entregues_ate_agora / dias_esp * 100), 1) if dias_esp > 0 else 0.0
+            else:
+                aprov_val = 0.0
+            lista_aprov.append(f"{aprov_val:.1f}%")
+            
+            # Badges / Conquistas Gamificadas
+            badges_enc = []
+            if aprov_val >= 100.0 and len(dias_decorridos_uteis) >= 2:
+                badges_enc.append("🚀 100% Imbatível")
+            elif aprov_val >= 90.0:
+                badges_enc.append("⭐ Padrão Ouro")
+                
+            if len(dias_decorridos_uteis) >= 3:
+                ultimos_3_dias = dias_decorridos_uteis[-3:]
+                if all(matriz.loc[enc_i, d] == "✅" for d in ultimos_3_dias):
+                    badges_enc.append("🔥 Em Chamas")
+                elif all(matriz.loc[enc_i, d] == "❌" for d in ultimos_3_dias):
+                    badges_enc.append("⚠️ Box / Pit Stop")
+                    
+            lista_badges.append(" ".join(badges_enc) if badges_enc else "—")
+
+        matriz["Disciplina"] = lista_disciplinas_col
+        matriz["Aproveitamento"] = lista_aprov
+        matriz["Conquistas"] = lista_badges
+
+        # Cabeçalhos com contagem por dia
         total_por_dia = (matriz[dias_str] == "✅").sum(axis=0)
         novas_colunas = {}
         for dia in dias_str:
@@ -4853,41 +4946,45 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             else:
                 novas_colunas[dia] = f"{dia}\n({total_por_dia[dia]})"
         matriz.rename(columns=novas_colunas, inplace=True)
-        
+
         total_entregue = matriz["Total"].sum()
-        col_tit, col_met = st.columns([3, 1])
-        with col_tit:
-            st.markdown(f"#### 📊 Matriz de Entregas - {mes_selecionado}")
-        with col_met:
-            st.metric("📄 Total de RDCs Entregues", total_entregue)
-            
-        # Alerta de Devedores (3 dias úteis)
-        if mes_selecionado == datetime.date.today().strftime("%Y-%m"):
-            hoje_int = datetime.date.today().day
-            dias_passados = [d for d in dias_uteis if int(d) <= hoje_int]
-            devedores = []
-            if len(dias_passados) >= 3:
-                ultimos_3 = dias_passados[-3:]
-                for enc in matriz.index:
-                    if all(matriz.loc[enc, novas_colunas[dia]] == "❌" for dia in ultimos_3):
-                        devedores.append(enc)
-            if devedores:
-                st.error(f"🚨 **ALERTA CRÍTICO:** {len(devedores)} encarregados não entregaram RDC nos últimos 3 dias úteis.")
-                if st.toggle("👀 Mostrar lista de encarregados com pendência crítica"):
-                    dados_dev = []
-                    for enc in devedores:
-                        entregues_ate_hoje = sum(1 for d in dias_passados if matriz.loc[enc, novas_colunas[d]] == "✅")
-                        pendentes_ate_hoje = len(dias_passados) - entregues_ate_hoje
-                        dados_dev.append({"Encarregados": enc, "Faltas Totais no Mês": pendentes_ate_hoje})
-                    
-                    df_dev = pd.DataFrame(dados_dev).sort_values(by="Faltas Totais no Mês", ascending=False)
-                    st.dataframe(df_dev, hide_index=True, use_container_width=True)
         
+        # Média de aproveitamento geral
+        media_aprov = 0.0
+        if lista_aprov:
+            vals_num = [float(a.replace('%', '')) for a in lista_aprov]
+            media_aprov = round(sum(vals_num) / len(vals_num), 1)
+
+        st.markdown("---")
+        col_tit, col_met1, col_met2, col_met3 = st.columns([3, 1, 1, 1])
+        with col_tit:
+            st.markdown(f"#### 📊 Matriz de Entregas & Assiduidade — {mes_selecionado}")
+        with col_met1:
+            st.metric("📄 RDCs Entregues", total_entregue)
+        with col_met2:
+            st.metric("🎯 Aproveitamento Médio", f"{media_aprov}%")
+        with col_met3:
+            st.metric("👷 Encarregados", len(matriz))
+
+        # Alerta de Devedores Críticos
+        if mes_selecionado == datetime.date.today().strftime("%Y-%m") and len(dias_decorridos_uteis) >= 3:
+            ultimos_3 = dias_decorridos_uteis[-3:]
+            devedores = []
+            for enc in matriz.index:
+                if all(matriz.loc[enc, novas_colunas[dia]] == "❌" for dia in ultimos_3):
+                    devedores.append(enc)
+            if devedores:
+                st.error(f"🚨 **ALERTA CRÍTICO:** {len(devedores)} encarregados não entregaram RDC nos últimos 3 dias úteis consecutivos.")
+                if st.toggle("👀 Ver encarregados com pendência crítica (Box)", key="tgl_dev_criticos"):
+                    dados_dev = [{"Encarregado": enc, "Disciplina": dict_enc_disciplina.get(enc, 'GERAL'), "Faltas no Mês": len(dias_decorridos_uteis) - sum(1 for d in dias_decorridos_uteis if matriz.loc[enc, novas_colunas[d]] == "✅")} for enc in devedores]
+                    df_dev = pd.DataFrame(dados_dev).sort_values(by="Faltas no Mês", ascending=False)
+                    st.dataframe(df_dev, hide_index=True, use_container_width=True)
+
         def cor_fundo(valor):
             if valor == "✅":
-                return "background-color: rgba(74, 222, 128, 0.2); color: #4ade80;"
+                return "background-color: rgba(74, 222, 128, 0.2); color: #4ade80; font-weight: bold;"
             elif valor == "❌":
-                return "background-color: rgba(255, 75, 75, 0.2); color: #ff4b4b;"
+                return "background-color: rgba(255, 75, 75, 0.2); color: #ff4b4b; font-weight: bold;"
             elif valor == "⏸️":
                 return "background-color: rgba(245, 158, 11, 0.2); color: #f59e0b;"
             elif valor == "➖":
@@ -4900,7 +4997,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             matriz_estilizada = matriz.style.applymap(cor_fundo)
             
         st.dataframe(matriz_estilizada, use_container_width=True)
-        
+
         # === MARCAR / DESMARCAR ENTREGA MANUALMENTE ===
         if st.toggle("✏️ Marcar ou Desmarcar Entrega de um Dia", key="toggle_marcar_dia_f1"):
             st.markdown("""
@@ -4920,9 +5017,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             if st.button("Aplicar", type="primary", use_container_width=True, key="btn_aplicar_marcar"):
                 if encs_marcar:
                     data_str = f"{ano}-{str(mes).zfill(2)}-{str(dia_marcar).zfill(2)}"
-                    
                     if "✅" in acao_marcar:
-                        # Adicionar ao histórico F1
                         novos = []
                         for enc_mk in encs_marcar:
                             ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_mk)).any()
@@ -4932,19 +5027,16 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                             df_novos_mk = pd.DataFrame(novos)
                             st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos_mk], ignore_index=True)
                             st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            
                             if conn and not st.session_state.get('force_use_local', False):
                                 try:
                                     salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                                     st.cache_data.clear()
                                 except Exception:
                                     pass
-                            
                             st.success(f"✅ {len(novos)} entrega(s) marcada(s) no dia {dia_marcar}!")
                         else:
                             st.info("ℹ️ Todos já estavam marcados nesse dia.")
                     else:
-                        # Remover do histórico F1
                         removidos = 0
                         for enc_mk in encs_marcar:
                             mask = (st.session_state.df_historico_f1["DATA"] == data_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_mk)
@@ -4952,7 +5044,6 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 st.session_state.df_historico_f1 = st.session_state.df_historico_f1[~mask]
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 removidos += 1
-                        
                         if removidos > 0:
                             if conn and not st.session_state.get('force_use_local', False):
                                 try:
@@ -4963,102 +5054,150 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                             st.success(f"❌ {removidos} entrega(s) desmarcada(s) no dia {dia_marcar}!")
                         else:
                             st.info("ℹ️ Nenhum deles estava marcado nesse dia.")
-                    
                     time.sleep(2)
                     st.rerun()
-                else:
-                    st.warning("⚠️ Selecione pelo menos um encarregado.")
-        
-        # --- EXPORTAR PARA RH ---
-        buffer_rh = io.BytesIO()
-        matriz_export = matriz.reset_index().rename(columns={"index": "ENCARREGADO"})
-        matriz_export.to_excel(buffer_rh, index=False, engine='openpyxl')
-        buffer_rh.seek(0)
-        
-        st.download_button(
-            label="📥 Baixar Planilha do Mês para o RH (.xlsx)",
-            data=buffer_rh,
-            file_name=f"Relatorio_RH_F1_{mes_selecionado}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-        # --- BOTÃO PUXAR DA NUVEM ---
-        if st.button("☁️ Puxar Histórico F1 da Nuvem", key="btn_puxar_f1_nuvem", use_container_width=True):
-            try:
-                if conn:
-                    df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
-                    df_nuvem = df_nuvem.dropna(how='all')
-                    if not df_nuvem.empty:
-                        st.session_state.df_historico_f1 = df_nuvem
-                        df_nuvem.to_csv(caminho_historico_f1_csv, index=False)
-                        st.success(f"✅ Histórico F1 atualizado da nuvem! ({len(df_nuvem)} registros)")
-                        st.rerun()
+
+        # --- EXPORTAÇÃO E NUVEM ---
+        col_exp1, col_exp2 = st.columns(2)
+        with col_exp1:
+            buffer_rh = io.BytesIO()
+            matriz_export = matriz.reset_index().rename(columns={"index": "ENCARREGADO"})
+            matriz_export.to_excel(buffer_rh, index=False, engine='openpyxl')
+            buffer_rh.seek(0)
+            st.download_button(
+                label="📥 Baixar Planilha do Mês para o RH (.xlsx)",
+                data=buffer_rh,
+                file_name=f"Relatorio_RH_F1_{mes_selecionado}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with col_exp2:
+            if st.button("☁️ Puxar Histórico F1 da Nuvem", key="btn_puxar_f1_nuvem", use_container_width=True):
+                try:
+                    if conn:
+                        df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
+                        df_nuvem = df_nuvem.dropna(how='all')
+                        if not df_nuvem.empty:
+                            st.session_state.df_historico_f1 = df_nuvem
+                            df_nuvem.to_csv(caminho_historico_f1_csv, index=False)
+                            st.success(f"✅ Histórico F1 atualizado da nuvem! ({len(df_nuvem)} registros)")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ A aba Historico_F1 na nuvem está vazia.")
                     else:
-                        st.warning("⚠️ A aba Historico_F1 na nuvem está vazia.")
-                else:
-                    st.error("❌ Sem conexão com o Google Sheets.")
-            except Exception as e:
-                st.error(f"❌ Erro ao puxar da nuvem: {e}")
-        # ------------------------
+                        st.error("❌ Sem conexão com o Google Sheets.")
+                except Exception as e:
+                    st.error(f"❌ Erro ao puxar da nuvem: {e}")
+
+        # ==============================================================
+        # PÓDIO & RANKING GAMIFICADO
+        # ==============================================================
         st.markdown("---")
-        st.markdown("#### 🏆 Pódio do Mês (Top Melhores Entregas)")
+        st.markdown(f"#### 🏆 Pódio & Ranking de Campeões F1 — {mes_selecionado}")
         
-        ranking = matriz[["Total"]].sort_values(by="Total", ascending=False).reset_index()
-        ranking.columns = ["ENCARREGADO", "ENTREGAS"]
-        
-        st.success("🥇 Os 3 que MAIS entregaram RDCs")
-        top3 = ranking.head(3)
-        
+        # Preparar DataFrame de Ranking com Aproveitamento numérico para ordenação precisa
+        df_rank = matriz[["Total", "Aproveitamento", "Disciplina", "Conquistas"]].copy().reset_index()
+        df_rank.columns = ["ENCARREGADO", "ENTREGAS", "APROVEITAMENTO_STR", "DISCIPLINA", "CONQUISTAS"]
+        df_rank["APROV_NUM"] = df_rank["APROVEITAMENTO_STR"].str.replace('%', '').astype(float)
+        df_rank = df_rank.sort_values(by=["ENTREGAS", "APROV_NUM"], ascending=[False, False]).reset_index(drop=True)
+
+        top3 = df_rank.head(3)
         if len(top3) >= 3:
             n1 = top3.iloc[0]["ENCARREGADO"].split()[0] + " " + (top3.iloc[0]["ENCARREGADO"].split()[-1] if len(top3.iloc[0]["ENCARREGADO"].split())>1 else "")
-            t1 = top3.iloc[0]["ENTREGAS"]
+            t1 = f"{top3.iloc[0]['ENTREGAS']} RDCs ({top3.iloc[0]['APROVEITAMENTO_STR']})"
             n2 = top3.iloc[1]["ENCARREGADO"].split()[0] + " " + (top3.iloc[1]["ENCARREGADO"].split()[-1] if len(top3.iloc[1]["ENCARREGADO"].split())>1 else "")
-            t2 = top3.iloc[1]["ENTREGAS"]
+            t2 = f"{top3.iloc[1]['ENTREGAS']} RDCs ({top3.iloc[1]['APROVEITAMENTO_STR']})"
             n3 = top3.iloc[2]["ENCARREGADO"].split()[0] + " " + (top3.iloc[2]["ENCARREGADO"].split()[-1] if len(top3.iloc[2]["ENCARREGADO"].split())>1 else "")
-            t3 = top3.iloc[2]["ENTREGAS"]
+            t3 = f"{top3.iloc[2]['ENTREGAS']} RDCs ({top3.iloc[2]['APROVEITAMENTO_STR']})"
             
             html_podio = f"""
-            <div style="display: flex; justify-content: center; align-items: flex-end; height: 190px; gap: 15px; margin-top: 30px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: center; align-items: flex-end; height: 210px; gap: 15px; margin-top: 30px; margin-bottom: 25px;">
                 <!-- 2 Lugar -->
-                <div style="display: flex; flex-direction: column; align-items: center; width: 130px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                <div style="display: flex; flex-direction: column; align-items: center; width: 140px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div style="font-size: 13px; color: #cbd5e1; font-weight: bold; text-align: center; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n2}</div>
                     <div style="font-size: 28px; margin-bottom: -5px;">🥈</div>
-                    <div style="background: linear-gradient(180deg, rgba(148,163,184,0.8), rgba(71,85,105,0.8)); backdrop-filter: blur(5px); width: 100%; height: 90px; border-radius: 12px 12px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 15px; color: white; font-weight: 900; font-size: 22px; box-shadow: 0 -5px 20px rgba(148,163,184,0.3); border: 1px solid rgba(255,255,255,0.3); border-bottom: none;">{t2}</div>
+                    <div style="background: linear-gradient(180deg, rgba(148,163,184,0.8), rgba(71,85,105,0.8)); backdrop-filter: blur(5px); width: 100%; height: 95px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 800; font-size: 14px; box-shadow: 0 -5px 20px rgba(148,163,184,0.3); border: 1px solid rgba(255,255,255,0.3); border-bottom: none; padding: 5px;">
+                        <span style="font-size: 20px;">{top3.iloc[1]['ENTREGAS']}</span>
+                        <span style="font-size: 11px; color: #cbd5e1;">{top3.iloc[1]['APROVEITAMENTO_STR']}</span>
+                    </div>
                 </div>
                 <!-- 1 Lugar -->
-                <div style="display: flex; flex-direction: column; align-items: center; width: 140px; transform: translateY(-15px); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-20px)'" onmouseout="this.style.transform='translateY(-15px)'">
+                <div style="display: flex; flex-direction: column; align-items: center; width: 150px; transform: translateY(-15px); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-20px)'" onmouseout="this.style.transform='translateY(-15px)'">
                     <div style="font-size: 15px; color: #fbbf24; font-weight: bold; text-align: center; margin-bottom: 5px; text-shadow: 0 0 10px rgba(251, 191, 36, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n1}</div>
                     <div style="font-size: 38px; margin-bottom: -5px;">👑</div>
-                    <div style="background: linear-gradient(180deg, rgba(251,191,36,0.9), rgba(180,83,9,0.9)); backdrop-filter: blur(5px); width: 100%; height: 130px; border-radius: 12px 12px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 15px; color: white; font-weight: 900; font-size: 26px; box-shadow: 0 -5px 25px rgba(251,191,36,0.5); border: 1px solid rgba(255,255,255,0.5); border-bottom: none;">{t1}</div>
+                    <div style="background: linear-gradient(180deg, rgba(251,191,36,0.9), rgba(180,83,9,0.9)); backdrop-filter: blur(5px); width: 100%; height: 135px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 800; font-size: 16px; box-shadow: 0 -5px 25px rgba(251,191,36,0.5); border: 1px solid rgba(255,255,255,0.5); border-bottom: none; padding: 5px;">
+                        <span style="font-size: 24px;">{top3.iloc[0]['ENTREGAS']}</span>
+                        <span style="font-size: 12px; color: #fef08a;">{top3.iloc[0]['APROVEITAMENTO_STR']}</span>
+                    </div>
                 </div>
                 <!-- 3 Lugar -->
-                <div style="display: flex; flex-direction: column; align-items: center; width: 130px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                <div style="display: flex; flex-direction: column; align-items: center; width: 140px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div style="font-size: 13px; color: #d97706; font-weight: bold; text-align: center; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n3}</div>
                     <div style="font-size: 28px; margin-bottom: -5px;">🥉</div>
-                    <div style="background: linear-gradient(180deg, rgba(217,119,6,0.8), rgba(120,53,15,0.8)); backdrop-filter: blur(5px); width: 100%; height: 70px; border-radius: 12px 12px 0 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 15px; color: white; font-weight: 900; font-size: 20px; box-shadow: 0 -5px 20px rgba(217,119,6,0.3); border: 1px solid rgba(255,255,255,0.2); border-bottom: none;">{t3}</div>
+                    <div style="background: linear-gradient(180deg, rgba(217,119,6,0.8), rgba(120,53,15,0.8)); backdrop-filter: blur(5px); width: 100%; height: 75px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 800; font-size: 14px; box-shadow: 0 -5px 20px rgba(217,119,6,0.3); border: 1px solid rgba(255,255,255,0.2); border-bottom: none; padding: 5px;">
+                        <span style="font-size: 18px;">{top3.iloc[2]['ENTREGAS']}</span>
+                        <span style="font-size: 11px; color: #fed7aa;">{top3.iloc[2]['APROVEITAMENTO_STR']}</span>
+                    </div>
                 </div>
             </div>
             """
             st.markdown(html_podio, unsafe_allow_html=True)
-        else:
-            for i, row in top3.iterrows():
-                medalha = "🥇" if i == 0 else ("🥈" if i == 1 else "🥉")
-                st.markdown(f"**{medalha} {row['ENCARREGADO']}** ({row['ENTREGAS']} RDCs)")
-                
+
+        # === BOTÃO: DIVULGAR RANKING NO WHATSAPP ===
+        import urllib.parse
+        texto_f1_zap = [
+            f"🏎️ *RANKING F1 DE ENTREGA DE RDC — {nome_site}*",
+            f"📅 *Mês de Referência:* {mes_selecionado}",
+            f"🎯 *Visão:* {filtro_f1_disc}",
+            "",
+            "🏆 *TOP 5 LÍDERES EM PONTUALIDADE & ASSIDUIDADE:*",
+        ]
+        
+        for idx_r, row_r in df_rank.head(5).iterrows():
+            pos_icon = "🥇" if idx_r == 0 else ("🥈" if idx_r == 1 else ("🥉" if idx_r == 2 else f"{idx_r+1}º"))
+            conq_txt = f" {row_r['CONQUISTAS']}" if row_r['CONQUISTAS'] != "—" else ""
+            texto_f1_zap.append(f"{pos_icon} *{row_r['ENCARREGADO']}* ({row_r['DISCIPLINA']}): {row_r['ENTREGAS']} RDCs · *{row_r['APROVEITAMENTO_STR']}*{conq_txt}")
+            
+        texto_f1_zap.extend([
+            "",
+            f"📊 *Taxa Média de Entrega da Obra:* {media_aprov}%",
+            f"📄 *Total Geral de RDCs Entregues:* {total_entregue}",
+            "",
+            "💪 _Parabéns a toda a liderança pelo compromisso diário com a medição e os registros da obra!_",
+            f"_Atualizado em {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}_"
+        ])
+        
+        zap_f1_msg = "\n".join(texto_f1_zap)
+        zap_f1_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(zap_f1_msg)}"
+
+        col_w1, col_w2 = st.columns([1, 2])
+        with col_w1:
+            st.link_button("📲 Divulgar Ranking F1 no WhatsApp", zap_f1_url, type="primary", use_container_width=True)
+        with col_w2:
+            with st.expander("📋 Ver Texto do Ranking Formatado para Copiar"):
+                st.text_area("Texto do WhatsApp:", value=zap_f1_msg, height=130, key="txt_f1_zap_copy")
+
+        # Tabela Completa do Ranking
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("**📋 Classificação Geral dos Encarregados:**")
+        df_rank_display = df_rank[["ENCARREGADO", "DISCIPLINA", "ENTREGAS", "APROVEITAMENTO_STR", "CONQUISTAS"]].copy()
+        df_rank_display.columns = ["Encarregado", "Disciplina", "RDCs Entregues", "Aproveitamento", "Badges / Conquistas"]
+        st.dataframe(df_rank_display, hide_index=False, use_container_width=True)
+
         st.markdown("---")
-        st.markdown("#### 📈 Evolução Mensal")
+        st.markdown("#### 📈 Evolução Mensal de Entregas")
         if not df_hist.empty and "MES_ANO" in df_hist.columns:
             df_evolucao = df_hist.groupby("MES_ANO").size().reset_index(name="RDCs Entregues")
         else:
             df_evolucao = pd.DataFrame()
         if not df_evolucao.empty:
             fig_ev = px.line(df_evolucao, x="MES_ANO", y="RDCs Entregues", text="RDCs Entregues", markers=True)
-            fig_ev.update_traces(textposition="top center", line_color="#4a9eed", marker=dict(size=8))
+            fig_ev.update_traces(textposition="top center", line_color="#0ea5e9", marker=dict(size=8))
             fig_ev.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), xaxis_title="Mês", yaxis_title="Total de RDCs")
             st.plotly_chart(fig_ev, use_container_width=True)
             
         st.markdown("---")
-        if st.button("📄 Gerar Relatório Mensal em PDF", type="primary", use_container_width=True):
+        if st.button("📄 Gerar Relatório Mensal em PDF", type="secondary", use_container_width=True):
             try:
                 from fpdf import FPDF
                 pdf = FPDF()
@@ -5075,24 +5214,15 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 pdf.cell(200, 10, txt="Os 3 Melhores do Mes:", ln=True)
                 pdf.set_font("Arial", '', 12)
                 for i, row in top3.iterrows():
-                    pdf.cell(200, 10, txt=f"{i+1} Lugar: {row['ENCARREGADO']} - {row['ENTREGAS']} RDCs", ln=True)
+                    pdf.cell(200, 10, txt=f"{i+1} Lugar: {row['ENCARREGADO']} - {row['ENTREGAS']} RDCs ({row['APROVEITAMENTO_STR']})", ln=True)
                 pdf.ln(5)
-                # Devedores Críticos
-                if devedores:
-                    pdf.set_font("Arial", 'B', 14)
-                    pdf.set_text_color(255, 0, 0)
-                    pdf.cell(200, 10, txt="Alerta Critico - Sem RDC a mais de 3 dias:", ln=True)
-                    pdf.set_font("Arial", '', 12)
-                    for d in devedores:
-                        pdf.cell(200, 10, txt=f"- {d}", ln=True)
                 
                 pdf_output = bytes(pdf.output())
                 st.download_button("📥 Clique aqui para baixar o PDF", data=pdf_output, file_name=f"Relatorio_{mes_selecionado}.pdf", mime="application/pdf", type="primary")
             except ImportError:
-                st.error("Biblioteca FPDF não encontrada. Avise o desenvolvedor para instalar `fpdf2`.")
+                st.error("Biblioteca FPDF não encontrada.")
         
         st.markdown("<br><br>", unsafe_allow_html=True)
-
     with tab_ia:
         st.markdown("### 🤖 Robô de Extração Inteligente (Google Gemini)")
         st.markdown("<p style='margin-top: -15px; font-size: 14px; color: #888;'>Uma ideia original por <b>Caio Farisco</b></p>", unsafe_allow_html=True)
