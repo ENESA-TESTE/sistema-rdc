@@ -112,6 +112,7 @@ TRANSLATIONS = {
     "Aguardando Base de Dados": "Waiting for Database",
     "O sistema está pronto.<br>Para iniciar a gestão, <b>arraste o arquivo de Efetivo (.csv ou .xlsx)</b><br>para a área de upload na barra lateral.": "System is ready.<br>To start managing, <b>drag and drop the Manpower file (.csv or .xlsx)</b><br>to the upload area in the sidebar.",
     "Desenvolvido por": "Developed by",
+    "Análise de Gargalos": "Bottleneck Analysis",
 }
 
 def t(texto):
@@ -3215,7 +3216,7 @@ if st.session_state.df is not None:
         
         st.stop()  # Impede o resto da página de renderizar
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital, tab_pde, tab_banco_rdc, tab_banco_dados, tab_admin = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}", f"👷 {t('Gerenciar PDE')}", f"📑 {t('Banco de RDCs')}", f"📊 {t('Banco de Dados')}", f"⚙️ {t('Admin')}"])
+    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital, tab_pde, tab_banco_rdc, tab_gargalos, tab_banco_dados, tab_admin = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}", f"👷 {t('Gerenciar PDE')}", f"📑 {t('Banco de RDCs')}", f"🔍 {t('Análise de Gargalos')}", f"📊 {t('Banco de Dados')}", f"⚙️ {t('Admin')}"])
 
     if st.session_state.get("role_usuario") == "apontador":
         st.markdown("""
@@ -3229,7 +3230,8 @@ if st.session_state.df is not None:
             div[data-baseweb="tab-list"] button:nth-child(10),
             div[data-baseweb="tab-list"] button:nth-child(11),
             div[data-baseweb="tab-list"] button:nth-child(12),
-            div[data-baseweb="tab-list"] button:nth-child(13) {
+            div[data-baseweb="tab-list"] button:nth-child(13),
+            div[data-baseweb="tab-list"] button:nth-child(14) {
                 display: none !important;
             }
         </style>
@@ -6352,7 +6354,274 @@ if st.session_state.df is not None:
             st.error(f"Erro ao carregar banco de RDCs: {e}")
 
     # ==============================================================
-    # ABA 12: BANCO DE DADOS (GOOGLE SHEETS EMBUTIDO)
+    # ABA 12: ANÁLISE DE GARGALOS
+    # ==============================================================
+    with tab_gargalos:
+        st.markdown("### 🔍 Análise de Gargalos — Inteligência dos RDCs")
+        st.markdown("Dashboard analítico gerado automaticamente a partir dos RDCs processados pela IA. Identifique os maiores gargalos da obra em segundos.")
+
+        try:
+            if os.path.exists(caminho_rdc_registros_csv):
+                df_gargalos = pd.read_csv(caminho_rdc_registros_csv)
+
+                if not df_gargalos.empty and len(df_gargalos) > 0:
+                    # === PREPARAR COLUNA DE DATA ===
+                    df_gargalos["_DATA_DT"] = pd.to_datetime(df_gargalos["DATA"], errors='coerce')
+
+                    # === FILTROS ===
+                    st.markdown("#### 🎛️ Filtros")
+                    col_f1, col_f2, col_f3 = st.columns(3)
+                    with col_f1:
+                        data_ini_g = st.date_input("De:", value=None, key="garg_data_ini")
+                    with col_f2:
+                        data_fim_g = st.date_input("Até:", value=None, key="garg_data_fim")
+                    with col_f3:
+                        disc_opcoes_g = sorted(df_gargalos["DISCIPLINA"].dropna().unique().tolist())
+                        disc_sel_g = st.multiselect("Disciplina:", disc_opcoes_g, default=[], key="garg_disc")
+
+                    df_g = df_gargalos.copy()
+                    if data_ini_g:
+                        df_g = df_g[df_g["_DATA_DT"].dt.date >= data_ini_g]
+                    if data_fim_g:
+                        df_g = df_g[df_g["_DATA_DT"].dt.date <= data_fim_g]
+                    if disc_sel_g:
+                        df_g = df_g[df_g["DISCIPLINA"].isin(disc_sel_g)]
+
+                    # === CATEGORIZAR PROBLEMAS ===
+                    def categorizar_problema(texto):
+                        if pd.isna(texto) or str(texto).strip() == "" or str(texto).strip().lower() in ["nan", "não informado", "nenhum", "n/a", "nao informado", "sem problemas", "-", "nenhum problema"]:
+                            return None
+                        texto = str(texto).upper()
+                        if any(p in texto for p in ["CHUVA", "TEMPORAL", "INTEMPÉRIE", "INTEMPERIE", "TEMPO", "CLIMÁT", "CLIMAT"]):
+                            return "☁️ Chuva / Intempérie"
+                        if any(p in texto for p in ["MATERIAL", "CONSUMÍVEL", "CONSUMIVEL", "ELETRODO", "FALTA DE PEÇA", "FALTA DE PECA", "INSUMO", "SUPRIMENTO"]):
+                            return "🔧 Falta de Material"
+                        if any(p in texto for p in ["EQUIPAMENTO", "MÁQUINA", "MAQUINA", "QUEBRA", "DEFEITO", "PANE", "MANUTENÇÃO", "MANUTENCAO", "GUINDASTE", "GUINCHO", "MUNCK"]):
+                            return "⚡ Quebra / Falta de Equipamento"
+                        if any(p in texto for p in ["EFETIVO", "MÃO DE OBRA", "MAO DE OBRA", "FALTA DE PESSOAL", "FALTA PESSOAL", "ABSENTEÍSMO", "ABSENTEISMO", "ATESTADO", "AFASTADO"]):
+                            return "👷 Falta de Efetivo"
+                        if any(p in texto for p in ["ACESSO", "LIBERAÇÃO", "LIBERACAO", "PERMISSÃO", "PERMISSAO", "ANDAIME", "BLOQUEIO", "ISOLAMENTO", "SEGURANÇA", "SEGURANCA", "PT"]):
+                            return "🚫 Falta de Acesso / Liberação"
+                        if any(p in texto for p in ["ENERGIA", "ELÉTRIC", "ELETRIC", "SOLDA", "REDE", "TOMADA", "EXTENSÃO", "EXTENSAO"]):
+                            return "⚡ Energia / Elétrica"
+                        if any(p in texto for p in ["PROJETO", "DESENHO", "INFORMAÇÃO", "INFORMACAO", "ENGENHARIA"]):
+                            return "📐 Falta de Projeto / Info"
+                        return "📋 Outros"
+
+                    df_g["_CATEGORIA_PROB"] = df_g["PROBLEMAS"].apply(categorizar_problema)
+                    df_com_problema = df_g[df_g["_CATEGORIA_PROB"].notna()].copy()
+                    total_rdcs = len(df_g)
+                    total_com_prob = len(df_com_problema)
+                    pct_prob = (total_com_prob / total_rdcs * 100) if total_rdcs > 0 else 0
+
+                    # === MÉTRICAS ===
+                    st.markdown("---")
+                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                    with col_m1:
+                        st.metric("📑 RDCs Analisados", f"{total_rdcs}")
+                    with col_m2:
+                        st.metric("⚠️ RDCs com Problemas", f"{total_com_prob}")
+                    with col_m3:
+                        st.metric("📊 % com Problemas", f"{pct_prob:.1f}%")
+                    with col_m4:
+                        if not df_com_problema.empty and "DISCIPLINA" in df_com_problema.columns:
+                            disc_top = df_com_problema["DISCIPLINA"].value_counts().idxmax()
+                            st.metric("🏗️ Disciplina Crítica", disc_top)
+                        else:
+                            st.metric("🏗️ Disciplina Crítica", "N/A")
+
+                    st.markdown("---")
+
+                    # === GRÁFICOS ===
+                    if not df_com_problema.empty:
+                        col_g1, col_g2 = st.columns(2)
+
+                        # PIZZA: Categorias de Problemas
+                        with col_g1:
+                            st.markdown("#### 🥧 Categorias de Problemas")
+                            cat_counts = df_com_problema["_CATEGORIA_PROB"].value_counts().reset_index()
+                            cat_counts.columns = ["Categoria", "Quantidade"]
+                            fig_pie = px.pie(
+                                cat_counts,
+                                names="Categoria",
+                                values="Quantidade",
+                                hole=0.4,
+                                color_discrete_sequence=px.colors.qualitative.Set2
+                            )
+                            fig_pie.update_layout(
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)",
+                                font_color="#e0e4ea",
+                                legend=dict(font=dict(size=11)),
+                                margin=dict(t=30, b=30, l=10, r=10),
+                                height=400
+                            )
+                            st.plotly_chart(fig_pie, use_container_width=True)
+
+                        # BARRAS: Problemas por Disciplina
+                        with col_g2:
+                            st.markdown("#### 📊 Problemas por Disciplina")
+                            disc_prob = df_com_problema.groupby("DISCIPLINA")["_CATEGORIA_PROB"].count().reset_index()
+                            disc_prob.columns = ["Disciplina", "Ocorrências"]
+                            disc_prob = disc_prob.sort_values("Ocorrências", ascending=True)
+                            fig_bar = px.bar(
+                                disc_prob,
+                                x="Ocorrências",
+                                y="Disciplina",
+                                orientation="h",
+                                color="Ocorrências",
+                                color_continuous_scale=["#0ea5e9", "#f59e0b", "#ef4444"]
+                            )
+                            fig_bar.update_layout(
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)",
+                                font_color="#e0e4ea",
+                                showlegend=False,
+                                margin=dict(t=30, b=30, l=10, r=10),
+                                height=400,
+                                yaxis=dict(tickfont=dict(size=11))
+                            )
+                            fig_bar.update_coloraxes(showscale=False)
+                            st.plotly_chart(fig_bar, use_container_width=True)
+
+                        # LINHA: Evolução Temporal de Problemas
+                        st.markdown("#### 📈 Evolução de Problemas ao Longo do Tempo")
+                        df_tempo = df_com_problema.copy()
+                        df_tempo["_SEMANA"] = df_tempo["_DATA_DT"].dt.to_period("W").apply(lambda r: r.start_time)
+                        evolucao = df_tempo.groupby("_SEMANA").size().reset_index(name="Problemas")
+                        evolucao.columns = ["Semana", "Problemas"]
+                        if len(evolucao) > 1:
+                            fig_line = px.area(
+                                evolucao,
+                                x="Semana",
+                                y="Problemas",
+                                markers=True,
+                                color_discrete_sequence=["#0ea5e9"]
+                            )
+                            fig_line.update_layout(
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)",
+                                font_color="#e0e4ea",
+                                margin=dict(t=30, b=30, l=10, r=10),
+                                height=350,
+                                xaxis_title="Semana",
+                                yaxis_title="Nº de Problemas"
+                            )
+                            st.plotly_chart(fig_line, use_container_width=True)
+                        else:
+                            st.info("📅 Dados insuficientes para gerar a evolução temporal. Continue processando RDCs para ver a tendência.")
+
+                        # BARRAS: Categorias cruzadas por Disciplina (Stacked)
+                        st.markdown("#### 🧩 Mapa de Calor: Problema × Disciplina")
+                        cross = df_com_problema.groupby(["DISCIPLINA", "_CATEGORIA_PROB"]).size().reset_index(name="Qtd")
+                        cross.columns = ["Disciplina", "Categoria", "Qtd"]
+                        fig_stack = px.bar(
+                            cross,
+                            x="Disciplina",
+                            y="Qtd",
+                            color="Categoria",
+                            barmode="stack",
+                            color_discrete_sequence=px.colors.qualitative.Set2
+                        )
+                        fig_stack.update_layout(
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            font_color="#e0e4ea",
+                            margin=dict(t=30, b=30, l=10, r=10),
+                            height=400,
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10))
+                        )
+                        st.plotly_chart(fig_stack, use_container_width=True)
+
+                        # TABELA: Top 10 Problemas Recentes
+                        st.markdown("#### 📋 Últimos Problemas Reportados")
+                        df_recentes = df_com_problema.sort_values("_DATA_DT", ascending=False).head(10)
+                        cols_mostrar = ["DATA", "ENCARREGADO", "DISCIPLINA", "_CATEGORIA_PROB", "PROBLEMAS"]
+                        cols_existe = [c for c in cols_mostrar if c in df_recentes.columns]
+                        df_mostrar = df_recentes[cols_existe].copy()
+                        df_mostrar = df_mostrar.rename(columns={"_CATEGORIA_PROB": "CATEGORIA"})
+                        st.dataframe(df_mostrar, hide_index=True, use_container_width=True)
+
+                    else:
+                        st.success("🎉 Nenhum problema identificado nos RDCs filtrados! Excelente resultado operacional.")
+
+                    # === NUVEM DE ATIVIDADES (Barras Horizontais) ===
+                    st.markdown("---")
+                    st.markdown("#### 🏗️ Atividades Mais Frequentes nos RDCs")
+                    if "ATIVIDADE" in df_g.columns:
+                        import re as re_mod
+                        stopwords = {"DE", "DO", "DA", "DOS", "DAS", "E", "EM", "NO", "NA", "NOS", "NAS", "COM", "PARA", "POR", "UM", "UMA", "O", "A", "OS", "AS", "AO", "À", "SE", "QUE", "SÃO", "FOI", "SER", "TER", "ESTÁ", "COMO"}
+                        all_text = " ".join(df_g["ATIVIDADE"].dropna().astype(str).tolist()).upper()
+                        words = re_mod.findall(r"[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}", all_text)
+                        words = [w for w in words if w not in stopwords and len(w) > 3]
+                        if words:
+                            from collections import Counter
+                            word_counts = Counter(words).most_common(15)
+                            df_words = pd.DataFrame(word_counts, columns=["Atividade", "Frequência"])
+                            df_words = df_words.sort_values("Frequência", ascending=True)
+                            fig_words = px.bar(
+                                df_words,
+                                x="Frequência",
+                                y="Atividade",
+                                orientation="h",
+                                color="Frequência",
+                                color_continuous_scale=["#22c55e", "#0ea5e9", "#8b5cf6"]
+                            )
+                            fig_words.update_layout(
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)",
+                                font_color="#e0e4ea",
+                                showlegend=False,
+                                margin=dict(t=10, b=30, l=10, r=10),
+                                height=450,
+                                yaxis=dict(tickfont=dict(size=12))
+                            )
+                            fig_words.update_coloraxes(showscale=False)
+                            st.plotly_chart(fig_words, use_container_width=True)
+                        else:
+                            st.info("Sem dados de atividades suficientes para gerar o gráfico.")
+                    else:
+                        st.info("Coluna ATIVIDADE não encontrada nos dados.")
+
+                    # === DDS: Temas mais abordados ===
+                    st.markdown("#### 🦺 Temas de DDS Mais Abordados")
+                    if "DDS" in df_g.columns:
+                        dds_validos = df_g["DDS"].dropna().astype(str)
+                        dds_validos = dds_validos[~dds_validos.str.strip().str.lower().isin(["nan", "", "não informado", "nao informado", "-", "n/a"])]
+                        if len(dds_validos) > 0:
+                            dds_counts = dds_validos.str.upper().value_counts().head(10).reset_index()
+                            dds_counts.columns = ["Tema DDS", "Frequência"]
+                            fig_dds = px.bar(
+                                dds_counts,
+                                x="Frequência",
+                                y="Tema DDS",
+                                orientation="h",
+                                color_discrete_sequence=["#f59e0b"]
+                            )
+                            fig_dds.update_layout(
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)",
+                                font_color="#e0e4ea",
+                                showlegend=False,
+                                margin=dict(t=10, b=30, l=10, r=10),
+                                height=350,
+                                yaxis=dict(tickfont=dict(size=11))
+                            )
+                            st.plotly_chart(fig_dds, use_container_width=True)
+                        else:
+                            st.info("Nenhum tema de DDS registrado nos RDCs filtrados.")
+                    else:
+                        st.info("Coluna DDS não encontrada nos dados.")
+
+                else:
+                    st.info("📭 Banco de RDCs vazio. Processe alguns RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para popular os gráficos de análise.")
+            else:
+                st.info("📭 Nenhum RDC salvo ainda. Processe RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para começar a análise.")
+        except Exception as e:
+            st.error(f"Erro ao carregar Análise de Gargalos: {e}")
+
+    # ==============================================================
+    # ABA 13: BANCO DE DADOS (GOOGLE SHEETS EMBUTIDO)
     # ==============================================================
     with tab_banco_dados:
         st.markdown("### 📊 Banco de Dados (Planilha ao Vivo)")
