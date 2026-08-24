@@ -3262,6 +3262,128 @@ if st.session_state.df is not None:
         buffer_pptx.seek(0)
         return buffer_pptx.getvalue()
 
+    def gerar_briefing_matinal_ia(df_rdcs_dia, data_str, nome_site):
+        """Gera um briefing executivo de 3 tópicos usando Gemini com fallback automático."""
+        if df_rdcs_dia is None or df_rdcs_dia.empty:
+            return {
+                "avancos": ["Ainda não há RDCs registrados para esta data."],
+                "atencao": ["Verifique se os encarregados já enviaram os relatórios no sistema."],
+                "bloqueios": ["Nenhum bloqueio registrado até o momento."],
+                "origem": "Base de Dados"
+            }
+        
+        # Preparar dados para o prompt
+        linhas_resumo = []
+        for _, row in df_rdcs_dia.iterrows():
+            enc = row.get("ENCARREGADO", "N/I")
+            disc = row.get("DISCIPLINA", "Geral")
+            ativ = row.get("ATIVIDADE", "")
+            prob = row.get("PROBLEMAS", "")
+            area = row.get("AREA", "")
+            cald = row.get("CALDEIRA", "")
+            
+            info = f"- Encarregado: {enc} ({disc}) | Área: {area} {cald} | Atividade: {ativ}"
+            if prob and str(prob).strip().lower() not in ["", "nan", "nenhum", "não informado", "nao informado", "sem problemas", "-", "n/a"]:
+                info += f" | PROBLEMA REPORTADO: {prob}"
+            linhas_resumo.append(info)
+        
+        texto_dados = "\n".join(linhas_resumo[:40])
+        
+        chave_api = ""
+        try:
+            chave_api = st.secrets.get("GEMINI_API_KEY", "")
+        except Exception:
+            pass
+            
+        if chave_api:
+            try:
+                from google import genai
+                client = genai.Client(api_key=chave_api.split(",")[0].strip())
+                prompt = f"""
+Você é o Engenheiro Coordenador Geral da obra da empresa {nome_site}.
+Analise os apontamentos reais de RDC (Relatório Diário de Campo) das equipes de campo na data {data_str} e monte um Briefing Executivo direto para a Reunião Matinal com encarregados e diretoria.
+
+Dados reais das frentes de serviço:
+{texto_dados}
+
+Retorne ESTRITAMENTE um JSON puro válido com as 3 chaves abaixo (cada uma com uma lista de 2 a 4 tópicos objetivos em português):
+{{
+  "avancos": [
+    "Frase curta sobre avanço ou frente concluída 1",
+    "Frase curta sobre avanço 2"
+  ],
+  "atencao": [
+    "Frase sobre ponto de atenção ou frente com rendimento menor 1",
+    "Frase sobre ponto de atenção 2"
+  ],
+  "bloqueios": [
+    "Frase sobre impedimento, falta de liberação ou decisão urgente necessária hoje 1",
+    "Frase sobre impedimento 2"
+  ]
+}}
+Retorne apenas o JSON sem crases ou formatação markdown."""
+                
+                resp = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt
+                )
+                
+                resp_text = resp.text.strip()
+                if resp_text.startswith("```"):
+                    partes = resp_text.split("```")
+                    if len(partes) > 1:
+                        resp_text = partes[1]
+                        if resp_text.startswith("json"):
+                            resp_text = resp_text[4:]
+                resp_text = resp_text.strip()
+                
+                import json as json_m
+                dados_json = json_m.loads(resp_text)
+                
+                return {
+                    "avancos": dados_json.get("avancos", []),
+                    "atencao": dados_json.get("atencao", []),
+                    "bloqueios": dados_json.get("bloqueios", []),
+                    "origem": "Inteligência Artificial (Gemini 2.5)"
+                }
+            except Exception:
+                pass
+                
+        # FALLBACK INTELIGENTE
+        avancos = []
+        atencao = []
+        bloqueios = []
+        
+        ativs_validas = df_rdcs_dia[df_rdcs_dia["ATIVIDADE"].astype(str).str.strip().str.len() > 5]
+        for _, r in ativs_validas.head(3).iterrows():
+            avancos.append(f"**{r.get('DISCIPLINA', 'Frente')} ({r.get('ENCARREGADO', '')}):** {str(r.get('ATIVIDADE', ''))[:95]}")
+        if not avancos:
+            avancos.append(f"{len(df_rdcs_dia)} equipes operacionais em andamento nas frentes de serviço.")
+            
+        probs_validos = df_rdcs_dia[df_rdcs_dia["PROBLEMAS"].notna() & (df_rdcs_dia["PROBLEMAS"].astype(str).str.strip().str.lower() != "nenhum") & (df_rdcs_dia["PROBLEMAS"].astype(str).str.strip().str.lower() != "não informado") & (df_rdcs_dia["PROBLEMAS"].astype(str).str.strip().str.len() > 3)]
+        
+        if not probs_validos.empty:
+            for _, r in probs_validos.head(3).iterrows():
+                bloqueios.append(f"⚠️ **{r.get('DISCIPLINA', '')} ({r.get('ENCARREGADO', '')}):** {str(r.get('PROBLEMAS', ''))[:100]}")
+        else:
+            bloqueios.append("Nenhum impedimento crítico reportado pelas equipes no período.")
+            
+        discs_count = df_rdcs_dia["DISCIPLINA"].value_counts()
+        disc_maior = discs_count.index[0] if not discs_count.empty else "Geral"
+        atencao.append(f"Maior concentração de mão de obra na disciplina **{disc_maior}** ({discs_count.iloc[0]} frentes).")
+        if len(probs_validos) > 0:
+            atencao.append(f"{len(probs_validos)} equipe(s) apontaram restrições que demandam acompanhamento.")
+        else:
+            atencao.append("Ritmo de produção estável em todas as frentes ativas.")
+            
+        return {
+            "avancos": avancos,
+            "atencao": atencao,
+            "bloqueios": bloqueios,
+            "origem": "Base de Dados Operacional"
+        }
+
+
     mapa_area_sufixo = {
         'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
         'DUTO': '002', 'DUTOS': '002',
@@ -3677,6 +3799,130 @@ if st.session_state.df is not None:
         with m4: st.markdown(card_kpi(t("Funções"), df_dash["FUNÇÃO"].nunique(), "build", "#f59e0b"), unsafe_allow_html=True)
         with m5: st.markdown(card_kpi(t("Span of Control"), span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
         
+        # ==============================================================
+        # BRIEFING MATINAL COM IA (RESUMO EXECUTIVO PARA REUNIÃO)
+        # ==============================================================
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("🤖 **Briefing Matinal com IA — Resumo Executivo para Reunião Diária**", expanded=True):
+            # Carregar banco de RDCs para o briefing
+            df_rdc_briefing = None
+            if os.path.exists(caminho_rdc_registros_csv):
+                try:
+                    df_rdc_briefing = pd.read_csv(caminho_rdc_registros_csv)
+                except:
+                    pass
+            
+            datas_disponiveis_br = []
+            if df_rdc_briefing is not None and not df_rdc_briefing.empty and "DATA" in df_rdc_briefing.columns:
+                df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], errors='coerce')
+                datas_disponiveis_br = sorted(df_rdc_briefing["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
+            
+            col_b1, col_b2, col_b3 = st.columns([2, 2, 2])
+            with col_b1:
+                data_brief_sel = st.selectbox(
+                    "📅 Selecionar Data do Briefing:",
+                    options=datas_disponiveis_br if datas_disponiveis_br else [datetime.datetime.now().strftime("%d/%m/%Y")],
+                    index=0,
+                    key="select_data_briefing"
+                )
+            with col_b2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                btn_gerar_br = st.button("⚡ Gerar / Atualizar Briefing com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
+            with col_b3:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                st.caption(f"💡 Dica: Baseado nos RDCs processados")
+
+            # Filtrar dados para a data selecionada
+            df_dia_br = pd.DataFrame()
+            if df_rdc_briefing is not None and not df_rdc_briefing.empty and "_DATA_DT" in df_rdc_briefing.columns:
+                try:
+                    dt_alvo = pd.to_datetime(data_brief_sel, format="%d/%m/%Y").date()
+                    df_dia_br = df_rdc_briefing[df_rdc_briefing["_DATA_DT"].dt.date == dt_alvo]
+                except:
+                    df_dia_br = df_rdc_briefing
+            
+            # Gerar ou recuperar briefing
+            cache_key = f"briefing_cache_{data_brief_sel}"
+            if btn_gerar_br or cache_key not in st.session_state:
+                with st.spinner("🤖 IA analisando RDCs e montando síntese da reunião..."):
+                    res_brief = gerar_briefing_matinal_ia(df_dia_br, data_brief_sel, nome_site)
+                    st.session_state[cache_key] = res_brief
+            
+            briefing_atual = st.session_state.get(cache_key, {})
+            avancos_l = briefing_atual.get("avancos", [])
+            atencao_l = briefing_atual.get("atencao", [])
+            bloqueios_l = briefing_atual.get("bloqueios", [])
+            origem_b = briefing_atual.get("origem", "IA")
+
+            st.markdown(f"<p style='color: #64748b; font-size: 12px; margin: 4px 0 12px 0;'>Fonte: <b style='color: #0ea5e9;'>{origem_b}</b> · Total de {len(df_dia_br)} RDCs analisados nesta data</p>", unsafe_allow_html=True)
+
+            # 3 Cards Coloridos (Verde, Amarelo, Vermelho)
+            col_c1, col_c2, col_c3 = st.columns(3)
+            
+            with col_c1:
+                st.markdown(f"""
+                <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
+                    <h4 style="color: #22c55e; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+                        🟢 PRINCIPAIS AVANÇOS
+                    </h4>
+                    <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
+                        {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in avancos_l])}
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with col_c2:
+                st.markdown(f"""
+                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
+                    <h4 style="color: #f59e0b; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+                        🟡 PONTOS DE ATENÇÃO
+                    </h4>
+                    <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
+                        {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in atencao_l])}
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with col_c3:
+                st.markdown(f"""
+                <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
+                    <h4 style="color: #ef4444; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+                        🔴 BLOQUEIOS & AÇÕES URGENTES
+                    </h4>
+                    <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
+                        {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in bloqueios_l])}
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Texto formatado para WhatsApp
+            import urllib.parse
+            texto_zap_lista = [
+                f"🏗️ *BRIEFING MATINAL DE OBRA — {nome_site}*",
+                f"📅 *Data de Referência:* {data_brief_sel}",
+                "",
+                "🟢 *PRINCIPAIS AVANÇOS:*",
+                *[f"• {item.replace('**', '')}" for item in avancos_l],
+                "",
+                "🟡 *PONTOS DE ATENÇÃO:*",
+                *[f"• {item.replace('**', '')}" for item in atencao_l],
+                "",
+                "🔴 *BLOQUEIOS / AÇÕES URGENTES:*",
+                *[f"• {item.replace('**', '')}" for item in bloqueios_l],
+                "",
+                f"📊 _Gerado pelo Sistema RDC & PDE em {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}_"
+            ]
+            texto_zap_completo = "\n".join(texto_zap_lista)
+            link_zap = f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto_zap_completo)}"
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            col_z1, col_z2 = st.columns([1, 3])
+            with col_z1:
+                st.link_button("📲 Enviar Briefing no WhatsApp", link_zap, use_container_width=True, type="secondary")
+            with col_z2:
+                with st.expander("📋 Ver Texto Formatado para Copiar"):
+                    st.text_area("Texto do Briefing:", value=texto_zap_completo, height=140, key="txt_area_briefing_zap")
+
         st.markdown("---")
         
         col_dash1, col_dash2, col_dash3 = st.columns([3, 3, 4])
