@@ -6611,6 +6611,442 @@ if st.session_state.df is not None:
                     else:
                         st.info("Coluna DDS não encontrada nos dados.")
 
+                    # === BOTÃO: GERAR RELATÓRIO EXECUTIVO EM POWERPOINT ===
+                    st.markdown("---")
+                    st.markdown("#### 📑 Relatório Executivo")
+                    if st.button("📑 GERAR APRESENTAÇÃO POWERPOINT (.PPTX)", type="primary", use_container_width=True, key="btn_gerar_pptx"):
+                        with st.spinner("Gerando apresentação executiva..."):
+                            try:
+                                from pptx import Presentation as PptxPresentation
+                                from pptx.util import Inches, Pt, Emu
+                                from pptx.dml.color import RGBColor
+                                from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+                                from pptx.enum.chart import XL_CHART_TYPE
+                                
+                                prs = PptxPresentation()
+                                prs.slide_width = Inches(13.333)
+                                prs.slide_height = Inches(7.5)
+                                
+                                # Cores padrão
+                                COR_FUNDO = RGBColor(15, 23, 42)
+                                COR_AZUL = RGBColor(14, 165, 233)
+                                COR_BRANCO = RGBColor(224, 228, 234)
+                                COR_CINZA = RGBColor(148, 163, 184)
+                                COR_VERDE = RGBColor(34, 197, 94)
+                                COR_AMARELO = RGBColor(245, 158, 11)
+                                COR_VERMELHO = RGBColor(239, 68, 68)
+                                COR_CARD_BG = RGBColor(30, 41, 59)
+                                
+                                def set_slide_bg(slide, cor):
+                                    background = slide.background
+                                    fill = background.fill
+                                    fill.solid()
+                                    fill.fore_color.rgb = cor
+                                
+                                def add_text_box(slide, left, top, width, height, text, font_size=18, bold=False, color=COR_BRANCO, alignment=PP_ALIGN.LEFT):
+                                    txBox = slide.shapes.add_textbox(left, top, width, height)
+                                    tf = txBox.text_frame
+                                    tf.word_wrap = True
+                                    p = tf.paragraphs[0]
+                                    p.text = text
+                                    p.font.size = Pt(font_size)
+                                    p.font.bold = bold
+                                    p.font.color.rgb = color
+                                    p.alignment = alignment
+                                    return txBox
+                                
+                                def add_card(slide, left, top, width, height, titulo, valor, cor_valor=COR_AZUL):
+                                    shape = slide.shapes.add_shape(1, left, top, width, height)
+                                    shape.fill.solid()
+                                    shape.fill.fore_color.rgb = COR_CARD_BG
+                                    shape.line.color.rgb = RGBColor(51, 65, 85)
+                                    shape.line.width = Pt(1)
+                                    
+                                    txBox = slide.shapes.add_textbox(left + Inches(0.2), top + Inches(0.15), width - Inches(0.4), Inches(0.4))
+                                    tf = txBox.text_frame
+                                    p = tf.paragraphs[0]
+                                    p.text = titulo
+                                    p.font.size = Pt(11)
+                                    p.font.color.rgb = COR_CINZA
+                                    
+                                    txBox2 = slide.shapes.add_textbox(left + Inches(0.2), top + Inches(0.5), width - Inches(0.4), Inches(0.6))
+                                    tf2 = txBox2.text_frame
+                                    p2 = tf2.paragraphs[0]
+                                    p2.text = str(valor)
+                                    p2.font.size = Pt(28)
+                                    p2.font.bold = True
+                                    p2.font.color.rgb = cor_valor
+                                
+                                # ============================================
+                                # SLIDE 1: CAPA
+                                # ============================================
+                                slide1 = prs.slides.add_slide(prs.slide_layouts[6])
+                                set_slide_bg(slide1, COR_FUNDO)
+                                
+                                # Logo
+                                if os.path.exists(caminho_logo):
+                                    try:
+                                        slide1.shapes.add_picture(caminho_logo, Inches(5.4), Inches(0.8), height=Inches(1.5))
+                                    except:
+                                        pass
+                                
+                                # Linha decorativa
+                                line = slide1.shapes.add_shape(1, Inches(3), Inches(2.8), Inches(7.333), Inches(0.04))
+                                line.fill.solid()
+                                line.fill.fore_color.rgb = COR_AZUL
+                                line.line.fill.background()
+                                
+                                add_text_box(slide1, Inches(1.5), Inches(3.0), Inches(10.333), Inches(1.2),
+                                    f"RELATÓRIO EXECUTIVO DE OBRA", font_size=36, bold=True, color=COR_BRANCO, alignment=PP_ALIGN.CENTER)
+                                add_text_box(slide1, Inches(1.5), Inches(4.0), Inches(10.333), Inches(0.8),
+                                    nome_site, font_size=24, bold=False, color=COR_AZUL, alignment=PP_ALIGN.CENTER)
+                                
+                                datas_texto = ""
+                                if datas_sel_g:
+                                    datas_texto = ", ".join(datas_sel_g)
+                                else:
+                                    datas_texto = f"Todos os dados até {datetime.datetime.now().strftime('%d/%m/%Y')}"
+                                add_text_box(slide1, Inches(1.5), Inches(4.8), Inches(10.333), Inches(0.6),
+                                    f"Período: {datas_texto}", font_size=16, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+                                add_text_box(slide1, Inches(1.5), Inches(5.5), Inches(10.333), Inches(0.5),
+                                    f"Gerado em: {datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')}", font_size=12, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+                                
+                                # ============================================
+                                # SLIDE 2: MÉTRICAS GERAIS
+                                # ============================================
+                                slide2 = prs.slides.add_slide(prs.slide_layouts[6])
+                                set_slide_bg(slide2, COR_FUNDO)
+                                
+                                add_text_box(slide2, Inches(0.5), Inches(0.3), Inches(12), Inches(0.7),
+                                    "INDICADORES GERAIS", font_size=28, bold=True, color=COR_BRANCO)
+                                
+                                line2 = slide2.shapes.add_shape(1, Inches(0.5), Inches(1.0), Inches(12.333), Inches(0.03))
+                                line2.fill.solid()
+                                line2.fill.fore_color.rgb = COR_AZUL
+                                line2.line.fill.background()
+                                
+                                card_w = Inches(2.8)
+                                card_h = Inches(1.2)
+                                card_y = Inches(1.4)
+                                gap = Inches(0.3)
+                                start_x = Inches(0.7)
+                                
+                                disc_top_val = "N/A"
+                                if not df_com_problema.empty and "DISCIPLINA" in df_com_problema.columns:
+                                    try:
+                                        disc_top_val = df_com_problema["DISCIPLINA"].value_counts().idxmax()
+                                    except:
+                                        pass
+                                
+                                add_card(slide2, start_x, card_y, card_w, card_h, "RDCs Analisados", total_rdcs, COR_AZUL)
+                                add_card(slide2, start_x + card_w + gap, card_y, card_w, card_h, "RDCs com Problemas", total_com_prob, COR_AMARELO)
+                                add_card(slide2, start_x + 2*(card_w + gap), card_y, card_w, card_h, "% com Problemas", f"{pct_prob:.1f}%", COR_VERMELHO if pct_prob > 30 else COR_VERDE)
+                                add_card(slide2, start_x + 3*(card_w + gap), card_y, card_w, card_h, "Disciplina Crítica", disc_top_val, COR_AMARELO)
+                                
+                                # Disciplinas resumo
+                                if "DISCIPLINA" in df_g.columns:
+                                    disc_resumo = df_g["DISCIPLINA"].value_counts().head(8)
+                                    add_text_box(slide2, Inches(0.5), Inches(3.0), Inches(6), Inches(0.6),
+                                        "RDCS POR DISCIPLINA", font_size=18, bold=True, color=COR_AZUL)
+                                    
+                                    tbl_rows = len(disc_resumo) + 1
+                                    tbl = slide2.shapes.add_table(tbl_rows, 2, Inches(0.5), Inches(3.6), Inches(5.5), Inches(0.4 * tbl_rows)).table
+                                    tbl.columns[0].width = Inches(3.5)
+                                    tbl.columns[1].width = Inches(2.0)
+                                    
+                                    # Header
+                                    for j, hdr in enumerate(["Disciplina", "Quantidade"]):
+                                        cell = tbl.cell(0, j)
+                                        cell.text = hdr
+                                        cell.fill.solid()
+                                        cell.fill.fore_color.rgb = COR_AZUL
+                                        for paragraph in cell.text_frame.paragraphs:
+                                            paragraph.font.size = Pt(11)
+                                            paragraph.font.bold = True
+                                            paragraph.font.color.rgb = COR_FUNDO
+                                    
+                                    for i, (disc_name, qtd) in enumerate(disc_resumo.items()):
+                                        row_idx = i + 1
+                                        for j, val in enumerate([str(disc_name), str(qtd)]):
+                                            cell = tbl.cell(row_idx, j)
+                                            cell.text = val
+                                            cell.fill.solid()
+                                            cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                                            for paragraph in cell.text_frame.paragraphs:
+                                                paragraph.font.size = Pt(10)
+                                                paragraph.font.color.rgb = COR_BRANCO
+                                
+                                # Caldeira resumo
+                                if "CALDEIRA" in df_g.columns:
+                                    cald_resumo = df_g["CALDEIRA"].replace("", "N/I").value_counts().head(5)
+                                    add_text_box(slide2, Inches(7), Inches(3.0), Inches(6), Inches(0.6),
+                                        "DISTRIBUIÇÃO POR CALDEIRA", font_size=18, bold=True, color=COR_AZUL)
+                                    
+                                    tbl_rows2 = len(cald_resumo) + 1
+                                    tbl2 = slide2.shapes.add_table(tbl_rows2, 2, Inches(7), Inches(3.6), Inches(5.5), Inches(0.4 * tbl_rows2)).table
+                                    tbl2.columns[0].width = Inches(3.5)
+                                    tbl2.columns[1].width = Inches(2.0)
+                                    
+                                    for j, hdr in enumerate(["Caldeira", "RDCs"]):
+                                        cell = tbl2.cell(0, j)
+                                        cell.text = hdr
+                                        cell.fill.solid()
+                                        cell.fill.fore_color.rgb = COR_AMARELO
+                                        for paragraph in cell.text_frame.paragraphs:
+                                            paragraph.font.size = Pt(11)
+                                            paragraph.font.bold = True
+                                            paragraph.font.color.rgb = COR_FUNDO
+                                    
+                                    for i, (cald_name, qtd) in enumerate(cald_resumo.items()):
+                                        row_idx = i + 1
+                                        for j, val in enumerate([str(cald_name), str(qtd)]):
+                                            cell = tbl2.cell(row_idx, j)
+                                            cell.text = val
+                                            cell.fill.solid()
+                                            cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                                            for paragraph in cell.text_frame.paragraphs:
+                                                paragraph.font.size = Pt(10)
+                                                paragraph.font.color.rgb = COR_BRANCO
+                                
+                                # ============================================
+                                # SLIDE 3: ANÁLISE DE GARGALOS
+                                # ============================================
+                                slide3 = prs.slides.add_slide(prs.slide_layouts[6])
+                                set_slide_bg(slide3, COR_FUNDO)
+                                
+                                add_text_box(slide3, Inches(0.5), Inches(0.3), Inches(12), Inches(0.7),
+                                    "ANÁLISE DE GARGALOS", font_size=28, bold=True, color=COR_BRANCO)
+                                
+                                line3 = slide3.shapes.add_shape(1, Inches(0.5), Inches(1.0), Inches(12.333), Inches(0.03))
+                                line3.fill.solid()
+                                line3.fill.fore_color.rgb = COR_AZUL
+                                line3.line.fill.background()
+                                
+                                if not df_com_problema.empty:
+                                    # Tabela de categorias de problemas
+                                    cat_counts_pptx = df_com_problema["_CATEGORIA_PROB"].value_counts()
+                                    add_text_box(slide3, Inches(0.5), Inches(1.3), Inches(6), Inches(0.5),
+                                        "CATEGORIAS DE PROBLEMAS IDENTIFICADOS", font_size=16, bold=True, color=COR_AZUL)
+                                    
+                                    tbl_rows3 = len(cat_counts_pptx) + 1
+                                    tbl3 = slide3.shapes.add_table(tbl_rows3, 3, Inches(0.5), Inches(1.9), Inches(6), Inches(0.4 * tbl_rows3)).table
+                                    tbl3.columns[0].width = Inches(3.2)
+                                    tbl3.columns[1].width = Inches(1.4)
+                                    tbl3.columns[2].width = Inches(1.4)
+                                    
+                                    for j, hdr in enumerate(["Categoria", "Ocorrências", "% do Total"]):
+                                        cell = tbl3.cell(0, j)
+                                        cell.text = hdr
+                                        cell.fill.solid()
+                                        cell.fill.fore_color.rgb = COR_VERMELHO
+                                        for paragraph in cell.text_frame.paragraphs:
+                                            paragraph.font.size = Pt(11)
+                                            paragraph.font.bold = True
+                                            paragraph.font.color.rgb = RGBColor(255, 255, 255)
+                                    
+                                    for i, (cat_name, qtd) in enumerate(cat_counts_pptx.items()):
+                                        row_idx = i + 1
+                                        pct = (qtd / total_com_prob * 100) if total_com_prob > 0 else 0
+                                        for j, val in enumerate([str(cat_name), str(qtd), f"{pct:.1f}%"]):
+                                            cell = tbl3.cell(row_idx, j)
+                                            cell.text = val
+                                            cell.fill.solid()
+                                            cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                                            for paragraph in cell.text_frame.paragraphs:
+                                                paragraph.font.size = Pt(10)
+                                                paragraph.font.color.rgb = COR_BRANCO
+                                    
+                                    # Problemas por disciplina
+                                    disc_prob_pptx = df_com_problema["DISCIPLINA"].value_counts().head(6)
+                                    if not disc_prob_pptx.empty:
+                                        add_text_box(slide3, Inches(7), Inches(1.3), Inches(6), Inches(0.5),
+                                            "PROBLEMAS POR DISCIPLINA", font_size=16, bold=True, color=COR_AZUL)
+                                        
+                                        tbl_rows4 = len(disc_prob_pptx) + 1
+                                        tbl4 = slide3.shapes.add_table(tbl_rows4, 2, Inches(7), Inches(1.9), Inches(5.5), Inches(0.4 * tbl_rows4)).table
+                                        tbl4.columns[0].width = Inches(3.5)
+                                        tbl4.columns[1].width = Inches(2.0)
+                                        
+                                        for j, hdr in enumerate(["Disciplina", "Problemas"]):
+                                            cell = tbl4.cell(0, j)
+                                            cell.text = hdr
+                                            cell.fill.solid()
+                                            cell.fill.fore_color.rgb = COR_AMARELO
+                                            for paragraph in cell.text_frame.paragraphs:
+                                                paragraph.font.size = Pt(11)
+                                                paragraph.font.bold = True
+                                                paragraph.font.color.rgb = COR_FUNDO
+                                        
+                                        for i, (d_name, qtd) in enumerate(disc_prob_pptx.items()):
+                                            row_idx = i + 1
+                                            for j, val in enumerate([str(d_name), str(qtd)]):
+                                                cell = tbl4.cell(row_idx, j)
+                                                cell.text = val
+                                                cell.fill.solid()
+                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                                                for paragraph in cell.text_frame.paragraphs:
+                                                    paragraph.font.size = Pt(10)
+                                                    paragraph.font.color.rgb = COR_BRANCO
+                                    
+                                    # Últimos problemas
+                                    df_ult_prob = df_com_problema.sort_values("_DATA_DT", ascending=False).head(6)
+                                    if not df_ult_prob.empty:
+                                        add_text_box(slide3, Inches(0.5), Inches(1.9 + 0.4 * tbl_rows3 + 0.3), Inches(12), Inches(0.5),
+                                            "ÚLTIMOS PROBLEMAS REPORTADOS", font_size=16, bold=True, color=COR_AMARELO)
+                                        
+                                        y_tbl5 = Inches(1.9 + 0.4 * tbl_rows3 + 0.8)
+                                        rows5 = min(len(df_ult_prob), 6) + 1
+                                        tbl5 = slide3.shapes.add_table(rows5, 4, Inches(0.5), y_tbl5, Inches(12.333), Inches(0.38 * rows5)).table
+                                        tbl5.columns[0].width = Inches(1.5)
+                                        tbl5.columns[1].width = Inches(3.0)
+                                        tbl5.columns[2].width = Inches(2.5)
+                                        tbl5.columns[3].width = Inches(5.333)
+                                        
+                                        for j, hdr in enumerate(["Data", "Encarregado", "Disciplina", "Problema"]):
+                                            cell = tbl5.cell(0, j)
+                                            cell.text = hdr
+                                            cell.fill.solid()
+                                            cell.fill.fore_color.rgb = COR_AZUL
+                                            for paragraph in cell.text_frame.paragraphs:
+                                                paragraph.font.size = Pt(10)
+                                                paragraph.font.bold = True
+                                                paragraph.font.color.rgb = COR_FUNDO
+                                        
+                                        for i, (_, row_p) in enumerate(df_ult_prob.head(6).iterrows()):
+                                            row_idx = i + 1
+                                            vals = [
+                                                str(row_p.get("DATA", ""))[:10],
+                                                str(row_p.get("ENCARREGADO", "")),
+                                                str(row_p.get("DISCIPLINA", "")),
+                                                str(row_p.get("PROBLEMAS", ""))[:80]
+                                            ]
+                                            for j, val in enumerate(vals):
+                                                cell = tbl5.cell(row_idx, j)
+                                                cell.text = val
+                                                cell.fill.solid()
+                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                                                for paragraph in cell.text_frame.paragraphs:
+                                                    paragraph.font.size = Pt(9)
+                                                    paragraph.font.color.rgb = COR_BRANCO
+                                else:
+                                    add_text_box(slide3, Inches(1.5), Inches(2.5), Inches(10), Inches(1),
+                                        "Nenhum problema identificado nos RDCs do período selecionado.\nExcelente resultado operacional!",
+                                        font_size=20, color=COR_VERDE, alignment=PP_ALIGN.CENTER)
+                                
+                                # ============================================
+                                # SLIDE 4: ATIVIDADES REALIZADAS
+                                # ============================================
+                                slide4 = prs.slides.add_slide(prs.slide_layouts[6])
+                                set_slide_bg(slide4, COR_FUNDO)
+                                
+                                add_text_box(slide4, Inches(0.5), Inches(0.3), Inches(12), Inches(0.7),
+                                    "ATIVIDADES REALIZADAS", font_size=28, bold=True, color=COR_BRANCO)
+                                
+                                line4 = slide4.shapes.add_shape(1, Inches(0.5), Inches(1.0), Inches(12.333), Inches(0.03))
+                                line4.fill.solid()
+                                line4.fill.fore_color.rgb = COR_AZUL
+                                line4.line.fill.background()
+                                
+                                # Top atividades
+                                if "ATIVIDADE" in df_g.columns:
+                                    import re as re_mod2
+                                    stopwords2 = {"DE", "DO", "DA", "DOS", "DAS", "E", "EM", "NO", "NA", "NOS", "NAS", "COM", "PARA", "POR", "UM", "UMA", "O", "A", "OS", "AS", "AO", "SE", "QUE", "FOI", "SER", "TER", "COMO", "ESTÁ", "SÃO"}
+                                    all_text2 = " ".join(df_g["ATIVIDADE"].dropna().astype(str).tolist()).upper()
+                                    words2 = re_mod2.findall(r"[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}", all_text2)
+                                    words2 = [w for w in words2 if w not in stopwords2 and len(w) > 3]
+                                    if words2:
+                                        from collections import Counter as Counter2
+                                        word_counts2 = Counter2(words2).most_common(12)
+                                        
+                                        add_text_box(slide4, Inches(0.5), Inches(1.3), Inches(6), Inches(0.5),
+                                            "PALAVRAS-CHAVE MAIS FREQUENTES", font_size=16, bold=True, color=COR_AZUL)
+                                        
+                                        tbl_rows6 = len(word_counts2) + 1
+                                        tbl6 = slide4.shapes.add_table(tbl_rows6, 2, Inches(0.5), Inches(1.9), Inches(5.5), Inches(0.35 * tbl_rows6)).table
+                                        tbl6.columns[0].width = Inches(3.5)
+                                        tbl6.columns[1].width = Inches(2.0)
+                                        
+                                        for j, hdr in enumerate(["Atividade", "Frequência"]):
+                                            cell = tbl6.cell(0, j)
+                                            cell.text = hdr
+                                            cell.fill.solid()
+                                            cell.fill.fore_color.rgb = COR_VERDE
+                                            for paragraph in cell.text_frame.paragraphs:
+                                                paragraph.font.size = Pt(11)
+                                                paragraph.font.bold = True
+                                                paragraph.font.color.rgb = COR_FUNDO
+                                        
+                                        for i, (word, cnt) in enumerate(word_counts2):
+                                            row_idx = i + 1
+                                            for j, val in enumerate([word, str(cnt)]):
+                                                cell = tbl6.cell(row_idx, j)
+                                                cell.text = val
+                                                cell.fill.solid()
+                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                                                for paragraph in cell.text_frame.paragraphs:
+                                                    paragraph.font.size = Pt(10)
+                                                    paragraph.font.color.rgb = COR_BRANCO
+                                
+                                # DDS resumo
+                                if "DDS" in df_g.columns:
+                                    dds_v2 = df_g["DDS"].dropna().astype(str)
+                                    dds_v2 = dds_v2[~dds_v2.str.strip().str.lower().isin(["nan", "", "não informado", "nao informado", "-", "n/a"])]
+                                    if len(dds_v2) > 0:
+                                        dds_top = dds_v2.str.upper().value_counts().head(8)
+                                        add_text_box(slide4, Inches(7), Inches(1.3), Inches(6), Inches(0.5),
+                                            "TEMAS DE DDS ABORDADOS", font_size=16, bold=True, color=COR_AMARELO)
+                                        
+                                        tbl_rows7 = len(dds_top) + 1
+                                        tbl7 = slide4.shapes.add_table(tbl_rows7, 2, Inches(7), Inches(1.9), Inches(5.5), Inches(0.35 * tbl_rows7)).table
+                                        tbl7.columns[0].width = Inches(3.5)
+                                        tbl7.columns[1].width = Inches(2.0)
+                                        
+                                        for j, hdr in enumerate(["Tema DDS", "Vezes"]):
+                                            cell = tbl7.cell(0, j)
+                                            cell.text = hdr
+                                            cell.fill.solid()
+                                            cell.fill.fore_color.rgb = COR_AMARELO
+                                            for paragraph in cell.text_frame.paragraphs:
+                                                paragraph.font.size = Pt(11)
+                                                paragraph.font.bold = True
+                                                paragraph.font.color.rgb = COR_FUNDO
+                                        
+                                        for i, (dds_name, qtd) in enumerate(dds_top.items()):
+                                            row_idx = i + 1
+                                            for j, val in enumerate([str(dds_name), str(qtd)]):
+                                                cell = tbl7.cell(row_idx, j)
+                                                cell.text = val
+                                                cell.fill.solid()
+                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
+                                                for paragraph in cell.text_frame.paragraphs:
+                                                    paragraph.font.size = Pt(10)
+                                                    paragraph.font.color.rgb = COR_BRANCO
+                                
+                                # Rodapé no último slide
+                                add_text_box(slide4, Inches(0.5), Inches(6.8), Inches(12.333), Inches(0.4),
+                                    f"{nome_site} — Relatório gerado automaticamente pelo Sistema RDC & PDE — {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}",
+                                    font_size=9, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+                                
+                                # === SALVAR E DISPONIBILIZAR ===
+                                buffer_pptx = io.BytesIO()
+                                prs.save(buffer_pptx)
+                                buffer_pptx.seek(0)
+                                nome_pptx = f"Relatorio_Executivo_{datetime.datetime.now().strftime('%d_%m_%Y_%H%M')}.pptx"
+                                
+                                st.download_button(
+                                    label="⬇️ Baixar Apresentação (.pptx)",
+                                    data=buffer_pptx,
+                                    file_name=nome_pptx,
+                                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                    use_container_width=True
+                                )
+                                st.success(f"✅ Apresentação gerada com {len(prs.slides)} slides!")
+                                
+                            except ImportError:
+                                st.error("A biblioteca `python-pptx` não está instalada. Instale com `pip install python-pptx`.")
+                            except Exception as e:
+                                st.error(f"Erro ao gerar apresentação: {e}")
+
                 else:
                     st.info("📭 Banco de RDCs vazio. Processe alguns RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para popular os gráficos de análise.")
             else:
