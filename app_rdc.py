@@ -3800,10 +3800,18 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
         with m5: st.markdown(card_kpi(t("Span of Control"), span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
         
         # ==============================================================
-        # BRIEFING MATINAL COM IA (RESUMO EXECUTIVO PARA REUNIÃO)
+        # BRIEFING MATINAL COM IA (SOB DEMANDA - RÁPIDO)
         # ==============================================================
         st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("🤖 **Briefing Matinal com IA — Resumo Executivo para Reunião Diária**", expanded=True):
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; color: #f8fafc; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    🤖 Briefing Matinal com IA — Resumo Executivo para Reunião Diária
+                </h4>
+            </div>
+            """, unsafe_allow_html=True)
+
             # Carregar banco de RDCs para o briefing
             df_rdc_briefing = None
             if os.path.exists(caminho_rdc_registros_csv):
@@ -3827,10 +3835,10 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 )
             with col_b2:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                btn_gerar_br = st.button("⚡ Gerar / Atualizar Briefing com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
+                btn_gerar_br = st.button("⚡ Gerar / Carregar Briefing com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
             with col_b3:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                st.caption(f"💡 Dica: Baseado nos RDCs processados")
+                st.caption("💡 Clique no botão para carregar sob demanda sem lentidão no site")
 
             # Filtrar dados para a data selecionada
             df_dia_br = pd.DataFrame()
@@ -3841,88 +3849,90 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 except:
                     df_dia_br = df_rdc_briefing
             
-            # Gerar ou recuperar briefing
+            # Gerar briefing APENAS quando o usuário clicar no botão
             cache_key = f"briefing_cache_{data_brief_sel}"
-            if btn_gerar_br or cache_key not in st.session_state:
+            if btn_gerar_br:
                 with st.spinner("🤖 IA analisando RDCs e montando síntese da reunião..."):
                     res_brief = gerar_briefing_matinal_ia(df_dia_br, data_brief_sel, nome_site)
                     st.session_state[cache_key] = res_brief
-            
-            briefing_atual = st.session_state.get(cache_key, {})
-            avancos_l = briefing_atual.get("avancos", [])
-            atencao_l = briefing_atual.get("atencao", [])
-            bloqueios_l = briefing_atual.get("bloqueios", [])
-            origem_b = briefing_atual.get("origem", "IA")
 
-            st.markdown(f"<p style='color: #64748b; font-size: 12px; margin: 4px 0 12px 0;'>Fonte: <b style='color: #0ea5e9;'>{origem_b}</b> · Total de {len(df_dia_br)} RDCs analisados nesta data</p>", unsafe_allow_html=True)
+            if cache_key in st.session_state:
+                briefing_atual = st.session_state[cache_key]
+                avancos_l = briefing_atual.get("avancos", [])
+                atencao_l = briefing_atual.get("atencao", [])
+                bloqueios_l = briefing_atual.get("bloqueios", [])
+                origem_b = briefing_atual.get("origem", "IA")
 
-            # 3 Cards Coloridos (Verde, Amarelo, Vermelho)
-            col_c1, col_c2, col_c3 = st.columns(3)
-            
-            with col_c1:
-                st.markdown(f"""
-                <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
-                    <h4 style="color: #22c55e; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
-                        🟢 PRINCIPAIS AVANÇOS
-                    </h4>
-                    <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
-                        {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in avancos_l])}
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"<p style='color: #64748b; font-size: 12px; margin: 6px 0 14px 0;'>Fonte: <b style='color: #0ea5e9;'>{origem_b}</b> · Total de {len(df_dia_br)} RDCs analisados nesta data</p>", unsafe_allow_html=True)
+
+                # 3 Cards Coloridos (Verde, Amarelo, Vermelho)
+                col_c1, col_c2, col_c3 = st.columns(3)
                 
-            with col_c2:
-                st.markdown(f"""
-                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
-                    <h4 style="color: #f59e0b; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
-                        🟡 PONTOS DE ATENÇÃO
-                    </h4>
-                    <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
-                        {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in atencao_l])}
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            with col_c3:
-                st.markdown(f"""
-                <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
-                    <h4 style="color: #ef4444; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
-                        🔴 BLOQUEIOS & AÇÕES URGENTES
-                    </h4>
-                    <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
-                        {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in bloqueios_l])}
-                    </ul>
-                </div>
-                """, unsafe_allow_html=True)
+                with col_c1:
+                    st.markdown(f"""
+                    <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
+                        <h4 style="color: #22c55e; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+                            🟢 PRINCIPAIS AVANÇOS
+                        </h4>
+                        <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
+                            {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in avancos_l])}
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with col_c2:
+                    st.markdown(f"""
+                    <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
+                        <h4 style="color: #f59e0b; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+                            🟡 PONTOS DE ATENÇÃO
+                        </h4>
+                        <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
+                            {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in atencao_l])}
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                with col_c3:
+                    st.markdown(f"""
+                    <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; height: 100%;">
+                        <h4 style="color: #ef4444; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+                            🔴 BLOQUEIOS & AÇÕES URGENTES
+                        </h4>
+                        <ul style="color: #e2e8f0; font-size: 13px; margin: 0; padding-left: 18px; line-height: 1.6;">
+                            {''.join([f'<li style="margin-bottom: 6px;">{item}</li>' for item in bloqueios_l])}
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-            # Texto formatado para WhatsApp
-            import urllib.parse
-            texto_zap_lista = [
-                f"🏗️ *BRIEFING MATINAL DE OBRA — {nome_site}*",
-                f"📅 *Data de Referência:* {data_brief_sel}",
-                "",
-                "🟢 *PRINCIPAIS AVANÇOS:*",
-                *[f"• {item.replace('**', '')}" for item in avancos_l],
-                "",
-                "🟡 *PONTOS DE ATENÇÃO:*",
-                *[f"• {item.replace('**', '')}" for item in atencao_l],
-                "",
-                "🔴 *BLOQUEIOS / AÇÕES URGENTES:*",
-                *[f"• {item.replace('**', '')}" for item in bloqueios_l],
-                "",
-                f"📊 _Gerado pelo Sistema RDC & PDE em {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}_"
-            ]
-            texto_zap_completo = "\n".join(texto_zap_lista)
-            link_zap = f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto_zap_completo)}"
+                # Texto formatado para WhatsApp
+                import urllib.parse
+                texto_zap_lista = [
+                    f"🏗️ *BRIEFING MATINAL DE OBRA — {nome_site}*",
+                    f"📅 *Data de Referência:* {data_brief_sel}",
+                    "",
+                    "🟢 *PRINCIPAIS AVANÇOS:*",
+                    *[f"• {item.replace('**', '')}" for item in avancos_l],
+                    "",
+                    "🟡 *PONTOS DE ATENÇÃO:*",
+                    *[f"• {item.replace('**', '')}" for item in atencao_l],
+                    "",
+                    "🔴 *BLOQUEIOS / AÇÕES URGENTES:*",
+                    *[f"• {item.replace('**', '')}" for item in bloqueios_l],
+                    "",
+                    f"📊 _Gerado pelo Sistema RDC & PDE em {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}_"
+                ]
+                texto_zap_completo = "\n".join(texto_zap_lista)
+                link_zap = f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto_zap_completo)}"
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            col_z1, col_z2 = st.columns([1, 3])
-            with col_z1:
-                st.link_button("📲 Enviar Briefing no WhatsApp", link_zap, use_container_width=True, type="secondary")
-            with col_z2:
-                with st.expander("📋 Ver Texto Formatado para Copiar"):
-                    st.text_area("Texto do Briefing:", value=texto_zap_completo, height=140, key="txt_area_briefing_zap")
-
+                st.markdown("<br>", unsafe_allow_html=True)
+                col_z1, col_z2 = st.columns([1, 3])
+                with col_z1:
+                    st.link_button("📲 Enviar Briefing no WhatsApp", link_zap, use_container_width=True, type="secondary")
+                with col_z2:
+                    if st.toggle("📋 Ver Texto Formatado para Copiar", key="tgl_ver_texto_zap"):
+                        st.text_area("Texto do Briefing:", value=texto_zap_completo, height=140, key="txt_area_briefing_zap")
+            else:
+                st.info("👆 Selecione a data desejada e clique em **'⚡ Gerar / Carregar Briefing com IA'** para carregar os indicadores sob demanda.")
         st.markdown("---")
         
         col_dash1, col_dash2, col_dash3 = st.columns([3, 3, 4])
