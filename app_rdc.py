@@ -1884,6 +1884,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
 
     return bytes(pdf.output())
 
+@st.cache_data(show_spinner=False)
 def ler_arquivo_seguro(arquivo, nome_arquivo=""):
     try:
         if nome_arquivo.endswith(".xlsx") or nome_arquivo.endswith(".xls"):
@@ -1974,6 +1975,7 @@ def salvar_f1_seguro(conn, df_f1, caminho_csv):
     except Exception as e:
         return False, f"Erro ao salvar: {e}"
 
+@st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
     # Auto-detect header row if the file has title rows above the headers
     unnamed_cols = [c for c in df.columns if str(c).startswith('Unnamed')]
@@ -2673,7 +2675,7 @@ elif st.session_state.df is None:
     if not st.session_state.get('force_use_local', False):
         if conn:
             try:
-                df_gsheets = conn.read(worksheet="PDE", ttl=5)
+                df_gsheets = conn.read(worksheet="PDE", ttl=300)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
@@ -2706,7 +2708,7 @@ elif st.session_state.df is None:
 # =================================================================
 if conn and not st.session_state.get('force_use_local', False):
     try:
-        df_f1 = conn.read(worksheet="Historico_F1", ttl=0)
+        df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
         if df_f1 is not None:
             df_f1 = df_f1.dropna(how='all')
             # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
@@ -3535,7 +3537,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     import plotly.express as px
                     fig_tv1 = px.pie(df_area_count, values='Quantidade', names='AREA', hole=0.55, color_discrete_sequence=["#3b82f6", "#10b981", "#f59e0b", "#ef4444"])
                     fig_tv1.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea", size=14), height=350, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5))
-                    st.plotly_chart(fig_tv1, use_container_width=True)
+                    st.plotly_chart(fig_tv1, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             
             with col_g2:
                 st.markdown("#### Top 10 Maiores Equipes")
@@ -3546,7 +3548,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     fig_tv2 = px.bar(top10, y="ENCARREGADO", x="Qtd", orientation="h", color_discrete_sequence=["#3b82f6"], text="Qtd")
                     fig_tv2.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea", size=12), height=350, yaxis=dict(autorange="reversed"), xaxis_title="", yaxis_title="")
                     fig_tv2.update_traces(textposition="outside")
-                    st.plotly_chart(fig_tv2, use_container_width=True)
+                    st.plotly_chart(fig_tv2, use_container_width=True, config={"displayModeBar": False, "responsive": True})
         
         else:
             # ====== SLIDE 1: F1 RANKING ======
@@ -3951,7 +3953,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 df_mo_global = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_g, qtd_moi_g]})
                 fig_mo_g = px.pie(df_mo_global, values="Quantidade", names="Tipo", hole=0.6, color_discrete_sequence=["#10b981", "#ef4444"])
                 fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-                st.plotly_chart(fig_mo_g, use_container_width=True)
+                st.plotly_chart(fig_mo_g, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Classificação de Mão de Obra não encontrada.")
                 
@@ -3965,7 +3967,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 cores_areas = {'PB': '#3498db', 'RB': '#e67e22', 'ESP': '#9b59b6'}
                 fig_area = px.pie(df_area_count, values="Quantidade", names="ÁREA_RESUMO", hole=0.6, color="ÁREA_RESUMO", color_discrete_map=cores_areas)
                 fig_area.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-                st.plotly_chart(fig_area, use_container_width=True)
+                st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Áreas não identificadas.")
                 
@@ -3981,7 +3983,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 fig_top_enc.update_xaxes(visible=False)
                 fig_top_enc.update_coloraxes(showscale=False)
                 fig_top_enc.update_traces(textposition='outside', cliponaxis=False)
-                st.plotly_chart(fig_top_enc, use_container_width=True)
+                st.plotly_chart(fig_top_enc, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 
         st.markdown("---")
         
@@ -4009,7 +4011,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                         font=dict(color="#e0e4ea"), height=250
                     )
                     fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=8))
-                    st.plotly_chart(fig_evolucao, use_container_width=True)
+                    st.plotly_chart(fig_evolucao, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 else:
                     st.info("Ainda não há entregas neste mês.")
             else:
@@ -4048,7 +4050,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     }
                 ))
                 fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
-                st.plotly_chart(fig_gauge, use_container_width=True)
+                st.plotly_chart(fig_gauge, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Sem dados suficientes.")
                 
@@ -4062,7 +4064,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 moi_count = moi_count.sort_values(by="Quantidade", ascending=False).head(8)
                 fig_moi = px.pie(moi_count, values="Quantidade", names="DISCIPLINA", hole=0.5, color_discrete_sequence=px.colors.sequential.YlOrRd[::-1])
                 fig_moi.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280)
-                st.plotly_chart(fig_moi, use_container_width=True)
+                st.plotly_chart(fig_moi, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Nenhuma MOI na base atual.")
 
@@ -5229,7 +5231,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 fig_ev = px.line(df_evolucao, x="MES_ANO", y="RDCs Entregues", text="RDCs Entregues", markers=True)
                 fig_ev.update_traces(textposition="top center", line_color="#0ea5e9", marker=dict(size=8))
                 fig_ev.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), xaxis_title="Mês", yaxis_title="Total de RDCs")
-                st.plotly_chart(fig_ev, use_container_width=True)
+                st.plotly_chart(fig_ev, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 
             st.markdown("---")
             if st.button("📄 Gerar Relatório Mensal em PDF", type="secondary", use_container_width=True):
@@ -6306,7 +6308,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     fig_cc.update_coloraxes(showscale=False)
                     fig_cc.update_traces(textposition='outside', cliponaxis=False)
                     
-                    st.plotly_chart(fig_cc, use_container_width=True)
+                    st.plotly_chart(fig_cc, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 else:
                     st.info("Nenhum dado encontrado para gerar gráfico de C.C.")
                     
@@ -6320,7 +6322,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     fig_mo = px.pie(mo_contagem, values="Quantidade", names="Tipo", hole=0.65, color_discrete_sequence=["#4a9eed", "#f39c12", "#e74c3c"])
                     fig_mo.update_layout(margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=350, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                     
-                    st.plotly_chart(fig_mo, use_container_width=True)
+                    st.plotly_chart(fig_mo, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 else:
                     st.info("Dados de Mão de Obra não disponíveis.")
             
@@ -6361,7 +6363,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                             fig_hist.update_xaxes(type='category')
                             fig_hist.update_yaxes(tickformat="d")
                             fig_hist.update_traces(line=dict(width=3, color="#0ea5e9"), marker=dict(size=8, color="#10b981"))
-                            st.plotly_chart(fig_hist, use_container_width=True)
+                            st.plotly_chart(fig_hist, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                         else:
                             st.info("Aguardando acumular mais dias de dados para gerar a curva.")
                 except Exception:
@@ -6419,7 +6421,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 fig_func.update_coloraxes(showscale=False)
                 fig_func.update_traces(textposition='outside')
                 if st.toggle("📊 Visualizar Gráfico de Funções"):
-                    st.plotly_chart(fig_func, use_container_width=True)
+                    st.plotly_chart(fig_func, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 
                 # Tabela detalhada
                 colunas_exibir = ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "ENCARREGADO"]
@@ -7171,7 +7173,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 margin=dict(t=30, b=30, l=10, r=10),
                                 height=400
                             )
-                            st.plotly_chart(fig_pie, use_container_width=True)
+                            st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False, "responsive": True})
 
                         # BARRAS: Problemas por Disciplina
                         with col_g2:
@@ -7197,7 +7199,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 yaxis=dict(tickfont=dict(size=11))
                             )
                             fig_bar.update_coloraxes(showscale=False)
-                            st.plotly_chart(fig_bar, use_container_width=True)
+                            st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": False, "responsive": True})
 
                         # LINHA: Evolução Temporal de Problemas
                         st.markdown("#### 📈 Evolução de Problemas ao Longo do Tempo")
@@ -7222,7 +7224,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 xaxis_title="Semana",
                                 yaxis_title="Nº de Problemas"
                             )
-                            st.plotly_chart(fig_line, use_container_width=True)
+                            st.plotly_chart(fig_line, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                         else:
                             st.info("📅 Dados insuficientes para gerar a evolução temporal. Continue processando RDCs para ver a tendência.")
 
@@ -7246,7 +7248,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                             height=400,
                             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10))
                         )
-                        st.plotly_chart(fig_stack, use_container_width=True)
+                        st.plotly_chart(fig_stack, use_container_width=True, config={"displayModeBar": False, "responsive": True})
 
                         # TABELA: Top 10 Problemas Recentes
                         st.markdown("#### 📋 Últimos Problemas Reportados")
@@ -7292,7 +7294,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 yaxis=dict(tickfont=dict(size=12))
                             )
                             fig_words.update_coloraxes(showscale=False)
-                            st.plotly_chart(fig_words, use_container_width=True)
+                            st.plotly_chart(fig_words, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                         else:
                             st.info("Sem dados de atividades suficientes para gerar o gráfico.")
                     else:
@@ -7322,7 +7324,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                                 height=350,
                                 yaxis=dict(tickfont=dict(size=11))
                             )
-                            st.plotly_chart(fig_dds, use_container_width=True)
+                            st.plotly_chart(fig_dds, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                         else:
                             st.info("Nenhum tema de DDS registrado nos RDCs filtrados.")
                     else:
