@@ -1700,37 +1700,37 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     pdf.set_fill_color(220, 220, 220)
     
     # Linha superior do cabecalho (bordas Top, Left, Right para as primeiras colunas)
-    pdf.cell(col_item, 4, "ITEM", "LTR", 0, "C", True)
-    pdf.cell(col_mat, 4, "MATRICULA", "LTR", 0, "C", True)
-    pdf.cell(col_nome, 4, "NOME", "LTR", 0, "C", True)
-    pdf.cell(col_func, 4, "FUNCAO", "LTR", 0, "C", True)
-    pdf.cell(col_h_ini + col_h_ter, 4, "HORARIO", 1, 0, "C", True)
+    pdf.cell(col_item, 3.8, "ITEM", "LTR", 0, "C", True)
+    pdf.cell(col_mat, 3.8, "MATRICULA", "LTR", 0, "C", True)
+    pdf.cell(col_nome, 3.8, "NOME", "LTR", 0, "C", True)
+    pdf.cell(col_func, 3.8, "FUNCAO", "LTR", 0, "C", True)
+    pdf.cell(col_h_ini + col_h_ter, 3.8, "HORARIO", 1, 0, "C", True)
     for n in range(1, 7):
-        pdf.cell(col_num, 4, str(n), 1, 0, "C", True)
-    pdf.cell(col_total, 4, "TOTAL", 1, 1, "C", True)
+        pdf.cell(col_num, 3.8, str(n), 1, 0, "C", True)
+    pdf.cell(col_total, 3.8, "TOTAL", 1, 1, "C", True)
     
     # Sub-cabecalho (bordas Left, Right, Bottom para as primeiras colunas)
     y = pdf.get_y()
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "", 5)
-    pdf.cell(col_item, 3, "", "LBR", 0, "C", True)
-    pdf.cell(col_mat, 3, "", "LBR", 0, "C", True)
-    pdf.cell(col_nome, 3, "", "LBR", 0, "C", True)
-    pdf.cell(col_func, 3, "", "LBR", 0, "C", True)
-    pdf.cell(col_h_ini, 3, "INICIO", 1, 0, "C", True)
-    pdf.cell(col_h_ter, 3, "TERMINO", 1, 0, "C", True)
+    pdf.cell(col_item, 2.8, "", "LBR", 0, "C", True)
+    pdf.cell(col_mat, 2.8, "", "LBR", 0, "C", True)
+    pdf.cell(col_nome, 2.8, "", "LBR", 0, "C", True)
+    pdf.cell(col_func, 2.8, "", "LBR", 0, "C", True)
+    pdf.cell(col_h_ini, 2.8, "INICIO", 1, 0, "C", True)
+    pdf.cell(col_h_ter, 2.8, "TERMINO", 1, 0, "C", True)
     for _ in range(6):
-        pdf.cell(col_num, 3, "HN", 1, 0, "C", True)
-    pdf.cell(col_total, 3, "HN", 1, 1, "C", True)
+        pdf.cell(col_num, 2.8, "HN", 1, 0, "C", True)
+    pdf.cell(col_total, 2.8, "HN", 1, 1, "C", True)
     
     y = pdf.get_y()
     
     # ================================================================
-    # TABELA DE EFETIVO (25 linhas)
+    # TABELA DE EFETIVO (28 linhas)
     # ================================================================
-    pdf.set_font("Helvetica", "", 6)
-    num_linhas_efetivo = 25
-    h_row = 4.2
+    pdf.set_font("Helvetica", "", 5.5)
+    num_linhas_efetivo = 28
+    h_row_efetivo = 3.4
     
     for idx in range(num_linhas_efetivo):
         pdf.set_xy(ml, y)
@@ -1743,28 +1743,28 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
         else:
             mat, nome_col, funcao = "", "", ""
         
-        pdf.cell(col_item, h_row, str(idx + 1), 1, 0, "C")
-        pdf.cell(col_mat, h_row, mat, 1, 0, "C")
-        pdf.cell(col_nome, h_row, nome_col, 1, 0, "L")
-        pdf.cell(col_func, h_row, funcao, 1, 0, "L")
-        pdf.cell(col_h_ini, h_row, "", 1, 0, "C")
-        pdf.cell(col_h_ter, h_row, "", 1, 0, "C")
+        pdf.cell(col_item, h_row_efetivo, str(idx + 1), 1, 0, "C")
+        pdf.cell(col_mat, h_row_efetivo, mat, 1, 0, "C")
+        pdf.cell(col_nome, h_row_efetivo, nome_col, 1, 0, "L")
+        pdf.cell(col_func, h_row_efetivo, funcao, 1, 0, "L")
+        pdf.cell(col_h_ini, h_row_efetivo, "", 1, 0, "C")
+        pdf.cell(col_h_ter, h_row_efetivo, "", 1, 0, "C")
         for _ in range(6):
-            pdf.cell(col_num, h_row, "", 1, 0, "C")
-        pdf.cell(col_total, h_row, "", 1, 1, "C")
+            pdf.cell(col_num, h_row_efetivo, "", 1, 0, "C")
+        pdf.cell(col_total, h_row_efetivo, "", 1, 1, "C")
         
         y = pdf.get_y()
     
     # Linha TOTAL
     pdf.set_xy(ml, y)
-    pdf.set_font("Helvetica", "B", 6)
-    pdf.cell(col_item + col_mat + col_nome, h_row, "", 1, 0)
-    pdf.cell(col_func, h_row, "TOTAL", 1, 0, "C")
-    pdf.cell(col_h_ini, h_row, "", 1, 0)
-    pdf.cell(col_h_ter, h_row, "", 1, 0)
+    pdf.set_font("Helvetica", "B", 5.5)
+    pdf.cell(col_item + col_mat + col_nome, h_row_efetivo, "", 1, 0)
+    pdf.cell(col_func, h_row_efetivo, "TOTAL", 1, 0, "C")
+    pdf.cell(col_h_ini, h_row_efetivo, "", 1, 0)
+    pdf.cell(col_h_ter, h_row_efetivo, "", 1, 0)
     for _ in range(6):
-        pdf.cell(col_num, h_row, "", 1, 0)
-    pdf.cell(col_total, h_row, "", 1, 1)
+        pdf.cell(col_num, h_row_efetivo, "", 1, 0)
+    pdf.cell(col_total, h_row_efetivo, "", 1, 1)
     y = pdf.get_y()
     
     # ================================================================
@@ -1772,7 +1772,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     # ================================================================
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "B", 5)
-    pdf.cell(page_w, 3.5, "MAQUINAS E EQUIPAMENTOS (quando aplicavel)", 1, 1, "L")
+    pdf.cell(page_w, 3.2, "MAQUINAS E EQUIPAMENTOS (quando aplicavel)", 1, 1, "L")
     y = pdf.get_y()
     
     pdf.set_xy(ml, y)
@@ -1784,47 +1784,48 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     col_hm_ter = 12
     rest = page_w - col_qt - col_placa - col_equip - col_tag - col_hm_ini - col_hm_ter
     
-    pdf.cell(col_qt, 3.5, "Qt.", 1, 0, "C", True)
-    pdf.cell(col_placa, 3.5, "PLACA", 1, 0, "C", True)
-    pdf.cell(col_equip, 3.5, "EQUIPAMENTO", 1, 0, "C", True)
-    pdf.cell(col_tag, 3.5, "TAG", 1, 0, "C", True)
-    pdf.cell(col_hm_ini, 3.5, "Inicio", 1, 0, "C", True)
-    pdf.cell(col_hm_ter, 3.5, "Termino", 1, 0, "C", True)
-    pdf.cell(rest, 3.5, "Total", 1, 1, "C", True)
+    pdf.cell(col_qt, 3.0, "Qt.", 1, 0, "C", True)
+    pdf.cell(col_placa, 3.0, "PLACA", 1, 0, "C", True)
+    pdf.cell(col_equip, 3.0, "EQUIPAMENTO", 1, 0, "C", True)
+    pdf.cell(col_tag, 3.0, "TAG", 1, 0, "C", True)
+    pdf.cell(col_hm_ini, 3.0, "Inicio", 1, 0, "C", True)
+    pdf.cell(col_hm_ter, 3.0, "Termino", 1, 0, "C", True)
+    pdf.cell(rest, 3.0, "Total", 1, 1, "C", True)
     y = pdf.get_y()
     
     for mq in range(2):
         pdf.set_xy(ml, y)
         pdf.set_font("Helvetica", "", 5)
-        pdf.cell(col_qt, 3.5, str(mq + 1), 1, 0, "C")
-        pdf.cell(col_placa, 3.5, "", 1, 0)
-        pdf.cell(col_equip, 3.5, "", 1, 0)
-        pdf.cell(col_tag, 3.5, "", 1, 0)
-        pdf.cell(col_hm_ini, 3.5, "", 1, 0)
-        pdf.cell(col_hm_ter, 3.5, "", 1, 0)
-        pdf.cell(rest, 3.5, "", 1, 1)
+        pdf.cell(col_qt, 2.8, str(mq + 1), 1, 0, "C")
+        pdf.cell(col_placa, 2.8, "", 1, 0)
+        pdf.cell(col_equip, 2.8, "", 1, 0)
+        pdf.cell(col_tag, 2.8, "", 1, 0)
+        pdf.cell(col_hm_ini, 2.8, "", 1, 0)
+        pdf.cell(col_hm_ter, 2.8, "", 1, 0)
+        pdf.cell(rest, 2.8, "", 1, 1)
         y = pdf.get_y()
     
     # ================================================================
-    # ATIVIDADES (10 linhas)
+    # ATIVIDADES (15 linhas)
     # ================================================================
     pdf.set_xy(ml, y)
-    pdf.set_font("Helvetica", "B", 6)
+    pdf.set_font("Helvetica", "B", 5.5)
     col_item_a = 8
     col_ativ = page_w - col_item_a - 20
     col_ca = 20
     
-    pdf.cell(col_item_a, 5, "ITEM", 1, 0, "C", True)
-    pdf.cell(col_ativ, 5, "ATIVIDADES", 1, 0, "C", True)
-    pdf.cell(col_ca, 5, "C. ATIVID.", 1, 1, "C", True)
+    pdf.cell(col_item_a, 4.0, "ITEM", 1, 0, "C", True)
+    pdf.cell(col_ativ, 4.0, "ATIVIDADES", 1, 0, "C", True)
+    pdf.cell(col_ca, 4.0, "C. ATIVID.", 1, 1, "C", True)
     y = pdf.get_y()
     
-    pdf.set_font("Helvetica", "", 6)
-    for ai in range(10):
+    pdf.set_font("Helvetica", "", 5.5)
+    h_row_ativ = 3.6
+    for ai in range(15):
         pdf.set_xy(ml, y)
-        pdf.cell(col_item_a, 5, str(ai + 1), 1, 0, "C")
-        pdf.cell(col_ativ, 5, "", 1, 0)
-        pdf.cell(col_ca, 5, "", 1, 1)
+        pdf.cell(col_item_a, h_row_ativ, str(ai + 1), 1, 0, "C")
+        pdf.cell(col_ativ, h_row_ativ, "", 1, 0)
+        pdf.cell(col_ca, h_row_ativ, "", 1, 1)
         y = pdf.get_y()
     
     # ================================================================
@@ -1832,7 +1833,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     # ================================================================
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "B", 6)
-    pdf.cell(page_w, 5, "          PB (  )            RB (  )                     ELEVACAO: ___________________________                         OBS", 1, 1, "L")
+    pdf.cell(page_w, 4.5, "          PB (  )            RB (  )                                                                                    OBS", 1, 1, "L")
     y = pdf.get_y()
     
     areas = [
