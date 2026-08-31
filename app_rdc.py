@@ -1565,7 +1565,7 @@ def preencher_excel(equipe, encarregado_selecionado, data_rdc=""):
         return None
 
 def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path="", data_rdc=""):
-    """Gera um PDF que replica fielmente o MODELO.xlsx da Apropriacao de Campo."""
+    """Gera um PDF que replica fielmente o MODELO.xlsx da Apropriacao de Campo com encaixe perfeito no A4."""
     try:
         from fpdf import FPDF
     except ImportError:
@@ -1585,23 +1585,22 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     # ================================================================
     # CABECALHO COMPLETO (Logo esquerda + info direita)
     # ================================================================
-    y_start = 5
-    logo_w = 28  # largura da coluna da logo
-    info_w = page_w - logo_w  # largura da area de info
-    h_row = 5.5  # altura de cada linha do cabecalho
-    h_titulo = 7  # altura do titulo
-    header_h = h_titulo + h_row * 4  # altura total do cabecalho (titulo + 4 linhas)
+    y_start = 5.0
+    logo_w = 28.0
+    info_w = page_w - logo_w  # 172 mm
+    h_row = 5.2  # altura confortável de cada linha do cabeçalho
+    h_titulo = 6.8  # altura do título
+    header_h = h_titulo + (h_row * 4)  # 27.6 mm
     
     pdf.set_font("Helvetica", "B", 10)
     
-    # --- LOGO (celula esquerda, altura total do cabecalho) ---
+    # --- LOGO ---
     has_logo = logo_path and os.path.exists(logo_path)
     pdf.set_xy(ml, y_start)
-    pdf.cell(logo_w, header_h, "", 1, 0)  # Borda da celula da logo
+    pdf.cell(logo_w, header_h, "", 1, 0)
     
     if has_logo:
         try:
-            # Centralizar logo dentro da celula
             logo_img_w = logo_w - 4
             logo_img_h = header_h - 4
             pdf.image(logo_path, x=ml + 2, y=y_start + 2, w=logo_img_w, h=logo_img_h)
@@ -1610,7 +1609,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     
     # --- TITULO: APROPRIACAO DE CAMPO ---
     pdf.set_xy(ml + logo_w, y_start)
-    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_font("Helvetica", "B", 9.5)
     pdf.cell(info_w, h_titulo, "APROPRIACAO DE CAMPO", 1, 1, "C")
     
     y = y_start + h_titulo
@@ -1619,27 +1618,26 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     x_info = ml + logo_w
     col_left = 75
     col_mid = 60
-    col_right = info_w - col_left - col_mid  # 172 - 75 - 60 = 37
+    col_right = info_w - col_left - col_mid  # 37 mm
     
     pdf.set_xy(x_info, y)
-    pdf.set_font("Helvetica", "", 5)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(12, h_row, "OBRA:", 1, 0, "R")
     pdf.set_font("Helvetica", "", 7)
     obra_txt = safe(f" 125 - {nome_empresa}") if nome_empresa else " 125 - ARAUCO"
     pdf.cell(col_left - 12, h_row, obra_txt, 1, 0, "L")
-    pdf.set_font("Helvetica", "", 5)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(28, h_row, "DISCIPLINA/SETOR:", 1, 0, "R")
     pdf.cell(col_mid - 28, h_row, "", 1, 0, "L")
     pdf.cell(10, h_row, "DATA:", 1, 0, "R")
     pdf.set_font("Helvetica", "B", 7)
     pdf.cell(col_right - 10, h_row, str(data_rdc) if data_rdc else "", 1, 1, "C")
-    pdf.set_font("Helvetica", "", 5)
     
     y += h_row
     
     # --- LINHA 3: TURNO | COORDENADOR/SUPERVISOR ---
     pdf.set_xy(x_info, y)
-    pdf.set_font("Helvetica", "", 5)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(12, h_row, "TURNO:", 1, 0, "R")
     pdf.cell(col_left - 12, h_row, "", 1, 0, "L")
     pdf.cell(38, h_row, "COORDENADOR / SUPERVISOR:", 1, 0, "R")
@@ -1649,20 +1647,20 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     
     # --- LINHA 4: HORARIO | ENCARREGADO OU MESTRE ---
     pdf.set_xy(x_info, y)
-    pdf.set_font("Helvetica", "", 5)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(14, h_row, "HORARIO:", 1, 0, "R")
-    pdf.set_font("Helvetica", "", 5)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(col_left - 14, h_row, " Seg a Sex= 07:00 as 17:00 h", 1, 0, "L")
-    pdf.set_font("Helvetica", "", 5)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(38, h_row, "ENCARREGADO OU MESTRE:", 1, 0, "R")
-    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_font("Helvetica", "B", 7.5)
     pdf.cell(info_w - col_left - 38, h_row, safe(f" {encarregado_selecionado}"), 1, 1, "L")
     
     y += h_row
     
     # --- LINHA 5: CONDICOES CLIMATICAS | EQUIPAMENTO | ELEVACAO ---
     pdf.set_xy(x_info, y)
-    pdf.set_font("Helvetica", "", 5)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(24, h_row, "COND. CLIMATICAS:", 1, 0, "L")
     pdf.cell(15, h_row, "Bom (  )", 1, 0, "C")
     pdf.cell(18, h_row, "Chuva Leve(  )", 1, 0, "C")
@@ -1674,17 +1672,14 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     
     y += h_row
     
-    # ================================================================
-    # LINHA 6: espaco/separador
-    # ================================================================
+    # Separador sutil
     pdf.set_xy(ml, y)
-    pdf.cell(page_w, 2, "", 0, 1)
+    pdf.cell(page_w, 1.5, "", 0, 1)
     y = pdf.get_y()
     
     # ================================================================
     # CABECALHO DA TABELA DE EFETIVO
     # ================================================================
-    # Colunas: ITEM | MATRICULA | NOME | FUNCAO | HORARIO(INICIO|TERMINO) | 1|2|3|4|5|6 | TOTAL
     col_item = 8
     col_mat = 20
     col_nome = 60
@@ -1693,13 +1688,11 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     col_h_ter = 11
     col_num = 6
     col_total = 9
-    # Total: 8+20+60+45+11+11+36+9 = 200
     
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "B", 6)
-    pdf.set_fill_color(220, 220, 220)
+    pdf.set_fill_color(225, 225, 225)
     
-    # Linha superior do cabecalho (bordas Top, Left, Right para as primeiras colunas)
     pdf.cell(col_item, 3.8, "ITEM", "LTR", 0, "C", True)
     pdf.cell(col_mat, 3.8, "MATRICULA", "LTR", 0, "C", True)
     pdf.cell(col_nome, 3.8, "NOME", "LTR", 0, "C", True)
@@ -1709,7 +1702,6 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
         pdf.cell(col_num, 3.8, str(n), 1, 0, "C", True)
     pdf.cell(col_total, 3.8, "TOTAL", 1, 1, "C", True)
     
-    # Sub-cabecalho (bordas Left, Right, Bottom para as primeiras colunas)
     y = pdf.get_y()
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "", 5)
@@ -1726,11 +1718,11 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     y = pdf.get_y()
     
     # ================================================================
-    # TABELA DE EFETIVO (28 linhas)
+    # TABELA DE EFETIVO (28 linhas) - Altura confortável para escrita
     # ================================================================
     pdf.set_font("Helvetica", "", 5.5)
     num_linhas_efetivo = 28
-    h_row_efetivo = 3.4
+    h_row_efetivo = 3.75  # 28 * 3.75 = 105 mm
     
     for idx in range(num_linhas_efetivo):
         pdf.set_xy(ml, y)
@@ -1767,12 +1759,17 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     pdf.cell(col_total, h_row_efetivo, "", 1, 1)
     y = pdf.get_y()
     
+    # Separador
+    pdf.set_xy(ml, y)
+    pdf.cell(page_w, 1.5, "", 0, 1)
+    y = pdf.get_y()
+    
     # ================================================================
     # MAQUINAS E EQUIPAMENTOS (2 linhas)
     # ================================================================
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "B", 5)
-    pdf.cell(page_w, 3.2, "MAQUINAS E EQUIPAMENTOS (quando aplicavel)", 1, 1, "L")
+    pdf.cell(page_w, 3.4, "MAQUINAS E EQUIPAMENTOS (quando aplicavel)", 1, 1, "L")
     y = pdf.get_y()
     
     pdf.set_xy(ml, y)
@@ -1784,49 +1781,59 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     col_hm_ter = 12
     rest = page_w - col_qt - col_placa - col_equip - col_tag - col_hm_ini - col_hm_ter
     
-    pdf.cell(col_qt, 3.0, "Qt.", 1, 0, "C", True)
-    pdf.cell(col_placa, 3.0, "PLACA", 1, 0, "C", True)
-    pdf.cell(col_equip, 3.0, "EQUIPAMENTO", 1, 0, "C", True)
-    pdf.cell(col_tag, 3.0, "TAG", 1, 0, "C", True)
-    pdf.cell(col_hm_ini, 3.0, "Inicio", 1, 0, "C", True)
-    pdf.cell(col_hm_ter, 3.0, "Termino", 1, 0, "C", True)
-    pdf.cell(rest, 3.0, "Total", 1, 1, "C", True)
+    pdf.cell(col_qt, 3.2, "Qt.", 1, 0, "C", True)
+    pdf.cell(col_placa, 3.2, "PLACA", 1, 0, "C", True)
+    pdf.cell(col_equip, 3.2, "EQUIPAMENTO", 1, 0, "C", True)
+    pdf.cell(col_tag, 3.2, "TAG", 1, 0, "C", True)
+    pdf.cell(col_hm_ini, 3.2, "Inicio", 1, 0, "C", True)
+    pdf.cell(col_hm_ter, 3.2, "Termino", 1, 0, "C", True)
+    pdf.cell(rest, 3.2, "Total", 1, 1, "C", True)
     y = pdf.get_y()
     
     for mq in range(2):
         pdf.set_xy(ml, y)
         pdf.set_font("Helvetica", "", 5)
-        pdf.cell(col_qt, 2.8, str(mq + 1), 1, 0, "C")
-        pdf.cell(col_placa, 2.8, "", 1, 0)
-        pdf.cell(col_equip, 2.8, "", 1, 0)
-        pdf.cell(col_tag, 2.8, "", 1, 0)
-        pdf.cell(col_hm_ini, 2.8, "", 1, 0)
-        pdf.cell(col_hm_ter, 2.8, "", 1, 0)
-        pdf.cell(rest, 2.8, "", 1, 1)
+        pdf.cell(col_qt, 3.2, str(mq + 1), 1, 0, "C")
+        pdf.cell(col_placa, 3.2, "", 1, 0)
+        pdf.cell(col_equip, 3.2, "", 1, 0)
+        pdf.cell(col_tag, 3.2, "", 1, 0)
+        pdf.cell(col_hm_ini, 3.2, "", 1, 0)
+        pdf.cell(col_hm_ter, 3.2, "", 1, 0)
+        pdf.cell(rest, 3.2, "", 1, 1)
         y = pdf.get_y()
     
+    # Separador
+    pdf.set_xy(ml, y)
+    pdf.cell(page_w, 1.5, "", 0, 1)
+    y = pdf.get_y()
+    
     # ================================================================
-    # ATIVIDADES (15 linhas)
+    # ATIVIDADES (15 linhas) - Espaçamento ampliado para anotações claras
     # ================================================================
     pdf.set_xy(ml, y)
-    pdf.set_font("Helvetica", "B", 5.5)
+    pdf.set_font("Helvetica", "B", 6)
     col_item_a = 8
     col_ativ = page_w - col_item_a - 20
     col_ca = 20
     
-    pdf.cell(col_item_a, 4.0, "ITEM", 1, 0, "C", True)
-    pdf.cell(col_ativ, 4.0, "ATIVIDADES", 1, 0, "C", True)
-    pdf.cell(col_ca, 4.0, "C. ATIVID.", 1, 1, "C", True)
+    pdf.cell(col_item_a, 4.2, "ITEM", 1, 0, "C", True)
+    pdf.cell(col_ativ, 4.2, "ATIVIDADES", 1, 0, "C", True)
+    pdf.cell(col_ca, 4.2, "C. ATIVID.", 1, 1, "C", True)
     y = pdf.get_y()
     
     pdf.set_font("Helvetica", "", 5.5)
-    h_row_ativ = 3.6
+    h_row_ativ = 4.15  # 15 * 4.15 = 62.25 mm
     for ai in range(15):
         pdf.set_xy(ml, y)
         pdf.cell(col_item_a, h_row_ativ, str(ai + 1), 1, 0, "C")
         pdf.cell(col_ativ, h_row_ativ, "", 1, 0)
         pdf.cell(col_ca, h_row_ativ, "", 1, 1)
         y = pdf.get_y()
+    
+    # Separador
+    pdf.set_xy(ml, y)
+    pdf.cell(page_w, 1.5, "", 0, 1)
+    y = pdf.get_y()
     
     # ================================================================
     # AREA / LOCAL DE TRABALHO
@@ -1843,42 +1850,36 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
         "PRESSAO - FORNALHA (  )      PINTURA (  )",
         "SOPRAGEM (  )      ANDAIME (  )",
     ]
-    pdf.set_font("Helvetica", "", 6)
+    pdf.set_font("Helvetica", "", 5.8)
     for area_txt in areas:
         pdf.set_xy(ml, y)
-        pdf.cell(page_w, 4.5, safe(area_txt), 1, 1, "L")
+        pdf.cell(page_w, 3.8, safe(area_txt), 1, 1, "L")
         y = pdf.get_y()
     
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "B", 5)
-    pdf.cell(page_w, 4, " MARCAR CONFORME O LOCAL DE TRABALHO", 1, 1, "L")
-    y = pdf.get_y()
-    
-    # Espaco
-    pdf.ln(3)
+    pdf.cell(page_w, 3.8, " MARCAR CONFORME O LOCAL DE TRABALHO", 1, 1, "L")
     y = pdf.get_y()
     
     # ================================================================
     # ASSINATURAS (3 colunas)
     # ================================================================
     col_ass = page_w / 3
-    pdf.set_xy(ml, y)
-    pdf.set_font("Helvetica", "", 5)
     
-    # Linhas pontilhadas
-    pdf.ln(8)
-    y = pdf.get_y()
+    # Espaçamento para o encarregado assinar com caneta
+    y_linhas_ass = y + 10.0
     
-    x1 = ml + 5
-    x2 = ml + col_ass + 5
-    x3 = ml + 2 * col_ass + 5
-    line_len = col_ass - 10
+    x1 = ml + 6
+    x2 = ml + col_ass + 6
+    x3 = ml + 2 * col_ass + 6
+    line_len = col_ass - 12
     
-    pdf.line(x1, y, x1 + line_len, y)
-    pdf.line(x2, y, x2 + line_len, y)
-    pdf.line(x3, y, x3 + line_len, y)
+    pdf.line(x1, y_linhas_ass, x1 + line_len, y_linhas_ass)
+    pdf.line(x2, y_linhas_ass, x2 + line_len, y_linhas_ass)
+    pdf.line(x3, y_linhas_ass, x3 + line_len, y_linhas_ass)
     
-    pdf.set_xy(ml, y + 1)
+    pdf.set_xy(ml, y_linhas_ass + 1.2)
+    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(col_ass, 4, "ENCARREGADO / MESTRE", 0, 0, "C")
     pdf.cell(col_ass, 4, "ENGENHEIRO / COORDENADOR", 0, 0, "C")
     pdf.cell(col_ass, 4, "PLANEJAMENTO", 0, 1, "C")
