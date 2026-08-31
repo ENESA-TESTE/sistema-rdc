@@ -1639,22 +1639,18 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     pdf.set_xy(x_info, y)
     pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(12, h_row, "TURNO:", 1, 0, "R")
-    pdf.cell(col_left - 12, h_row, "", 1, 0, "L")
+    pdf.cell(col_left - 12, h_row, safe(" 1o Turno (  )   2o Turno (  )   3o Turno (  )"), 1, 0, "L")
     pdf.cell(38, h_row, "COORDENADOR / SUPERVISOR:", 1, 0, "R")
     pdf.cell(info_w - col_left - 38, h_row, "", 1, 1, "L")
     
     y += h_row
     
-    # --- LINHA 4: HORARIO | ENCARREGADO OU MESTRE ---
+    # --- LINHA 4: ENCARREGADO OU MESTRE (LARGURA TOTAL) ---
     pdf.set_xy(x_info, y)
     pdf.set_font("Helvetica", "", 5.5)
-    pdf.cell(14, h_row, "HORARIO:", 1, 0, "R")
-    pdf.set_font("Helvetica", "", 5.5)
-    pdf.cell(col_left - 14, h_row, " Seg a Sex= 07:00 as 17:00 h", 1, 0, "L")
-    pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(38, h_row, "ENCARREGADO OU MESTRE:", 1, 0, "R")
-    pdf.set_font("Helvetica", "B", 7.5)
-    pdf.cell(info_w - col_left - 38, h_row, safe(f" {encarregado_selecionado}"), 1, 1, "L")
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.cell(info_w - 38, h_row, safe(f" {encarregado_selecionado}"), 1, 1, "L")
     
     y += h_row
     
@@ -2843,7 +2839,7 @@ if st.session_state.df is not None:
             with tab_id:
                 st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Quem é você e qual seu turno?</p>", unsafe_allow_html=True)
                 rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
-                rdc_turno = st.selectbox("Turno de Trabalho:", ["DIURNO", "NOTURNO", "MISTO"])
+                rdc_turno = st.selectbox("Turno de Trabalho:", ["1º TURNO", "2º TURNO", "3º TURNO", "DIURNO", "NOTURNO", "MISTO"])
                 
             with tab_local:
                 import datetime
@@ -5359,7 +5355,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 - DATA: Extraia a data em que o RDC foi preenchido. Retorne RIGOROSAMENTE no formato YYYY-MM-DD (Ano-Mês-Dia).
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
                 - ENCARREGADO: É QUASE PROIBIDO retornar 'AJUSTAR NOME'. Você DEVE escolher o nome da lista oficial [{nomes_para_prompt}] que for mais parecido fonética ou visualmente com o que está escrito à mão, mesmo que a letra seja péssima, haja apenas o primeiro nome, iniciais (ex: "J. Silva") ou erros grosseiros. Faça o cruzamento lógico e retorne EXATAMENTE o nome completo da lista. Só use 'AJUSTAR NOME' se o campo estiver 100% em branco ou completamente rasurado sem nenhuma letra legível.
-                - TURNO: Analise os horários. De dia (ex: 07:00 as 17:00) = 'DIURNO'. De noite = 'NOTURNO'.
+                - TURNO: Extraia o turno marcado ('1º TURNO', '2º TURNO', '3º TURNO', 'DIURNO' ou 'NOTURNO').
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
                 - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou.
                 - ATIVIDADE: Crie um RESUMO GERAL de no máximo 35 palavras contendo as principais atividades executadas em todo o RDC. TUDO EM MAIÚSCULAS. CORRIJA a ortografia usando o glossário acima. NÃO CRIE SUBNÍVEIS, APENAS UM ÚNICO RESUMO TEXTUAL.
@@ -6456,7 +6452,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             with tab_id:
                 st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Quem é você e qual seu turno?</p>", unsafe_allow_html=True)
                 rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
-                rdc_turno = st.selectbox("Turno de Trabalho:", ["DIURNO", "NOTURNO", "MISTO"])
+                rdc_turno = st.selectbox("Turno de Trabalho:", ["1º TURNO", "2º TURNO", "3º TURNO", "DIURNO", "NOTURNO", "MISTO"])
                 
             with tab_local:
                 import datetime
