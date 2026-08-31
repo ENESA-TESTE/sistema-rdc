@@ -8,6 +8,7 @@ gspread
 plotly
 extra-streamlit-components
 fpdf2
+matplotlib
 python-pptx
 streamlit-drawable-canvas
 
