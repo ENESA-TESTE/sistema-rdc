@@ -4022,7 +4022,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             </div>
             """, unsafe_allow_html=True)
 
-            # Carregar banco de RDCs para o briefing
+            # Carregar banco de RDCs para o briefing e corrigir anos corrompidos
             df_rdc_briefing = None
             if os.path.exists(caminho_rdc_registros_csv):
                 try:
@@ -4032,8 +4032,34 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             datas_disponiveis_br = []
             if df_rdc_briefing is not None and not df_rdc_briefing.empty and "DATA" in df_rdc_briefing.columns:
+                ano_atual_br = datetime.datetime.now().year
+                
+                # Funcao para auto-corrigir anos errados (ex: 2020, 2016) para 2026
+                def _ajustar_ano_errado(val):
+                    try:
+                        dt = pd.to_datetime(val, dayfirst=True, format='mixed', errors='coerce')
+                        if pd.notna(dt) and dt.year < 2024:
+                            dt = dt.replace(year=ano_atual_br)
+                            return dt.strftime('%Y-%m-%d')
+                        elif pd.notna(dt):
+                            return dt.strftime('%Y-%m-%d')
+                    except:
+                        pass
+                    return val
+                
+                # Aplicar correcao automatica
+                datas_antes = df_rdc_briefing["DATA"].copy()
+                df_rdc_briefing["DATA"] = df_rdc_briefing["DATA"].apply(_ajustar_ano_errado)
+                if not df_rdc_briefing["DATA"].equals(datas_antes):
+                    try:
+                        df_rdc_briefing.to_csv(caminho_rdc_registros_csv, index=False)
+                    except:
+                        pass
+                
                 df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], dayfirst=True, format='mixed', errors='coerce')
-                datas_disponiveis_br = sorted(df_rdc_briefing["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
+                # Apenas datas com ano valido (>= 2024)
+                df_datas_validas = df_rdc_briefing[df_rdc_briefing["_DATA_DT"].dt.year >= 2024]
+                datas_disponiveis_br = sorted(df_datas_validas["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
             
             col_b1, col_b2, col_b3, col_b4 = st.columns([3, 3, 2, 2])
             with col_b1:
@@ -7336,18 +7362,56 @@ Retorne apenas o JSON sem crases ou markdown."""
                             use_container_width=True
                         )
 
-                    with st.expander("🗑️ Excluir Registros"):
-                        st.warning("⚠️ Atenção: Esta ação é irreversível.")
-                        id_delete = st.number_input("Índice do registro para excluir:", min_value=0, max_value=max(0, len(df_rdc_banco)-1), step=1, key="rdc_id_delete")
-                        if st.button("🗑️ Confirmar Exclusão", type="primary", key="btn_delete_rdc"):
-                            try:
-                                df_rdc_banco = df_rdc_banco.drop(index=id_delete).reset_index(drop=True)
-                                df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
-                                st.success(f"✅ Registro {id_delete} excluído com sucesso!")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao excluir: {e}")
+                    with st.expander("🗑️ Ferramentas de Limpeza do Banco de RDCs"):
+                        st.warning("⚠️ Atenção: As ações abaixo afetam o banco de dados salvo.")
+                        
+                        col_limp1, col_limp2, col_limp3 = st.columns(3)
+                        
+                        with col_limp1:
+                            st.markdown("**🔧 Corrigir Todas as Datas para 2026**")
+                            if st.button("Corrigir Datas", key="btn_fix_all_dates", help="Converte qualquer data com ano incorreto (ex: 2020, 2016) para 2026"):
+                                try:
+                                    ano_hoje = datetime.datetime.now().year
+                                    def _corrigir_ano_banco(v):
+                                        dt = pd.to_datetime(v, dayfirst=True, format='mixed', errors='coerce')
+                                        if pd.notna(dt) and dt.year < 2024:
+                                            return dt.replace(year=ano_hoje).strftime('%Y-%m-%d')
+                                        return v
+                                    df_rdc_banco["DATA"] = df_rdc_banco["DATA"].apply(_corrigir_ano_banco)
+                                    df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
+                                    st.success("✅ Todas as datas foram corrigidas para o ano atual!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+                                    
+                        with col_limp2:
+                            st.markdown("**🗑️ Excluir RDCs por Data**")
+                            datas_excluir_opcoes = sorted(list(df_rdc_banco["DATA"].dropna().unique()))
+                            data_para_excluir = st.selectbox("Selecione a data para apagar:", datas_excluir_opcoes, key="sel_data_apagar_rdc")
+                            if st.button(f"Apagar RDCs de {data_para_excluir}", type="primary", key="btn_apagar_por_data"):
+                                try:
+                                    df_rdc_banco = df_rdc_banco[df_rdc_banco["DATA"] != data_para_excluir].reset_index(drop=True)
+                                    df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
+                                    st.success(f"✅ RDCs da data {data_para_excluir} apagados com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+                                    
+                        with col_limp3:
+                            st.markdown("**💥 Zerar / Apagar Todo o Banco**")
+                            confirmar_zerar = st.checkbox("Confirmo que desejo apagar TODOS os RDCs salvos", key="chk_zerar_banco_rdc")
+                            if st.button("🚨 Zerar Banco Completo", type="primary", key="btn_zerar_banco_total", disabled=not confirmar_zerar):
+                                try:
+                                    df_vazio = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+                                    df_vazio.to_csv(caminho_rdc_registros_csv, index=False)
+                                    # Limpar cache do briefing tambem
+                                    for k in list(st.session_state.keys()):
+                                        if k.startswith("briefing_cache_"):
+                                            del st.session_state[k]
+                                    st.success("✅ Banco de RDCs zerado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao zerar banco: {e}")
                 else:
                     st.info("📭 Banco de RDCs vazio. Processe alguns RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para popular esta tabela.")
             else:
