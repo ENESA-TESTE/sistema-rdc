@@ -1614,59 +1614,57 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     
     y = y_start + h_titulo
     
-    # ================================================================
-    # CABECALHO ALINHADO EM GRID SIMETRICO (info_w = 172 mm)
-    # ================================================================
+    # --- LINHA 2: OBRA | DISCIPLINA/SETOR | DATA ---
     x_info = ml + logo_w
-    col_left = 80
-    col_mid = 58
-    col_right = 34
+    col_left = 75
+    col_mid = 60
+    col_right = info_w - col_left - col_mid  # 37 mm
     
-    # --- LINHA 1: OBRA | DISCIPLINA/SETOR | DATA ---
     pdf.set_xy(x_info, y)
     pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(12, h_row, "OBRA:", 1, 0, "R")
-    pdf.set_font("Helvetica", "", 6.5)
+    pdf.set_font("Helvetica", "", 7)
     obra_txt = safe(f" 125 - {nome_empresa}") if nome_empresa else " 125 - ARAUCO"
     pdf.cell(col_left - 12, h_row, obra_txt, 1, 0, "L")
     pdf.set_font("Helvetica", "", 5.5)
-    pdf.cell(26, h_row, "DISCIPLINA/SETOR:", 1, 0, "R")
-    pdf.cell(col_mid - 26, h_row, "", 1, 0, "L")
+    pdf.cell(28, h_row, "DISCIPLINA/SETOR:", 1, 0, "R")
+    pdf.cell(col_mid - 28, h_row, "", 1, 0, "L")
     pdf.cell(10, h_row, "DATA:", 1, 0, "R")
     pdf.set_font("Helvetica", "B", 7)
     pdf.cell(col_right - 10, h_row, str(data_rdc) if data_rdc else "", 1, 1, "C")
     
     y += h_row
     
-    # --- LINHA 2: TURNO | EQUIPAMENTO | ELEVACAO ---
+    # --- LINHA 3: TURNO | COORDENADOR/SUPERVISOR ---
     pdf.set_xy(x_info, y)
     pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(12, h_row, "TURNO:", 1, 0, "R")
     pdf.cell(col_left - 12, h_row, safe(" 1o Turno (  )   2o Turno (  )   3o Turno (  )"), 1, 0, "L")
+    pdf.cell(38, h_row, "COORDENADOR / SUPERVISOR:", 1, 0, "R")
+    pdf.cell(info_w - col_left - 38, h_row, "", 1, 1, "L")
+    
+    y += h_row
+    
+    # --- LINHA 4: ENCARREGADO OU MESTRE (LARGURA TOTAL) ---
+    pdf.set_xy(x_info, y)
+    pdf.set_font("Helvetica", "", 5.5)
+    pdf.cell(38, h_row, "ENCARREGADO OU MESTRE:", 1, 0, "R")
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.cell(info_w - 38, h_row, safe(f" {encarregado_selecionado}"), 1, 1, "L")
+    
+    y += h_row
+    
+    # --- LINHA 5: CONDICOES CLIMATICAS | EQUIPAMENTO | ELEVACAO ---
+    pdf.set_xy(x_info, y)
+    pdf.set_font("Helvetica", "", 5.5)
+    pdf.cell(24, h_row, "COND. CLIMATICAS:", 1, 0, "L")
+    pdf.cell(15, h_row, "Bom (  )", 1, 0, "C")
+    pdf.cell(18, h_row, "Chuva Leve(  )", 1, 0, "C")
+    pdf.cell(18, h_row, "Chuva Forte(  )", 1, 0, "C")
     pdf.cell(20, h_row, "EQUIPAMENTO:", 1, 0, "R")
     pdf.cell(col_mid - 20, h_row, "", 1, 0, "L")
-    pdf.cell(14, h_row, "ELEVACAO:", 1, 0, "R")
-    pdf.cell(col_right - 14, h_row, "", 1, 1, "L")
-    
-    y += h_row
-    
-    # --- LINHA 3: ENCARREGADO | COORDENADOR/SUPERVISOR ---
-    pdf.set_xy(x_info, y)
-    pdf.set_font("Helvetica", "", 5.5)
-    pdf.cell(24, h_row, "ENCARREGADO:", 1, 0, "R")
-    pdf.set_font("Helvetica", "B", 7.5)
-    pdf.cell(col_left - 24, h_row, safe(f" {encarregado_selecionado}"), 1, 0, "L")
-    pdf.set_font("Helvetica", "", 5.5)
-    pdf.cell(38, h_row, "COORDENADOR / SUPERVISOR:", 1, 0, "R")
-    pdf.cell((col_mid + col_right) - 38, h_row, "", 1, 1, "L")
-    
-    y += h_row
-    
-    # --- LINHA 4: CONDICOES CLIMATICAS (LARGURA TOTAL) ---
-    pdf.set_xy(x_info, y)
-    pdf.set_font("Helvetica", "", 5.5)
-    pdf.cell(26, h_row, "COND. CLIMATICAS:", 1, 0, "R")
-    pdf.cell(info_w - 26, h_row, "   Bom (  )              Chuva Leve (  )              Chuva Forte (  )              Nublado (  )", 1, 1, "L")
+    pdf.cell(16, h_row, "ELEVACAO:", 1, 0, "R")
+    pdf.cell(col_right - 16, h_row, "", 1, 1, "L")
     
     y += h_row
     
