@@ -3445,7 +3445,7 @@ if st.session_state.df is not None:
                 return f.read()
 
     def gerar_briefing_matinal_ia(df_rdcs_dia, data_str, nome_site):
-        """Gera um briefing executivo de 3 tópicos usando Gemini com fallback automático."""
+        """Gera um briefing executivo com IA analisando 100% dos RDCs do dia."""
         if df_rdcs_dia is None or df_rdcs_dia.empty:
             return {
                 "avancos": ["Ainda não há RDCs registrados para esta data."],
@@ -3454,26 +3454,29 @@ if st.session_state.df is not None:
                 "origem": "Base de Dados"
             }
         
-        # Preparar dados para o prompt
+        # Preparar dados completos de TODOS os RDCs do dia
         linhas_resumo = []
         for _, row in df_rdcs_dia.iterrows():
-            enc = row.get("ENCARREGADO", "N/I")
-            disc = row.get("DISCIPLINA", "Geral")
-            ativ = row.get("ATIVIDADE", "")
-            prob = row.get("PROBLEMAS", "")
-            area = row.get("AREA", "")
-            cald = row.get("CALDEIRA", "")
+            enc = str(row.get("ENCARREGADO", "N/I")).strip()
+            disc = str(row.get("DISCIPLINA", "Geral")).strip()
+            ativ = str(row.get("ATIVIDADE", "")).strip()
+            if not ativ or ativ.lower() in ["nan", "none", ""]:
+                ativ = str(row.get("TRANSCRICAO", "")).strip()
+            prob = str(row.get("PROBLEMAS", "")).strip()
+            area = str(row.get("AREA", "")).strip()
+            cald = str(row.get("CALDEIRA", "")).strip()
             
-            info = f"- Encarregado: {enc} ({disc}) | Área: {area} {cald} | Atividade: {ativ}"
-            if prob and str(prob).strip().lower() not in ["", "nan", "nenhum", "não informado", "nao informado", "sem problemas", "-", "n/a"]:
-                info += f" | PROBLEMA REPORTADO: {prob}"
+            info = f"- Encarregado: {enc} | Disciplina: {disc} | Área: {area} {cald} | Atividade: {ativ}"
+            if prob and prob.lower() not in ["", "nan", "nenhum", "não informado", "nao informado", "sem problemas", "-", "n/a", "none"]:
+                info += f" | PROBLEMA/BLOQUEIO: {prob}"
             linhas_resumo.append(info)
         
-        texto_dados = "\n".join(linhas_resumo[:40])
+        # Passar até 120 RDCs para cobrir todo o efetivo do dia
+        texto_dados = "\n".join(linhas_resumo[:120])
         
         chave_api = ""
         try:
-            chave_api = st.secrets.get("GEMINI_API_KEY", "")
+            chave_api = st.secrets.get("GEMINI_API_KEY", "") or os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", "")
         except Exception:
             pass
             
@@ -3482,33 +3485,46 @@ if st.session_state.df is not None:
                 from google import genai
                 client = genai.Client(api_key=chave_api.split(",")[0].strip())
                 prompt = f"""
-Você é o Engenheiro Coordenador Geral da obra da empresa {nome_site}.
-Analise os apontamentos reais de RDC (Relatório Diário de Campo) das equipes de campo na data {data_str} e monte um Briefing Executivo direto para a Reunião Matinal com encarregados e diretoria.
+Você é o Engenheiro Coordenador Geral da obra da ENESA ({nome_site}).
+Analise os apontamentos reais de RDC (Relatório Diário de Campo) das equipes de campo na data {data_str} e monte o Briefing Executivo Oficial para a Reunião Matinal com encarregados, engenharia e gerência.
 
-Dados reais das frentes de serviço:
+DADOS REAIS APONTADOS PELAS EQUIPES NO CAMPO:
 {texto_dados}
 
-Retorne ESTRITAMENTE um JSON puro válido com as 3 chaves abaixo (cada uma com uma lista de 3 a 5 tópicos objetivos em português).
+INSTRUÇÕES OBRIGATÓRIAS DE ESTRUTURA E FORMATAÇÃO:
+1. **avancos**: 3 a 5 tópicos com os maiores destaques produtivos.
+   - Formato obrigatório: "(Enc. NOME - DISCIPLINA) Descrição do avanço físico, TAG ou elemento montado."
+   - Exemplo: "(Enc. WENISON CORREIA - CALDEIRARIA) Montagem do Economizador TAG K4017 e suportes do coletor."
 
-REGRA OBRIGATÓRIA: Em CADA item, SEMPRE comece citando o nome do Encarregado responsável entre parênteses no formato "(Enc. NOME)". 
-Exemplo: "(Enc. JOAO SILVA) Avanço significativo na montagem de economizadores TAG K4017."
-Nunca omita o nome do encarregado. Se houver mais de um encarregado envolvido no mesmo tema, cite todos.
+2. **atencao**: 3 a 5 tópicos sobre equipes que NÃO foram produtivas, fizeram apenas limpeza/apoio, tiveram baixo rendimento ou tiveram falta de apontamento.
+   - Formato obrigatório: "(Enc. NOME - DISCIPLINA) Ocorrência de baixa produtividade ou alerta específico."
+   - Exemplo: "(Enc. CARLOS OLIVEIRA - SOLDA) Equipe focada apenas em limpeza e organização de frente, sem produção de solda direta."
+   - Exemplo: "(Enc. JOSE ORLANDO - TUBULAÇÃO) RDC entregue sem descrição clara das atividades executadas."
 
+3. **bloqueios**: 3 a 5 tópicos com os impedimentos e restrições que travaram o serviço.
+   - Formato obrigatório: "(Enc. NOME - DISCIPLINA) Motivo da paralisação e ação necessária da engenharia/planejamento."
+   - Exemplo: "(Enc. EDINALDO CARDOSO - MECÂNICA) Atividades na Caldeira paralisadas por interferência nas portas e chaminés."
+   - Se houver impacto geral de chuva, faça 1 item consolidando o impacto climático e use os outros para bloqueios operacionais/técnicos.
+
+REGRA CRÍTICA DE NOMES:
+- NUNCA agrupe mais de 2 encarregados no mesmo parêntese (evite parênteses gigantescos com 6 nomes). Crie itens separados e objetivos para cada caso relevante.
+
+Retorne ESTRITAMENTE um JSON puro válido:
 {{
   "avancos": [
-    "(Enc. NOME) Frase curta sobre avanço ou frente concluída",
-    "(Enc. NOME) Frase curta sobre avanço 2"
+    "(Enc. NOME - DISCIPLINA) Frase objetiva de avanço",
+    "(Enc. NOME - DISCIPLINA) Frase objetiva de avanço 2"
   ],
   "atencao": [
-    "(Enc. NOME) Frase sobre ponto de atenção ou frente com rendimento menor",
-    "(Enc. NOME) Frase sobre ponto de atenção 2"
+    "(Enc. NOME - DISCIPLINA) Frase sobre baixa produtividade ou alerta",
+    "(Enc. NOME - DISCIPLINA) Frase sobre desvio operacional"
   ],
   "bloqueios": [
-    "(Enc. NOME) Frase sobre impedimento, falta de liberação ou decisão urgente necessária hoje",
-    "(Enc. NOME) Frase sobre impedimento 2"
+    "(Enc. NOME - DISCIPLINA) Frase sobre bloqueio ou restrição urgente",
+    "(Enc. NOME - DISCIPLINA) Frase sobre impedimento de campo"
   ]
 }}
-Retorne apenas o JSON sem crases ou formatação markdown."""
+Retorne apenas o JSON sem crases ou markdown."""
                 
                 resp = client.models.generate_content(
                     model='gemini-2.5-flash',
@@ -3536,32 +3552,40 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             except Exception:
                 pass
                 
-        # FALLBACK INTELIGENTE
+        # FALLBACK INTELIGENTE CASO A IA ESTEJA OFFLINE
         avancos = []
         atencao = []
         bloqueios = []
         
         ativs_validas = df_rdcs_dia[df_rdcs_dia["ATIVIDADE"].astype(str).str.strip().str.len() > 5]
-        for _, r in ativs_validas.head(3).iterrows():
-            avancos.append(f"**{r.get('DISCIPLINA', 'Frente')} ({r.get('ENCARREGADO', '')}):** {str(r.get('ATIVIDADE', ''))[:95]}")
+        for _, r in ativs_validas.head(4).iterrows():
+            enc_f = str(r.get('ENCARREGADO', '')).strip()
+            disc_f = str(r.get('DISCIPLINA', 'Frente')).strip()
+            avancos.append(f"(Enc. {enc_f} - {disc_f}) {str(r.get('ATIVIDADE', ''))[:95]}")
         if not avancos:
             avancos.append(f"{len(df_rdcs_dia)} equipes operacionais em andamento nas frentes de serviço.")
             
         probs_validos = df_rdcs_dia[df_rdcs_dia["PROBLEMAS"].notna() & (df_rdcs_dia["PROBLEMAS"].astype(str).str.strip().str.lower() != "nenhum") & (df_rdcs_dia["PROBLEMAS"].astype(str).str.strip().str.lower() != "não informado") & (df_rdcs_dia["PROBLEMAS"].astype(str).str.strip().str.len() > 3)]
         
         if not probs_validos.empty:
-            for _, r in probs_validos.head(3).iterrows():
-                bloqueios.append(f"⚠️ **{r.get('DISCIPLINA', '')} ({r.get('ENCARREGADO', '')}):** {str(r.get('PROBLEMAS', ''))[:100]}")
+            for _, r in probs_validos.head(4).iterrows():
+                enc_f = str(r.get('ENCARREGADO', '')).strip()
+                disc_f = str(r.get('DISCIPLINA', '')).strip()
+                bloqueios.append(f"(Enc. {enc_f} - {disc_f}) {str(r.get('PROBLEMAS', ''))[:100]}")
         else:
             bloqueios.append("Nenhum impedimento crítico reportado pelas equipes no período.")
             
-        discs_count = df_rdcs_dia["DISCIPLINA"].value_counts()
-        disc_maior = discs_count.index[0] if not discs_count.empty else "Geral"
-        atencao.append(f"Maior concentração de mão de obra na disciplina **{disc_maior}** ({discs_count.iloc[0]} frentes).")
-        if len(probs_validos) > 0:
-            atencao.append(f"{len(probs_validos)} equipe(s) apontaram restrições que demandam acompanhamento.")
+        # Detectar encarregados com atividade suspeita (limpeza / apoio / curta)
+        limpeza_df = df_rdcs_dia[df_rdcs_dia["ATIVIDADE"].astype(str).str.lower().str.contains("limpeza|organiz|apoio|chuva|paralisad", na=False)]
+        if not limpeza_df.empty:
+            for _, r in limpeza_df.head(3).iterrows():
+                enc_f = str(r.get('ENCARREGADO', '')).strip()
+                disc_f = str(r.get('DISCIPLINA', '')).strip()
+                atencao.append(f"(Enc. {enc_f} - {disc_f}) Atividade não produtiva ou restrita: {str(r.get('ATIVIDADE', ''))[:80]}")
         else:
-            atencao.append("Ritmo de produção estável em todas as frentes ativas.")
+            discs_count = df_rdcs_dia["DISCIPLINA"].value_counts()
+            disc_maior = discs_count.index[0] if not discs_count.empty else "Geral"
+            atencao.append(f"Maior concentração de mão de obra na disciplina {disc_maior} ({discs_count.iloc[0]} frentes).")
             
         return {
             "avancos": avancos,
@@ -3570,8 +3594,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             "origem": "Base de Dados Operacional"
         }
 
-
-    mapa_area_sufixo = {
+        mapa_area_sufixo = {
         'EQUIPAMENTO': '001', 'EQUIPAMENTOS': '001',
         'DUTO': '002', 'DUTOS': '002',
         'TUBULACAO': '003', 'TUBULAÇÃO': '003',
@@ -4009,7 +4032,7 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
             
             datas_disponiveis_br = []
             if df_rdc_briefing is not None and not df_rdc_briefing.empty and "DATA" in df_rdc_briefing.columns:
-                df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], errors='coerce')
+                df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], dayfirst=True, format='mixed', errors='coerce')
                 datas_disponiveis_br = sorted(df_rdc_briefing["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
             
             col_b1, col_b2, col_b3 = st.columns([2, 2, 2])
