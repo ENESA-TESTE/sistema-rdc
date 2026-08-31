@@ -1660,7 +1660,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     
     y += h_row
     
-    # --- LINHA 5: CONDICOES CLIMATICAS | EQUIPAMENTO | COMPONENTE ---
+    # --- LINHA 5: CONDICOES CLIMATICAS | EQUIPAMENTO | ELEVACAO ---
     pdf.set_xy(x_info, y)
     pdf.set_font("Helvetica", "", 5)
     pdf.cell(24, h_row, "COND. CLIMATICAS:", 1, 0, "L")
@@ -1669,8 +1669,8 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     pdf.cell(18, h_row, "Chuva Forte(  )", 1, 0, "C")
     pdf.cell(20, h_row, "EQUIPAMENTO:", 1, 0, "R")
     pdf.cell(col_mid - 20, h_row, "", 1, 0, "L")
-    pdf.cell(17, h_row, "COMPONENTE:", 1, 0, "R")
-    pdf.cell(col_right - 17, h_row, "", 1, 1, "L")
+    pdf.cell(16, h_row, "ELEVACAO:", 1, 0, "R")
+    pdf.cell(col_right - 16, h_row, "", 1, 1, "L")
     
     y += h_row
     
@@ -1832,7 +1832,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     # ================================================================
     pdf.set_xy(ml, y)
     pdf.set_font("Helvetica", "B", 6)
-    pdf.cell(page_w, 5, "          PB (  )            RB (  )                                                                                    OBS", 1, 1, "L")
+    pdf.cell(page_w, 5, "          PB (  )            RB (  )                     ELEVACAO: ___________________________                         OBS", 1, 1, "L")
     y = pdf.get_y()
     
     areas = [
@@ -2850,10 +2850,12 @@ if st.session_state.df is not None:
                 rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
                 
                 area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
-                area_sel = st.selectbox("Área / Local de Trabalho:", area_options)
+                area_sel = st.selectbox("Área / Local de Trabalho:", area_options, key="area_sel_enc")
                 rdc_area = area_sel
                 if area_sel == "OUTRO (DIGITAR)":
-                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
+                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...", key="rdc_area_outro_enc")
+                
+                rdc_elevacao = st.text_input("Elevação (Campo Aberto - Opcional):", placeholder="Ex: 16m, 24.000, 30.100, Nível 0...", key="rdc_elevacao_enc")
                 
                 disc_options = [
                     "EQUIPAMENTOS", "DUTOS", "TUBULACAO", "ESTRUTURA METALICA", "PRECIPITADOR", 
@@ -6461,10 +6463,12 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
                 
                 area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
-                area_sel = st.selectbox("Área / Local de Trabalho:", area_options)
+                area_sel = st.selectbox("Área / Local de Trabalho:", area_options, key="area_sel_adm")
                 rdc_area = area_sel
                 if area_sel == "OUTRO (DIGITAR)":
-                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...")
+                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...", key="rdc_area_outro_adm")
+                
+                rdc_elevacao = st.text_input("Elevação (Campo Aberto - Opcional):", placeholder="Ex: 16m, 24.000, 30.100, Nível 0...", key="rdc_elevacao_adm")
                 
                 disc_options = [
                     "EQUIPAMENTOS", "DUTOS", "TUBULACAO", "ESTRUTURA METALICA", "PRECIPITADOR", 
