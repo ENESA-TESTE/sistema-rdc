@@ -4035,7 +4035,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], dayfirst=True, format='mixed', errors='coerce')
                 datas_disponiveis_br = sorted(df_rdc_briefing["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
             
-            col_b1, col_b2, col_b3 = st.columns([2, 2, 2])
+            col_b1, col_b2, col_b3, col_b4 = st.columns([3, 3, 2, 2])
             with col_b1:
                 data_brief_sel = st.selectbox(
                     "📅 Selecionar Data do Briefing:",
@@ -4048,7 +4048,15 @@ Retorne apenas o JSON sem crases ou markdown."""
                 btn_gerar_br = st.button("⚡ Gerar / Carregar Briefing com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
             with col_b3:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                st.caption("💡 Clique no botão para carregar sob demanda sem lentidão no site")
+                if st.button("🔄 Limpar Dados / Reset", use_container_width=True, key="btn_reset_briefing_cache", help="Limpa o cache do briefing para forçar nova análise"):
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("briefing_cache_"):
+                            del st.session_state[k]
+                    st.toast("🧹 Dados salvos do briefing reiniciados com sucesso!")
+                    st.rerun()
+            with col_b4:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                st.caption("💡 Clique no botão para gerar sob demanda")
 
             # Filtrar dados para a data selecionada
             df_dia_br = pd.DataFrame()
@@ -5492,6 +5500,42 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             st.markdown("<br><br>", unsafe_allow_html=True)
 
+    def extrair_data_do_nome_pdf(nome_arquivo):
+        """Extrai a data do nome do arquivo (ex: 26_08, 26-08, 26.08, 2608, 26_08_2026) e anexa o ano atual."""
+        import re
+        import datetime
+        ano_atual = datetime.datetime.now().year
+        
+        nome_limpo = re.sub(r'\(.*?\)', '', str(nome_arquivo)).strip()
+        nome_limpo = nome_limpo.rsplit('.', 1)[0]
+        
+        # 1. Padrao completo com ano de 4 digitos: DD/MM/AAAA ou DD_MM_AAAA ou DD-MM-AAAA
+        m_full = re.search(r'\b(0?[1-9]|[12][0-9]|3[01])[/\._-](0?[1-9]|1[0-2])[/\._-](20\d{2})\b', nome_limpo)
+        if m_full:
+            d, m, y = int(m_full.group(1)), int(m_full.group(2)), int(m_full.group(3))
+            return f"{y:04d}-{m:02d}-{d:02d}"
+            
+        # 2. Padrao com ano de 2 digitos: DD_MM_AA
+        m_2y = re.search(r'\b(0?[1-9]|[12][0-9]|3[01])[/\._-](0?[1-9]|1[0-2])[/\._-](\d{2})\b', nome_limpo)
+        if m_2y:
+            d, m, y = int(m_2y.group(1)), int(m_2y.group(2)), int(m_2y.group(3))
+            ano = 2000 + y if y < 50 else 1900 + y
+            return f"{ano:04d}-{m:02d}-{d:02d}"
+            
+        # 3. Padrao Dia e Mes: DD_MM ou DD-MM ou DD.MM (ex: 26_08, 26-08, 26.08, RDC_26_08)
+        m_dm = re.search(r'(?:^|[^\d])(0?[1-9]|[12][0-9]|3[01])[/\._-](0?[1-9]|1[0-2])(?:[^\d]|$)', nome_limpo)
+        if m_dm:
+            d, m = int(m_dm.group(1)), int(m_dm.group(2))
+            return f"{ano_atual:04d}-{m:02d}-{d:02d}"
+            
+        # 4. Padrao 4 digitos continuos: DDMM (ex: 2608)
+        m_4d = re.search(r'(?:^|[^\d])(0[1-9]|[12][0-9]|3[01])(0[1-9]|1[0-2])(?:[^\d]|$)', nome_limpo)
+        if m_4d:
+            d, m = int(m_4d.group(1)), int(m_4d.group(2))
+            return f"{ano_atual:04d}-{m:02d}-{d:02d}"
+            
+        return None
+
     with tab_ia:
         st.markdown("### 🤖 Robô de Extração Inteligente (Google Gemini)")
         st.markdown("<p style='margin-top: -15px; font-size: 14px; color: #888;'>Uma ideia original por <b>Caio Farisco</b></p>", unsafe_allow_html=True)
@@ -5676,7 +5720,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     tmp.close()
                                     chunk_doc.save(tmp.name, deflate=True)
                                     chunk_doc.close()
-                                    arquivos_processar.append({'name': f"{nome} (Pág {start_idx+1}-{min(start_idx+chunk_size, num_pages)})", 'tmp_path': tmp.name})
+                                    arquivos_processar.append({'name': f"{nome} (Pág {start_idx+1}-{min(start_idx+chunk_size, num_pages)})", 'tmp_path': tmp.name, 'data_extraida': extrair_data_do_nome_pdf(nome)})
                                 doc.close()
                             else:
                                 # Rebuild PDF limpo
@@ -5700,12 +5744,12 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     arquivos_processar.append({'name': nome, 'tmp_path': tmp2.name})
                                 else:
                                     check.close()
-                                    arquivos_processar.append({'name': nome, 'tmp_path': tmp.name})
+                                    arquivos_processar.append({'name': nome, 'tmp_path': tmp.name, 'data_extraida': extrair_data_do_nome_pdf(nome)})
                         else:
                             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{nome.split('.')[-1]}")
                             tmp.write(arquivo_scan.getvalue())
                             tmp.close()
-                            arquivos_processar.append({'name': nome, 'tmp_path': tmp.name})
+                            arquivos_processar.append({'name': nome, 'tmp_path': tmp.name, 'data_extraida': extrair_data_do_nome_pdf(nome)})
                             
                     total_arquivos = len(arquivos_processar)
                     
@@ -5801,11 +5845,17 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
 
-                                datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
-                                if datas_encontradas:
-                                    data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
+                                # Se o nome do arquivo contem data (ex: 26_08.pdf), ela tem prioridade absoluta com o ano atual
+                                data_do_nome = arquivo_dict.get('data_extraida')
+                                if data_do_nome:
                                     for d in dados_extraidos_lista:
-                                        d["DATA"] = data_consenso
+                                        d["DATA"] = data_do_nome
+                                else:
+                                    datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
+                                    if datas_encontradas:
+                                        data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
+                                        for d in dados_extraidos_lista:
+                                            d["DATA"] = data_consenso
 
                                 for dados in dados_extraidos_lista:
                                     if 'LOCAL' not in dados:
