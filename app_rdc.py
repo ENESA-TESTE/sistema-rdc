@@ -3471,19 +3471,24 @@ Analise os apontamentos reais de RDC (Relatório Diário de Campo) das equipes d
 Dados reais das frentes de serviço:
 {texto_dados}
 
-Retorne ESTRITAMENTE um JSON puro válido com as 3 chaves abaixo (cada uma com uma lista de 2 a 4 tópicos objetivos em português):
+Retorne ESTRITAMENTE um JSON puro válido com as 3 chaves abaixo (cada uma com uma lista de 3 a 5 tópicos objetivos em português).
+
+REGRA OBRIGATÓRIA: Em CADA item, SEMPRE comece citando o nome do Encarregado responsável entre parênteses no formato "(Enc. NOME)". 
+Exemplo: "(Enc. JOAO SILVA) Avanço significativo na montagem de economizadores TAG K4017."
+Nunca omita o nome do encarregado. Se houver mais de um encarregado envolvido no mesmo tema, cite todos.
+
 {{
   "avancos": [
-    "Frase curta sobre avanço ou frente concluída 1",
-    "Frase curta sobre avanço 2"
+    "(Enc. NOME) Frase curta sobre avanço ou frente concluída",
+    "(Enc. NOME) Frase curta sobre avanço 2"
   ],
   "atencao": [
-    "Frase sobre ponto de atenção ou frente com rendimento menor 1",
-    "Frase sobre ponto de atenção 2"
+    "(Enc. NOME) Frase sobre ponto de atenção ou frente com rendimento menor",
+    "(Enc. NOME) Frase sobre ponto de atenção 2"
   ],
   "bloqueios": [
-    "Frase sobre impedimento, falta de liberação ou decisão urgente necessária hoje 1",
-    "Frase sobre impedimento 2"
+    "(Enc. NOME) Frase sobre impedimento, falta de liberação ou decisão urgente necessária hoje",
+    "(Enc. NOME) Frase sobre impedimento 2"
   ]
 }}
 Retorne apenas o JSON sem crases ou formatação markdown."""
