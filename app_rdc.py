@@ -4074,12 +4074,18 @@ Retorne apenas o JSON sem crases ou markdown."""
                 btn_gerar_br = st.button("⚡ Gerar / Carregar Briefing com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
             with col_b3:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("🔄 Limpar Dados / Reset", use_container_width=True, key="btn_reset_briefing_cache", help="Limpa o cache do briefing para forçar nova análise"):
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("briefing_cache_"):
-                            del st.session_state[k]
-                    st.toast("🧹 Dados salvos do briefing reiniciados com sucesso!")
-                    st.rerun()
+                if st.button("🗑️ Limpar / Apagar RDCs", use_container_width=True, key="btn_reset_briefing_cache", help="Apaga todos os RDCs salvos e limpa a lista de datas para reprocessar do zero"):
+                    try:
+                        df_vazio = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+                        df_vazio.to_csv(caminho_rdc_registros_csv, index=False)
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("briefing_cache_"):
+                                del st.session_state[k]
+                        st.session_state.df_ia = df_vazio.copy()
+                        st.toast("🧹 Todos os RDCs e datas foram apagados com sucesso! Banco pronto para reprocessar.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao limpar: {e}")
             with col_b4:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                 st.caption("💡 Clique no botão para gerar sob demanda")
