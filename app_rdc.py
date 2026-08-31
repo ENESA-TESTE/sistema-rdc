@@ -3272,6 +3272,146 @@ if st.session_state.df is not None:
         buffer_pptx.seek(0)
         return buffer_pptx.getvalue()
 
+    def gerar_pdf_briefing_matinal(avancos_l, atencao_l, bloqueios_l, pendentes_list, data_str, nome_site, total_rdcs, lista_enc):
+        """Gera um PDF executivo do Briefing Matinal com lista de encarregados pendentes."""
+        from fpdf import FPDF
+        import tempfile
+        
+        def safe_pdf(txt):
+            return str(txt).encode('latin-1', 'replace').decode('latin-1')
+        
+        class BriefingPDF(FPDF):
+            def header(self):
+                # Logo ENESA
+                if os.path.exists(caminho_logo):
+                    try:
+                        self.image(caminho_logo, 10, 8, 28)
+                    except:
+                        pass
+                self.set_font('Helvetica', 'B', 14)
+                self.set_text_color(0, 51, 102)
+                self.cell(0, 8, safe_pdf(f'BRIEFING MATINAL DE OBRA'), 0, 1, 'C')
+                self.set_font('Helvetica', '', 10)
+                self.set_text_color(80, 80, 80)
+                self.cell(0, 6, safe_pdf(f'{nome_site} - Data: {data_str}'), 0, 1, 'C')
+                self.set_font('Helvetica', 'I', 8)
+                self.cell(0, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | Total de {total_rdcs} RDCs analisados'), 0, 1, 'C')
+                self.ln(3)
+                # Linha separadora
+                self.set_draw_color(0, 51, 102)
+                self.set_line_width(0.5)
+                self.line(10, self.get_y(), 200, self.get_y())
+                self.ln(4)
+            
+            def footer(self):
+                self.set_y(-15)
+                self.set_font('Helvetica', 'I', 7)
+                self.set_text_color(150, 150, 150)
+                self.cell(0, 10, safe_pdf(f'Sistema RDC & PDE - ENESA Engenharia - Pag. {self.page_no()}'), 0, 0, 'C')
+        
+        pdf = BriefingPDF()
+        pdf.set_auto_page_break(auto=True, margin=20)
+        pdf.add_page()
+        
+        # --- RESUMO EXECUTIVO ---
+        # Card: Avancos
+        pdf.set_font('Helvetica', 'B', 11)
+        pdf.set_fill_color(230, 255, 230)
+        pdf.set_text_color(0, 128, 0)
+        pdf.cell(0, 7, safe_pdf('  PRINCIPAIS AVANCOS'), 0, 1, 'L', True)
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font('Helvetica', '', 9)
+        for item in avancos_l:
+            txt = safe_pdf(item.replace('**', ''))
+            pdf.multi_cell(0, 5, safe_pdf(f'  * {txt}'), 0, 'L')
+        pdf.ln(3)
+        
+        # Card: Atencao
+        pdf.set_font('Helvetica', 'B', 11)
+        pdf.set_fill_color(255, 248, 220)
+        pdf.set_text_color(180, 120, 0)
+        pdf.cell(0, 7, safe_pdf('  PONTOS DE ATENCAO'), 0, 1, 'L', True)
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font('Helvetica', '', 9)
+        for item in atencao_l:
+            txt = safe_pdf(item.replace('**', ''))
+            pdf.multi_cell(0, 5, safe_pdf(f'  * {txt}'), 0, 'L')
+        pdf.ln(3)
+        
+        # Card: Bloqueios
+        pdf.set_font('Helvetica', 'B', 11)
+        pdf.set_fill_color(255, 230, 230)
+        pdf.set_text_color(200, 0, 0)
+        pdf.cell(0, 7, safe_pdf('  BLOQUEIOS & ACOES URGENTES'), 0, 1, 'L', True)
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font('Helvetica', '', 9)
+        for item in bloqueios_l:
+            txt = safe_pdf(item.replace('**', ''))
+            pdf.multi_cell(0, 5, safe_pdf(f'  * {txt}'), 0, 'L')
+        pdf.ln(5)
+        
+        # --- LINHA SEPARADORA ---
+        pdf.set_draw_color(200, 0, 0)
+        pdf.set_line_width(0.4)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(4)
+        
+        # --- TABELA DE ENCARREGADOS PENDENTES ---
+        total_enc = len(lista_enc)
+        entregues_count = total_enc - len(pendentes_list)
+        
+        pdf.set_font('Helvetica', 'B', 12)
+        pdf.set_text_color(200, 0, 0)
+        pdf.cell(0, 7, safe_pdf(f'ENCARREGADOS SEM RDC ({data_str})'), 0, 1, 'L')
+        pdf.set_font('Helvetica', '', 9)
+        pdf.set_text_color(60, 60, 60)
+        pdf.cell(0, 5, safe_pdf(f'Esperados: {total_enc} | Entregues: {entregues_count} | Pendentes: {len(pendentes_list)}'), 0, 1, 'L')
+        pdf.ln(3)
+        
+        if pendentes_list:
+            # Buscar disciplina de cada encarregado pendente via df_atual
+            enc_disc_map = {}
+            if 'ENCARREGADO' in df_atual.columns and 'DISCIPLINA' in df_atual.columns:
+                for enc_nome in pendentes_list:
+                    disc_rows = df_atual[df_atual['ENCARREGADO'] == enc_nome]['DISCIPLINA'].dropna().unique()
+                    if len(disc_rows) > 0:
+                        enc_disc_map[enc_nome] = str(disc_rows[0])
+                    else:
+                        enc_disc_map[enc_nome] = ''
+            
+            # Cabecalho da tabela
+            pdf.set_font('Helvetica', 'B', 9)
+            pdf.set_fill_color(0, 51, 102)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(10, 6, safe_pdf('No'), 1, 0, 'C', True)
+            pdf.cell(100, 6, safe_pdf('ENCARREGADO'), 1, 0, 'C', True)
+            pdf.cell(80, 6, safe_pdf('DISCIPLINA'), 1, 1, 'C', True)
+            
+            # Linhas da tabela
+            pdf.set_font('Helvetica', '', 9)
+            pdf.set_text_color(30, 30, 30)
+            fill = False
+            for idx, enc_nome in enumerate(sorted(pendentes_list), 1):
+                if fill:
+                    pdf.set_fill_color(240, 240, 245)
+                else:
+                    pdf.set_fill_color(255, 255, 255)
+                disc = enc_disc_map.get(enc_nome, '')
+                pdf.cell(10, 5.5, str(idx), 1, 0, 'C', True)
+                pdf.cell(100, 5.5, safe_pdf(f'  {enc_nome}'), 1, 0, 'L', True)
+                pdf.cell(80, 5.5, safe_pdf(f'  {disc}'), 1, 1, 'L', True)
+                fill = not fill
+        else:
+            pdf.set_font('Helvetica', 'B', 10)
+            pdf.set_text_color(0, 128, 0)
+            pdf.cell(0, 8, safe_pdf('Todos os encarregados entregaram o RDC nesta data!'), 0, 1, 'C')
+        
+        # Salvar PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            pdf.output(tmp.name)
+            with open(tmp.name, "rb") as f:
+                return f.read()
+
     def gerar_briefing_matinal_ia(df_rdcs_dia, data_str, nome_site):
         """Gera um briefing executivo de 3 tópicos usando Gemini com fallback automático."""
         if df_rdcs_dia is None or df_rdcs_dia.empty:
@@ -3935,10 +4075,40 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                 link_zap = f"https://api.whatsapp.com/send?text={urllib.parse.quote(texto_zap_completo)}"
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                col_z1, col_z2 = st.columns([1, 3])
+                
+                # Calcular pendentes para o PDF do Briefing
+                _pendentes_briefing = []
+                try:
+                    _dt_briefing = pd.to_datetime(data_brief_sel, format="%d/%m/%Y").date()
+                    _df_hist_br = st.session_state.get("df_historico_f1", pd.DataFrame())
+                    if not _df_hist_br.empty and "DATA" in _df_hist_br.columns and "ENCARREGADO" in _df_hist_br.columns:
+                        _df_hist_br_dt = _df_hist_br.copy()
+                        _df_hist_br_dt["_DT"] = pd.to_datetime(_df_hist_br_dt["DATA"], errors="coerce").dt.date
+                        _entregues_br = _df_hist_br_dt[_df_hist_br_dt["_DT"] == _dt_briefing]["ENCARREGADO"].unique().tolist()
+                        _pendentes_briefing = [e for e in lista_completa_encarregados if e not in _entregues_br]
+                    else:
+                        _pendentes_briefing = list(lista_completa_encarregados)
+                except:
+                    _pendentes_briefing = list(lista_completa_encarregados)
+                
+                col_z1, col_z2, col_z3 = st.columns([1, 1, 2])
                 with col_z1:
                     st.link_button("📲 Enviar Briefing no WhatsApp", link_zap, use_container_width=True, type="secondary")
                 with col_z2:
+                    _pdf_briefing_bytes = gerar_pdf_briefing_matinal(
+                        avancos_l, atencao_l, bloqueios_l, 
+                        _pendentes_briefing, data_brief_sel, nome_site, 
+                        len(df_dia_br), lista_completa_encarregados
+                    )
+                    st.download_button(
+                        label="📄 Baixar Relatório PDF",
+                        data=_pdf_briefing_bytes,
+                        file_name=f"Briefing_Matinal_{data_brief_sel.replace('/', '-')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                with col_z3:
                     if st.toggle("📋 Ver Texto Formatado para Copiar", key="tgl_ver_texto_zap"):
                         st.text_area("Texto do Briefing:", value=texto_zap_completo, height=140, key="txt_area_briefing_zap")
             else:
