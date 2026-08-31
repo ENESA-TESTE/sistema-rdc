@@ -3272,17 +3272,100 @@ if st.session_state.df is not None:
         buffer_pptx.seek(0)
         return buffer_pptx.getvalue()
 
-    def gerar_pdf_briefing_matinal(avancos_l, atencao_l, bloqueios_l, pendentes_list, data_str, nome_site, total_rdcs, lista_enc):
-        """Gera um PDF executivo do Briefing Matinal com lista de encarregados pendentes."""
+    def gerar_pdf_briefing_matinal(avancos_l, atencao_l, bloqueios_l, pendentes_list, data_str, nome_site, total_rdcs, lista_enc, df_dia_rdcs=None):
+        """Gera um PDF executivo do Briefing Matinal com graficos de entrega e desvios."""
         from fpdf import FPDF
         import tempfile
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
         
         def safe_pdf(txt):
             return str(txt).encode('latin-1', 'replace').decode('latin-1')
         
+        # --- CALCULAR METRICAS ---
+        total_enc = len(lista_enc) if lista_enc else 1
+        pendentes_count = len(pendentes_list) if pendentes_list else 0
+        entregues_count = total_enc - pendentes_count
+        pct_entrega = round((entregues_count / total_enc) * 100, 1) if total_enc > 0 else 0
+        pct_pendente = round(100 - pct_entrega, 1)
+        
+        # Calcular desvios (problemas reportados)
+        total_rdcs_real = total_rdcs if total_rdcs > 0 else 1
+        desvios_count = 0
+        sem_desvio_count = 0
+        if df_dia_rdcs is not None and not df_dia_rdcs.empty and "PROBLEMAS" in df_dia_rdcs.columns:
+            probs = df_dia_rdcs["PROBLEMAS"].astype(str).str.strip().str.lower()
+            desvios_mask = ~probs.isin(["", "nan", "nenhum", "nao informado", "não informado", "sem problemas", "-", "n/a", "none"])
+            desvios_count = int(desvios_mask.sum())
+            sem_desvio_count = len(df_dia_rdcs) - desvios_count
+        else:
+            sem_desvio_count = total_rdcs_real
+        pct_desvio = round((desvios_count / total_rdcs_real) * 100, 1) if total_rdcs_real > 0 else 0
+        pct_sem_desvio = round(100 - pct_desvio, 1)
+        
+        # --- GERAR GRAFICOS COM MATPLOTLIB ---
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7.5, 3.2))
+        fig.patch.set_facecolor('#0e1117')
+        
+        # ---- GRAFICO 1: ENTREGA DE RDC (Donut) ----
+        sizes1 = [pct_entrega, pct_pendente]
+        colors1 = ['#22c55e', '#ef4444']
+        explode1 = (0.03, 0.03)
+        wedges1, texts1, autotexts1 = ax1.pie(
+            sizes1, explode=explode1, colors=colors1, autopct='%1.1f%%',
+            startangle=90, pctdistance=0.75,
+            wedgeprops=dict(width=0.4, edgecolor='#0e1117', linewidth=2)
+        )
+        for t in autotexts1:
+            t.set_fontsize(11)
+            t.set_fontweight('bold')
+            t.set_color('white')
+        ax1.set_title(f'ENTREGA DE RDC', fontsize=11, fontweight='bold', color='white', pad=12)
+        # Texto central
+        ax1.text(0, 0, f'{entregues_count}/{total_enc}', ha='center', va='center', 
+                fontsize=14, fontweight='bold', color='white')
+        legend1 = ax1.legend(
+            [f'Entregues ({entregues_count})', f'Pendentes ({pendentes_count})'],
+            loc='lower center', bbox_to_anchor=(0.5, -0.18), fontsize=8, frameon=False,
+            labelcolor='white', ncol=2
+        )
+        ax1.set_facecolor('#0e1117')
+        
+        # ---- GRAFICO 2: DESVIOS / PROBLEMAS (Donut) ----
+        sizes2 = [pct_sem_desvio, pct_desvio]
+        colors2 = ['#3b82f6', '#f59e0b']
+        explode2 = (0.03, 0.03)
+        wedges2, texts2, autotexts2 = ax2.pie(
+            sizes2, explode=explode2, colors=colors2, autopct='%1.1f%%',
+            startangle=90, pctdistance=0.75,
+            wedgeprops=dict(width=0.4, edgecolor='#0e1117', linewidth=2)
+        )
+        for t in autotexts2:
+            t.set_fontsize(11)
+            t.set_fontweight('bold')
+            t.set_color('white')
+        ax2.set_title(f'DESVIOS REPORTADOS', fontsize=11, fontweight='bold', color='white', pad=12)
+        ax2.text(0, 0, f'{desvios_count}/{total_rdcs}', ha='center', va='center',
+                fontsize=14, fontweight='bold', color='white')
+        legend2 = ax2.legend(
+            [f'Sem Desvio ({sem_desvio_count})', f'Com Desvio ({desvios_count})'],
+            loc='lower center', bbox_to_anchor=(0.5, -0.18), fontsize=8, frameon=False,
+            labelcolor='white', ncol=2
+        )
+        ax2.set_facecolor('#0e1117')
+        
+        plt.tight_layout(pad=2.0)
+        
+        # Salvar grafico como imagem temporaria
+        chart_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+        fig.savefig(chart_path, dpi=180, bbox_inches='tight', facecolor='#0e1117', edgecolor='none')
+        plt.close(fig)
+        
+        # --- MONTAR O PDF ---
         class BriefingPDF(FPDF):
             def header(self):
-                # Logo ENESA
                 if os.path.exists(caminho_logo):
                     try:
                         self.image(caminho_logo, 10, 8, 28)
@@ -3298,13 +3381,12 @@ if st.session_state.df is not None:
                 self.cell(190, 6, safe_pdf(f'{nome_site} - Data: {data_str}'), 0, 1, 'C')
                 self.set_font('Helvetica', 'I', 8)
                 self.set_x(10)
-                self.cell(190, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | Total de {total_rdcs} RDCs analisados'), 0, 1, 'C')
-                self.ln(3)
-                # Linha separadora
+                self.cell(190, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | {total_rdcs} RDCs analisados | {total_enc} encarregados'), 0, 1, 'C')
+                self.ln(2)
                 self.set_draw_color(0, 51, 102)
                 self.set_line_width(0.5)
                 self.line(10, self.get_y(), 200, self.get_y())
-                self.ln(4)
+                self.ln(3)
             
             def footer(self):
                 self.set_y(-15)
@@ -3316,110 +3398,69 @@ if st.session_state.df is not None:
         pdf = BriefingPDF()
         pdf.set_auto_page_break(auto=True, margin=20)
         pdf.add_page()
+        w_body = 190
         
-        # --- RESUMO EXECUTIVO ---
-        w_body = 190  # largura util (210 - 10 - 10)
-        
-        # Card: Avancos
-        pdf.set_font('Helvetica', 'B', 11)
-        pdf.set_fill_color(230, 255, 230)
-        pdf.set_text_color(0, 128, 0)
+        # --- GRAFICOS ---
         pdf.set_x(10)
-        pdf.cell(w_body, 7, safe_pdf('  PRINCIPAIS AVANCOS'), 0, 1, 'L', True)
-        pdf.set_text_color(30, 30, 30)
-        pdf.set_font('Helvetica', '', 9)
-        for item in avancos_l:
-            txt = safe_pdf(item.replace('**', ''))
-            pdf.set_x(10)
-            pdf.multi_cell(w_body, 5, safe_pdf(f'  - {txt}'), 0, 'L')
-        pdf.ln(3)
+        try:
+            pdf.image(chart_path, x=15, y=pdf.get_y(), w=180)
+            pdf.ln(68)
+        except:
+            pdf.ln(5)
         
-        # Card: Atencao
-        pdf.set_font('Helvetica', 'B', 11)
-        pdf.set_fill_color(255, 248, 220)
-        pdf.set_text_color(180, 120, 0)
-        pdf.set_x(10)
-        pdf.cell(w_body, 7, safe_pdf('  PONTOS DE ATENCAO'), 0, 1, 'L', True)
-        pdf.set_text_color(30, 30, 30)
-        pdf.set_font('Helvetica', '', 9)
-        for item in atencao_l:
-            txt = safe_pdf(item.replace('**', ''))
-            pdf.set_x(10)
-            pdf.multi_cell(w_body, 5, safe_pdf(f'  - {txt}'), 0, 'L')
-        pdf.ln(3)
-        
-        # Card: Bloqueios
-        pdf.set_font('Helvetica', 'B', 11)
-        pdf.set_fill_color(255, 230, 230)
-        pdf.set_text_color(200, 0, 0)
-        pdf.set_x(10)
-        pdf.cell(w_body, 7, safe_pdf('  BLOQUEIOS & ACOES URGENTES'), 0, 1, 'L', True)
-        pdf.set_text_color(30, 30, 30)
-        pdf.set_font('Helvetica', '', 9)
-        for item in bloqueios_l:
-            txt = safe_pdf(item.replace('**', ''))
-            pdf.set_x(10)
-            pdf.multi_cell(w_body, 5, safe_pdf(f'  - {txt}'), 0, 'L')
-        pdf.ln(5)
+        # Limpar arquivo temporario do grafico
+        try:
+            os.remove(chart_path)
+        except:
+            pass
         
         # --- LINHA SEPARADORA ---
-        pdf.set_draw_color(200, 0, 0)
-        pdf.set_line_width(0.4)
+        pdf.set_draw_color(0, 51, 102)
+        pdf.set_line_width(0.3)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(4)
         
-        # --- TABELA DE ENCARREGADOS PENDENTES ---
-        total_enc = len(lista_enc)
-        entregues_count = total_enc - len(pendentes_list)
+        # --- RESUMO EXECUTIVO ---
+        # Card: Avancos
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.set_fill_color(230, 255, 230)
+        pdf.set_text_color(0, 128, 0)
+        pdf.set_x(10)
+        pdf.cell(w_body, 6, safe_pdf('  PRINCIPAIS AVANCOS'), 0, 1, 'L', True)
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font('Helvetica', '', 8.5)
+        for item in avancos_l:
+            txt = safe_pdf(item.replace('**', ''))
+            pdf.set_x(10)
+            pdf.multi_cell(w_body, 4.5, safe_pdf(f'  - {txt}'), 0, 'L')
+        pdf.ln(2)
         
-        pdf.set_font('Helvetica', 'B', 12)
+        # Card: Atencao
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.set_fill_color(255, 248, 220)
+        pdf.set_text_color(180, 120, 0)
+        pdf.set_x(10)
+        pdf.cell(w_body, 6, safe_pdf('  PONTOS DE ATENCAO'), 0, 1, 'L', True)
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font('Helvetica', '', 8.5)
+        for item in atencao_l:
+            txt = safe_pdf(item.replace('**', ''))
+            pdf.set_x(10)
+            pdf.multi_cell(w_body, 4.5, safe_pdf(f'  - {txt}'), 0, 'L')
+        pdf.ln(2)
+        
+        # Card: Bloqueios
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.set_fill_color(255, 230, 230)
         pdf.set_text_color(200, 0, 0)
         pdf.set_x(10)
-        pdf.cell(190, 7, safe_pdf(f'ENCARREGADOS SEM RDC ({data_str})'), 0, 1, 'L')
-        pdf.set_font('Helvetica', '', 9)
-        pdf.set_text_color(60, 60, 60)
-        pdf.set_x(10)
-        pdf.cell(190, 5, safe_pdf(f'Esperados: {total_enc} | Entregues: {entregues_count} | Pendentes: {len(pendentes_list)}'), 0, 1, 'L')
-        pdf.ln(3)
-        
-        if pendentes_list:
-            # Buscar disciplina de cada encarregado pendente via df_atual
-            enc_disc_map = {}
-            if 'ENCARREGADO' in df_atual.columns and 'DISCIPLINA' in df_atual.columns:
-                for enc_nome in pendentes_list:
-                    disc_rows = df_atual[df_atual['ENCARREGADO'] == enc_nome]['DISCIPLINA'].dropna().unique()
-                    if len(disc_rows) > 0:
-                        enc_disc_map[enc_nome] = str(disc_rows[0])
-                    else:
-                        enc_disc_map[enc_nome] = ''
-            
-            # Cabecalho da tabela
-            pdf.set_font('Helvetica', 'B', 9)
-            pdf.set_fill_color(0, 51, 102)
-            pdf.set_text_color(255, 255, 255)
-            pdf.cell(10, 6, safe_pdf('No'), 1, 0, 'C', True)
-            pdf.cell(100, 6, safe_pdf('ENCARREGADO'), 1, 0, 'C', True)
-            pdf.cell(80, 6, safe_pdf('DISCIPLINA'), 1, 1, 'C', True)
-            
-            # Linhas da tabela
-            pdf.set_font('Helvetica', '', 9)
-            pdf.set_text_color(30, 30, 30)
-            fill = False
-            for idx, enc_nome in enumerate(sorted(pendentes_list), 1):
-                if fill:
-                    pdf.set_fill_color(240, 240, 245)
-                else:
-                    pdf.set_fill_color(255, 255, 255)
-                disc = enc_disc_map.get(enc_nome, '')
-                pdf.cell(10, 5.5, str(idx), 1, 0, 'C', True)
-                pdf.cell(100, 5.5, safe_pdf(f'  {enc_nome}'), 1, 0, 'L', True)
-                pdf.cell(80, 5.5, safe_pdf(f'  {disc}'), 1, 1, 'L', True)
-                fill = not fill
-        else:
-            pdf.set_font('Helvetica', 'B', 10)
-            pdf.set_text_color(0, 128, 0)
+        pdf.cell(w_body, 6, safe_pdf('  BLOQUEIOS & ACOES URGENTES'), 0, 1, 'L', True)
+        pdf.set_text_color(30, 30, 30)
+        pdf.set_font('Helvetica', '', 8.5)
+        for item in bloqueios_l:
+            txt = safe_pdf(item.replace('**', ''))
             pdf.set_x(10)
-            pdf.cell(190, 8, safe_pdf('Todos os encarregados entregaram o RDC nesta data!'), 0, 1, 'C')
+            pdf.multi_cell(w_body, 4.5, safe_pdf(f'  - {txt}'), 0, 'L')
         
         # Salvar PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -4118,7 +4159,8 @@ Retorne apenas o JSON sem crases ou formatação markdown."""
                     _pdf_briefing_bytes = gerar_pdf_briefing_matinal(
                         avancos_l, atencao_l, bloqueios_l, 
                         _pendentes_briefing, data_brief_sel, nome_site, 
-                        len(df_dia_br), lista_completa_encarregados
+                        len(df_dia_br), lista_completa_encarregados,
+                        df_dia_rdcs=df_dia_br
                     )
                     st.download_button(
                         label="📄 Baixar Relatório PDF",
