@@ -3290,12 +3290,15 @@ if st.session_state.df is not None:
                         pass
                 self.set_font('Helvetica', 'B', 14)
                 self.set_text_color(0, 51, 102)
-                self.cell(0, 8, safe_pdf(f'BRIEFING MATINAL DE OBRA'), 0, 1, 'C')
+                self.set_x(10)
+                self.cell(190, 8, safe_pdf('BRIEFING MATINAL DE OBRA'), 0, 1, 'C')
                 self.set_font('Helvetica', '', 10)
                 self.set_text_color(80, 80, 80)
-                self.cell(0, 6, safe_pdf(f'{nome_site} - Data: {data_str}'), 0, 1, 'C')
+                self.set_x(10)
+                self.cell(190, 6, safe_pdf(f'{nome_site} - Data: {data_str}'), 0, 1, 'C')
                 self.set_font('Helvetica', 'I', 8)
-                self.cell(0, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | Total de {total_rdcs} RDCs analisados'), 0, 1, 'C')
+                self.set_x(10)
+                self.cell(190, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | Total de {total_rdcs} RDCs analisados'), 0, 1, 'C')
                 self.ln(3)
                 # Linha separadora
                 self.set_draw_color(0, 51, 102)
@@ -3307,47 +3310,56 @@ if st.session_state.df is not None:
                 self.set_y(-15)
                 self.set_font('Helvetica', 'I', 7)
                 self.set_text_color(150, 150, 150)
-                self.cell(0, 10, safe_pdf(f'Sistema RDC & PDE - ENESA Engenharia - Pag. {self.page_no()}'), 0, 0, 'C')
+                self.set_x(10)
+                self.cell(190, 10, safe_pdf(f'Sistema RDC & PDE - ENESA Engenharia - Pag. {self.page_no()}'), 0, 0, 'C')
         
         pdf = BriefingPDF()
         pdf.set_auto_page_break(auto=True, margin=20)
         pdf.add_page()
         
         # --- RESUMO EXECUTIVO ---
+        w_body = 190  # largura util (210 - 10 - 10)
+        
         # Card: Avancos
         pdf.set_font('Helvetica', 'B', 11)
         pdf.set_fill_color(230, 255, 230)
         pdf.set_text_color(0, 128, 0)
-        pdf.cell(0, 7, safe_pdf('  PRINCIPAIS AVANCOS'), 0, 1, 'L', True)
+        pdf.set_x(10)
+        pdf.cell(w_body, 7, safe_pdf('  PRINCIPAIS AVANCOS'), 0, 1, 'L', True)
         pdf.set_text_color(30, 30, 30)
         pdf.set_font('Helvetica', '', 9)
         for item in avancos_l:
             txt = safe_pdf(item.replace('**', ''))
-            pdf.multi_cell(0, 5, safe_pdf(f'  * {txt}'), 0, 'L')
+            pdf.set_x(10)
+            pdf.multi_cell(w_body, 5, safe_pdf(f'  - {txt}'), 0, 'L')
         pdf.ln(3)
         
         # Card: Atencao
         pdf.set_font('Helvetica', 'B', 11)
         pdf.set_fill_color(255, 248, 220)
         pdf.set_text_color(180, 120, 0)
-        pdf.cell(0, 7, safe_pdf('  PONTOS DE ATENCAO'), 0, 1, 'L', True)
+        pdf.set_x(10)
+        pdf.cell(w_body, 7, safe_pdf('  PONTOS DE ATENCAO'), 0, 1, 'L', True)
         pdf.set_text_color(30, 30, 30)
         pdf.set_font('Helvetica', '', 9)
         for item in atencao_l:
             txt = safe_pdf(item.replace('**', ''))
-            pdf.multi_cell(0, 5, safe_pdf(f'  * {txt}'), 0, 'L')
+            pdf.set_x(10)
+            pdf.multi_cell(w_body, 5, safe_pdf(f'  - {txt}'), 0, 'L')
         pdf.ln(3)
         
         # Card: Bloqueios
         pdf.set_font('Helvetica', 'B', 11)
         pdf.set_fill_color(255, 230, 230)
         pdf.set_text_color(200, 0, 0)
-        pdf.cell(0, 7, safe_pdf('  BLOQUEIOS & ACOES URGENTES'), 0, 1, 'L', True)
+        pdf.set_x(10)
+        pdf.cell(w_body, 7, safe_pdf('  BLOQUEIOS & ACOES URGENTES'), 0, 1, 'L', True)
         pdf.set_text_color(30, 30, 30)
         pdf.set_font('Helvetica', '', 9)
         for item in bloqueios_l:
             txt = safe_pdf(item.replace('**', ''))
-            pdf.multi_cell(0, 5, safe_pdf(f'  * {txt}'), 0, 'L')
+            pdf.set_x(10)
+            pdf.multi_cell(w_body, 5, safe_pdf(f'  - {txt}'), 0, 'L')
         pdf.ln(5)
         
         # --- LINHA SEPARADORA ---
@@ -3362,10 +3374,12 @@ if st.session_state.df is not None:
         
         pdf.set_font('Helvetica', 'B', 12)
         pdf.set_text_color(200, 0, 0)
-        pdf.cell(0, 7, safe_pdf(f'ENCARREGADOS SEM RDC ({data_str})'), 0, 1, 'L')
+        pdf.set_x(10)
+        pdf.cell(190, 7, safe_pdf(f'ENCARREGADOS SEM RDC ({data_str})'), 0, 1, 'L')
         pdf.set_font('Helvetica', '', 9)
         pdf.set_text_color(60, 60, 60)
-        pdf.cell(0, 5, safe_pdf(f'Esperados: {total_enc} | Entregues: {entregues_count} | Pendentes: {len(pendentes_list)}'), 0, 1, 'L')
+        pdf.set_x(10)
+        pdf.cell(190, 5, safe_pdf(f'Esperados: {total_enc} | Entregues: {entregues_count} | Pendentes: {len(pendentes_list)}'), 0, 1, 'L')
         pdf.ln(3)
         
         if pendentes_list:
@@ -3404,7 +3418,8 @@ if st.session_state.df is not None:
         else:
             pdf.set_font('Helvetica', 'B', 10)
             pdf.set_text_color(0, 128, 0)
-            pdf.cell(0, 8, safe_pdf('Todos os encarregados entregaram o RDC nesta data!'), 0, 1, 'C')
+            pdf.set_x(10)
+            pdf.cell(190, 8, safe_pdf('Todos os encarregados entregaram o RDC nesta data!'), 0, 1, 'C')
         
         # Salvar PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
