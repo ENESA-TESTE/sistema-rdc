@@ -3273,13 +3273,12 @@ if st.session_state.df is not None:
         return buffer_pptx.getvalue()
 
     def gerar_pdf_briefing_matinal(avancos_l, atencao_l, bloqueios_l, pendentes_list, data_str, nome_site, total_rdcs, lista_enc, df_dia_rdcs=None):
-        """Gera um PDF executivo do Briefing Matinal com graficos de entrega e desvios."""
+        """Gera um PDF executivo do Briefing Matinal com grafico de barras de entrega no final."""
         from fpdf import FPDF
         import tempfile
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
-        import matplotlib.patches as mpatches
         
         def safe_pdf(txt):
             return str(txt).encode('latin-1', 'replace').decode('latin-1')
@@ -3291,102 +3290,77 @@ if st.session_state.df is not None:
         pct_entrega = round((entregues_count / total_enc) * 100, 1) if total_enc > 0 else 0
         pct_pendente = round(100 - pct_entrega, 1)
         
-        # Calcular desvios (problemas reportados)
-        total_rdcs_real = total_rdcs if total_rdcs > 0 else 1
-        desvios_count = 0
-        sem_desvio_count = 0
-        if df_dia_rdcs is not None and not df_dia_rdcs.empty and "PROBLEMAS" in df_dia_rdcs.columns:
-            probs = df_dia_rdcs["PROBLEMAS"].astype(str).str.strip().str.lower()
-            desvios_mask = ~probs.isin(["", "nan", "nenhum", "nao informado", "não informado", "sem problemas", "-", "n/a", "none"])
-            desvios_count = int(desvios_mask.sum())
-            sem_desvio_count = len(df_dia_rdcs) - desvios_count
-        else:
-            sem_desvio_count = total_rdcs_real
-        pct_desvio = round((desvios_count / total_rdcs_real) * 100, 1) if total_rdcs_real > 0 else 0
-        pct_sem_desvio = round(100 - pct_desvio, 1)
+        # --- GERAR GRAFICO DE BARRAS HORIZONTAIS ---
+        fig, ax = plt.subplots(figsize=(7.5, 2.2))
+        fig.patch.set_facecolor('white')
+        ax.set_facecolor('white')
         
-        # --- GERAR GRAFICOS COM MATPLOTLIB ---
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7.5, 3.2))
-        fig.patch.set_facecolor('#0e1117')
+        categorias = ['Entregues', 'Pendentes']
+        valores = [entregues_count, pendentes_count]
+        cores = ['#22c55e', '#ef4444']
         
-        # ---- GRAFICO 1: ENTREGA DE RDC (Donut) ----
-        sizes1 = [pct_entrega, pct_pendente]
-        colors1 = ['#22c55e', '#ef4444']
-        explode1 = (0.03, 0.03)
-        wedges1, texts1, autotexts1 = ax1.pie(
-            sizes1, explode=explode1, colors=colors1, autopct='%1.1f%%',
-            startangle=90, pctdistance=0.75,
-            wedgeprops=dict(width=0.4, edgecolor='#0e1117', linewidth=2)
-        )
-        for t in autotexts1:
-            t.set_fontsize(11)
-            t.set_fontweight('bold')
-            t.set_color('white')
-        ax1.set_title(f'ENTREGA DE RDC', fontsize=11, fontweight='bold', color='white', pad=12)
-        # Texto central
-        ax1.text(0, 0, f'{entregues_count}/{total_enc}', ha='center', va='center', 
-                fontsize=14, fontweight='bold', color='white')
-        legend1 = ax1.legend(
-            [f'Entregues ({entregues_count})', f'Pendentes ({pendentes_count})'],
-            loc='lower center', bbox_to_anchor=(0.5, -0.18), fontsize=8, frameon=False,
-            labelcolor='white', ncol=2
-        )
-        ax1.set_facecolor('#0e1117')
+        bars = ax.barh(categorias, valores, color=cores, height=0.55, edgecolor='white', linewidth=1.5, zorder=3)
         
-        # ---- GRAFICO 2: DESVIOS / PROBLEMAS (Donut) ----
-        sizes2 = [pct_sem_desvio, pct_desvio]
-        colors2 = ['#3b82f6', '#f59e0b']
-        explode2 = (0.03, 0.03)
-        wedges2, texts2, autotexts2 = ax2.pie(
-            sizes2, explode=explode2, colors=colors2, autopct='%1.1f%%',
-            startangle=90, pctdistance=0.75,
-            wedgeprops=dict(width=0.4, edgecolor='#0e1117', linewidth=2)
-        )
-        for t in autotexts2:
-            t.set_fontsize(11)
-            t.set_fontweight('bold')
-            t.set_color('white')
-        ax2.set_title(f'DESVIOS REPORTADOS', fontsize=11, fontweight='bold', color='white', pad=12)
-        ax2.text(0, 0, f'{desvios_count}/{total_rdcs}', ha='center', va='center',
-                fontsize=14, fontweight='bold', color='white')
-        legend2 = ax2.legend(
-            [f'Sem Desvio ({sem_desvio_count})', f'Com Desvio ({desvios_count})'],
-            loc='lower center', bbox_to_anchor=(0.5, -0.18), fontsize=8, frameon=False,
-            labelcolor='white', ncol=2
-        )
-        ax2.set_facecolor('#0e1117')
+        # Adicionar valores e porcentagens dentro das barras
+        for bar, val, pct in zip(bars, valores, [pct_entrega, pct_pendente]):
+            width = bar.get_width()
+            if width > 0:
+                ax.text(width - 0.5, bar.get_y() + bar.get_height()/2, 
+                       f'  {val}  ({pct}%)', va='center', ha='right' if width > total_enc * 0.3 else 'left',
+                       fontsize=12, fontweight='bold', color='white' if width > total_enc * 0.3 else '#333333')
         
-        plt.tight_layout(pad=2.0)
+        ax.set_xlim(0, max(total_enc * 1.05, 1))
+        ax.set_title(f'ENTREGA DE RDC - {data_str}   |   Total: {total_enc} encarregados', 
+                    fontsize=11, fontweight='bold', color='#003366', pad=10)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_color('#cccccc')
+        ax.spines['left'].set_color('#cccccc')
+        ax.tick_params(axis='y', labelsize=11, labelcolor='#333333')
+        ax.tick_params(axis='x', labelsize=9, labelcolor='#666666')
+        ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+        ax.grid(axis='x', alpha=0.2, zorder=0)
         
-        # Salvar grafico como imagem temporaria
+        plt.tight_layout(pad=1.5)
+        
         chart_path = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
-        fig.savefig(chart_path, dpi=180, bbox_inches='tight', facecolor='#0e1117', edgecolor='none')
+        fig.savefig(chart_path, dpi=200, bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close(fig)
         
         # --- MONTAR O PDF ---
         class BriefingPDF(FPDF):
             def header(self):
+                # Logo a esquerda (sem sobrepor o texto)
+                logo_w_h = 22
                 if os.path.exists(caminho_logo):
                     try:
-                        self.image(caminho_logo, 10, 8, 28)
+                        self.image(caminho_logo, 10, 8, logo_w_h, logo_w_h)
                     except:
-                        pass
+                        logo_w_h = 0
+                else:
+                    logo_w_h = 0
+                # Texto do cabecalho alinhado a direita do logo
+                x_txt = 10 + logo_w_h + 4
+                w_txt = 190 - logo_w_h - 4
+                self.set_xy(x_txt, 8)
                 self.set_font('Helvetica', 'B', 14)
                 self.set_text_color(0, 51, 102)
-                self.set_x(10)
-                self.cell(190, 8, safe_pdf('BRIEFING MATINAL DE OBRA'), 0, 1, 'C')
+                self.cell(w_txt, 7, safe_pdf('BRIEFING MATINAL DE OBRA'), 0, 1, 'C')
+                self.set_x(x_txt)
                 self.set_font('Helvetica', '', 10)
                 self.set_text_color(80, 80, 80)
-                self.set_x(10)
-                self.cell(190, 6, safe_pdf(f'{nome_site} - Data: {data_str}'), 0, 1, 'C')
+                self.cell(w_txt, 5, safe_pdf(f'{nome_site} - Data: {data_str}'), 0, 1, 'C')
+                self.set_x(x_txt)
                 self.set_font('Helvetica', 'I', 8)
-                self.set_x(10)
-                self.cell(190, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | {total_rdcs} RDCs analisados | {total_enc} encarregados'), 0, 1, 'C')
-                self.ln(2)
+                self.set_text_color(120, 120, 120)
+                self.cell(w_txt, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | {total_rdcs} RDCs | {total_enc} encarregados'), 0, 1, 'C')
+                # Linha separadora abaixo do header
+                y_line = max(self.get_y(), 8 + logo_w_h) + 2
+                self.set_y(y_line)
                 self.set_draw_color(0, 51, 102)
                 self.set_line_width(0.5)
-                self.line(10, self.get_y(), 200, self.get_y())
-                self.ln(3)
+                self.line(10, y_line, 200, y_line)
+                self.ln(4)
             
             def footer(self):
                 self.set_y(-15)
@@ -3400,27 +3374,7 @@ if st.session_state.df is not None:
         pdf.add_page()
         w_body = 190
         
-        # --- GRAFICOS ---
-        pdf.set_x(10)
-        try:
-            pdf.image(chart_path, x=15, y=pdf.get_y(), w=180)
-            pdf.ln(68)
-        except:
-            pdf.ln(5)
-        
-        # Limpar arquivo temporario do grafico
-        try:
-            os.remove(chart_path)
-        except:
-            pass
-        
-        # --- LINHA SEPARADORA ---
-        pdf.set_draw_color(0, 51, 102)
-        pdf.set_line_width(0.3)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(4)
-        
-        # --- RESUMO EXECUTIVO ---
+        # --- RESUMO EXECUTIVO (PRIMEIRO) ---
         # Card: Avancos
         pdf.set_font('Helvetica', 'B', 10)
         pdf.set_fill_color(230, 255, 230)
@@ -3461,6 +3415,28 @@ if st.session_state.df is not None:
             txt = safe_pdf(item.replace('**', ''))
             pdf.set_x(10)
             pdf.multi_cell(w_body, 4.5, safe_pdf(f'  - {txt}'), 0, 'L')
+        pdf.ln(4)
+        
+        # --- GRAFICO NO FINAL ---
+        # Verificar se cabe na pagina atual (precisa de ~50mm)
+        if pdf.get_y() > 235:
+            pdf.add_page()
+        
+        pdf.set_draw_color(0, 51, 102)
+        pdf.set_line_width(0.3)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(3)
+        
+        try:
+            pdf.image(chart_path, x=12, y=pdf.get_y(), w=186)
+        except:
+            pass
+        
+        # Limpar arquivo temporario
+        try:
+            os.remove(chart_path)
+        except:
+            pass
         
         # Salvar PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
