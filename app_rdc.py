@@ -3839,14 +3839,108 @@ Retorne apenas o JSON sem crases ou markdown."""
         
         st.stop()  # Impede o resto da página de renderizar
 
-    tab_dashboard, tab_resumo, tab_emissao, tab_escala, tab_cc, tab_f1, tab_ia, tab_ia_cc, tab_rdc_digital, tab_pde, tab_banco_rdc, tab_gargalos, tab_banco_dados, tab_admin = st.tabs([f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"💰 {t('Controle de C.C')}", f"🏎️ {t('Competição F1')}", f"🤖 {t('Leitor de RDC (IA)')}", f"🤖 {t('IA - Atualizador de C.C')}", f"📱 {t('RDC Digital')}", f"👷 {t('Gerenciar PDE')}", f"📑 {t('Banco de RDCs')}", f"🔍 {t('Análise de Gargalos')}", f"📊 {t('Banco de Dados')}", f"⚙️ {t('Admin')}"])
+    # === CSS DE AGRUPAMENTO VISUAL DAS ABAS ===
+    st.markdown("""
+    <style>
+        /* --- AGRUPAMENTO DAS ABAS POR BLOCOS COLORIDOS --- */
+        div[data-baseweb="tab-list"] {
+            gap: 0px !important;
+            flex-wrap: wrap !important;
+            padding-bottom: 2px !important;
+        }
+        div[data-baseweb="tab-list"] button {
+            font-size: 13px !important;
+            padding: 8px 14px !important;
+            border-radius: 8px 8px 0 0 !important;
+            margin: 0 1px !important;
+            transition: all 0.2s ease !important;
+        }
+        /* 🔵 GESTÃO & BRIEFING (abas 1-3) */
+        div[data-baseweb="tab-list"] button:nth-child(1),
+        div[data-baseweb="tab-list"] button:nth-child(2),
+        div[data-baseweb="tab-list"] button:nth-child(3) {
+            border-top: 3px solid #3b82f6 !important;
+        }
+        /* Separador visual após bloco GESTÃO */
+        div[data-baseweb="tab-list"] button:nth-child(3) {
+            margin-right: 12px !important;
+            border-right: 2px solid rgba(59, 130, 246, 0.4) !important;
+            padding-right: 18px !important;
+        }
+        /* 🟢 CAMPO & OPERAÇÃO (abas 4-6) */
+        div[data-baseweb="tab-list"] button:nth-child(4),
+        div[data-baseweb="tab-list"] button:nth-child(5),
+        div[data-baseweb="tab-list"] button:nth-child(6) {
+            border-top: 3px solid #22c55e !important;
+        }
+        /* Separador visual após bloco CAMPO */
+        div[data-baseweb="tab-list"] button:nth-child(6) {
+            margin-right: 12px !important;
+            border-right: 2px solid rgba(34, 197, 94, 0.4) !important;
+            padding-right: 18px !important;
+        }
+        /* 🟣 IA & PROCESSAMENTO (abas 7-10) */
+        div[data-baseweb="tab-list"] button:nth-child(7),
+        div[data-baseweb="tab-list"] button:nth-child(8),
+        div[data-baseweb="tab-list"] button:nth-child(9),
+        div[data-baseweb="tab-list"] button:nth-child(10) {
+            border-top: 3px solid #a855f7 !important;
+        }
+        /* Separador visual após bloco IA */
+        div[data-baseweb="tab-list"] button:nth-child(10) {
+            margin-right: 12px !important;
+            border-right: 2px solid rgba(168, 85, 247, 0.4) !important;
+            padding-right: 18px !important;
+        }
+        /* ⚙️ CONFIGURAÇÃO & DADOS (abas 11-14) */
+        div[data-baseweb="tab-list"] button:nth-child(11),
+        div[data-baseweb="tab-list"] button:nth-child(12),
+        div[data-baseweb="tab-list"] button:nth-child(13),
+        div[data-baseweb="tab-list"] button:nth-child(14) {
+            border-top: 3px solid #64748b !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
+    # === LEGENDA DOS BLOCOS ACIMA DAS ABAS ===
+    st.markdown("""
+    <div style="display: flex; gap: 24px; margin-bottom: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">
+        <span style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 2px;">🔵 Gestão</span>
+        <span style="color: #22c55e; border-bottom: 2px solid #22c55e; padding-bottom: 2px;">🟢 Campo</span>
+        <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 IA & Dados</span>
+        <span style="color: #64748b; border-bottom: 2px solid #64748b; padding-bottom: 2px;">⚙️ Config</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # === ABAS REORDENADAS POR BLOCOS ===
+    # BLOCO 1 - GESTÃO: Dashboard, Resumo, F1
+    # BLOCO 2 - CAMPO:  Emissão, Digital, Escala
+    # BLOCO 3 - IA:     Leitor IA, IA C.C, Banco RDCs, Gargalos
+    # BLOCO 4 - CONFIG:  C.C, PDE, Banco Dados, Admin
+    tab_dashboard, tab_resumo, tab_f1, tab_emissao, tab_rdc_digital, tab_escala, tab_ia, tab_ia_cc, tab_banco_rdc, tab_gargalos, tab_cc, tab_pde, tab_banco_dados, tab_admin = st.tabs([
+        f"📊 {t('Dashboard')}",
+        f"📅 {t('Resumo Diário')}",
+        f"🏎️ {t('Competição F1')}",
+        f"📝 {t('Emissão de RDC')}",
+        f"📱 {t('RDC Digital')}",
+        f"📋 {t('Escala')}",
+        f"🤖 {t('Leitor de RDC (IA)')}",
+        f"🤖 {t('IA - Atualizador C.C')}",
+        f"📑 {t('Banco de RDCs')}",
+        f"🔍 {t('Análise de Gargalos')}",
+        f"💰 {t('Controle de C.C')}",
+        f"👷 {t('Gerenciar PDE')}",
+        f"📊 {t('Banco de Dados')}",
+        f"⚙️ {t('Admin')}"
+    ])
+
+    # Apontador vê apenas CAMPO (abas 4, 5, 6 = Emissão, Digital, Escala)
     if st.session_state.get("role_usuario") == "apontador":
         st.markdown("""
         <style>
             div[data-baseweb="tab-list"] button:nth-child(1),
             div[data-baseweb="tab-list"] button:nth-child(2),
-            div[data-baseweb="tab-list"] button:nth-child(5),
+            div[data-baseweb="tab-list"] button:nth-child(3),
             div[data-baseweb="tab-list"] button:nth-child(7),
             div[data-baseweb="tab-list"] button:nth-child(8),
             div[data-baseweb="tab-list"] button:nth-child(9),
