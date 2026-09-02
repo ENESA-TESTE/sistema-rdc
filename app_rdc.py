@@ -2454,12 +2454,12 @@ with st.sidebar:
             st.session_state.idioma = idioma_sel
             st.rerun()
         
-        # --- Seletor de Modelo Gemini ---
-        modelos_gemini = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"]
-        modelo_atual = st.session_state.get("modelo_gemini", "gemini-2.5-flash")
+        # --- Seletor de Modelo Gemini (Versões Mais Recentes) ---
+        modelos_gemini = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-pro-latest"]
+        modelo_atual = st.session_state.get("modelo_gemini", "gemini-3.7-flash")
         idx_modelo = modelos_gemini.index(modelo_atual) if modelo_atual in modelos_gemini else 0
         modelo_sel = st.selectbox("🤖 Modelo de IA (Gemini)", modelos_gemini, index=idx_modelo, key="sel_modelo_gemini")
-        if modelo_sel != st.session_state.get("modelo_gemini", "gemini-2.5-flash"):
+        if modelo_sel != st.session_state.get("modelo_gemini", "gemini-3.7-flash"):
             st.session_state.modelo_gemini = modelo_sel
             st.rerun()
         
@@ -3526,10 +3526,20 @@ Retorne ESTRITAMENTE um JSON puro válido:
 }}
 Retorne apenas o JSON sem crases ou markdown."""
                 
-                resp = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt
-                )
+                modelo_brief = st.session_state.get('modelo_gemini', 'gemini-3.7-flash')
+                try:
+                    resp = client.models.generate_content(
+                        model=modelo_brief,
+                        contents=prompt
+                    )
+                except Exception as e_br:
+                    # Fallback caso o modelo de ponta esteja com alta demanda temporaria
+                    bkp_m = 'gemini-3.5-flash' if modelo_brief != 'gemini-3.5-flash' else 'gemini-2.5-flash'
+                    resp = client.models.generate_content(
+                        model=bkp_m,
+                        contents=prompt
+                    )
+                    modelo_brief = bkp_m
                 
                 resp_text = resp.text.strip()
                 if resp_text.startswith("```"):
@@ -3547,7 +3557,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     "avancos": dados_json.get("avancos", []),
                     "atencao": dados_json.get("atencao", []),
                     "bloqueios": dados_json.get("bloqueios", []),
-                    "origem": "Inteligência Artificial (Gemini 2.5)"
+                    "origem": f"Inteligência Artificial ({modelo_brief})"
                 }
             except Exception:
                 pass
@@ -5910,15 +5920,30 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if tempo_espera >= 180:
                                     raise Exception("Tempo limite esgotado aguardando o Google processar o PDF (demorou mais de 3 minutos).")
                                 
-                                resposta = client_local.models.generate_content(
-                                    model=modelo_gemini,
-                                    contents=[arquivo_up, prompt_ia],
-                                    config=genai.types.GenerateContentConfig(
-                                        response_mime_type="application/json",
-                                        response_schema=list[schema],
-                                        temperature=0.0
+                                try:
+                                    resposta = client_local.models.generate_content(
+                                        model=modelo_gemini,
+                                        contents=[arquivo_up, prompt_ia],
+                                        config=genai.types.GenerateContentConfig(
+                                            response_mime_type="application/json",
+                                            response_schema=list[schema],
+                                            temperature=0.0
+                                        )
                                     )
-                                )
+                                except Exception as err_gen:
+                                    if ('503' in str(err_gen) or 'UNAVAILABLE' in str(err_gen)) and modelo_gemini != 'gemini-2.5-flash':
+                                        bkp_m = 'gemini-3.5-flash' if modelo_gemini != 'gemini-3.5-flash' else 'gemini-2.5-flash'
+                                        resposta = client_local.models.generate_content(
+                                            model=bkp_m,
+                                            contents=[arquivo_up, prompt_ia],
+                                            config=genai.types.GenerateContentConfig(
+                                                response_mime_type="application/json",
+                                                response_schema=list[schema],
+                                                temperature=0.0
+                                            )
+                                        )
+                                    else:
+                                        raise err_gen
                                 
                                 if _old_cred:
                                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _old_cred
@@ -6015,7 +6040,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         raise Exception("Falha após múltiplas tentativas.")
 
                     import concurrent.futures
-                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
+                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-3.7-flash')
                     
                     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                         future_to_chunk = {
@@ -6324,7 +6349,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 arquivo_up = client.files.upload(file=tmp_path)
                                 
                                 resposta = client.models.generate_content(
-                                    model=st.session_state.get('modelo_gemini', 'gemini-2.5-flash'),
+                                    model=st.session_state.get('modelo_gemini', 'gemini-3.7-flash'),
                                     contents=[arquivo_up, prompt_ia_cc],
                                     config=genai.types.GenerateContentConfig(
                                         response_mime_type="application/json",
