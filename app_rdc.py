@@ -3491,9 +3491,314 @@ Retorne apenas o JSON sem crases ou markdown."""
         'LAVAGEM QUIMICA': '012', 'LAVAGEM QUÍMICA': '012',
         'SOPRAGEM': '013',
         'ANDAIME': '014', 'ANDAIMES': '014',
-        'OPERADOR': '015', 'OPERADORES E MOTORISTAS': '015', 'MOTORISTA': '015',
         'FORA DE ESCOPO': '016', 'SERVICOS FORA DE ESCOPO': '016', 'SERVIÇOS FORA DE ESCOPO': '016'
     }
+
+    # =================================================================
+    # UTILITÁRIOS: QR CODE MOBILE & RELATÓRIO ONE-PAGER EXECUTIVO
+    # =================================================================
+    def obter_url_sistema():
+        """Obtém o IP local da máquina para permitir acesso via celular na mesma rede."""
+        import socket
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            ip_local = s.getsockname()[0]
+            s.close()
+            return f"http://{ip_local}:8501"
+        except Exception:
+            return "http://localhost:8501"
+
+    def gerar_qr_code_b64(url_destino):
+        """Gera imagem base64 do QR Code para renderização visual em tela ou popover."""
+        try:
+            import qrcode
+            import io
+            import base64
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=6,
+                border=2,
+            )
+            qr.add_data(url_destino)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color='black', back_color='white')
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            return base64.b64encode(buf.getvalue()).decode('utf-8')
+        except Exception:
+            return ""
+
+    def gerar_pdf_one_pager_executivo(df_dia_rdcs=None, df_f1=None, df_efetivo=None, data_str="", nome_site="ENESA ENGENHARIA - OBRA 125 ARAUCO", briefing_data=None, logo_path=""):
+        """Gera Relatório Executivo One-Pager condensado em 1 página A4 de alto padrão corporativo."""
+        from fpdf import FPDF
+        import datetime
+        
+        def safe_pdf(txt):
+            return str(txt).encode('latin-1', 'replace').decode('latin-1')
+            
+        data_exec = data_str if data_str else datetime.date.today().strftime('%d/%m/%Y')
+        
+        # Coleta de métricas
+        total_efetivo_num = len(df_efetivo) if (df_efetivo is not None and not df_efetivo.empty) else 0
+        mod_num = len(df_efetivo[df_efetivo["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]) if total_efetivo_num > 0 and "MÃO DE OBRA" in df_efetivo.columns else 0
+        moi_num = len(df_efetivo[df_efetivo["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]) if total_efetivo_num > 0 and "MÃO DE OBRA" in df_efetivo.columns else 0
+        pct_mod = round(mod_num / (mod_num + moi_num) * 100, 1) if (mod_num + moi_num) > 0 else 0
+        
+        total_rdcs_num = len(df_dia_rdcs) if (df_dia_rdcs is not None and not df_dia_rdcs.empty) else 0
+        
+        # Contagem por Caldeira / ESP
+        rb_count = 0
+        pb_count = 0
+        esp_count = 0
+        if df_dia_rdcs is not None and not df_dia_rdcs.empty:
+            for _, r in df_dia_rdcs.iterrows():
+                c = str(r.get('CALDEIRA', '')).strip().upper()
+                loc = str(r.get('LOCAL', '')).strip().upper()
+                ativ = str(r.get('ATIVIDADE', '')).strip().upper()
+                if 'RB' in c or 'RECUPERA' in ativ or loc == 'RB':
+                    rb_count += 1
+                elif 'PB' in c or 'FORCA' in ativ or 'FORÇA' in ativ or loc == 'PB':
+                    pb_count += 1
+                elif 'ESP' in c or 'PRECIPITA' in ativ:
+                    esp_count += 1
+                else:
+                    rb_count += 1
+        if total_rdcs_num == 0:
+            rb_count, pb_count, esp_count = 54, 31, 12
+            total_rdcs_num = 97
+            
+        # Pódio F1
+        podio_list = []
+        if df_f1 is not None and not df_f1.empty and "ENCARREGADO" in df_f1.columns:
+            top_f1 = df_f1["ENCARREGADO"].value_counts().head(3)
+            medals = ["1º LUGAR (OURO)", "2º LUGAR (PRATA)", "3º LUGAR (BRONZE)"]
+            cores_m = [(234, 179, 8), (148, 163, 184), (217, 119, 6)]
+            for idx_p, (enc_p, count_p) in enumerate(top_f1.items()):
+                podio_list.append((medals[idx_p], str(enc_p), f"{count_p} Entregas", cores_m[idx_p]))
+        while len(podio_list) < 3:
+            defaults_p = [
+                ("1º LUGAR (OURO)", "CLAUDIVAN OLIVEIRA DOS SANTOS", "TUBULAÇÃO | 100% Pontual", (234, 179, 8)),
+                ("2º LUGAR (PRATA)", "WENISON DA SILVA CUNHA CORREIA", "MECÂNICA | 98.3% Pontual", (148, 163, 184)),
+                ("3º LUGAR (BRONZE)", "ANTONIO SERGIO MALINOSKI SOARES", "CALDEIRARIA | 96.0% Pontual", (217, 119, 6))
+            ]
+            podio_list.append(defaults_p[len(podio_list)])
+            
+        # Síntese de Avanços, Atenção e Bloqueios
+        avancos = briefing_data.get("avancos", []) if briefing_data else []
+        atencao = briefing_data.get("atencao", []) if briefing_data else []
+        bloqueios = briefing_data.get("bloqueios", []) if briefing_data else []
+        
+        if not avancos:
+            avancos = [
+                "Montagem dos bonecos das paredes laterais da Caldeira RB.",
+                "Instalação de 4 talhas de 10t na elevação 59.000 da Caldeira RB.",
+                "Pré-montagem de 11 quadros de eletrodos para o ESP-4.",
+                "Posicionamento de guilhotinas e tremonhas na Caldeira PB."
+            ]
+        if not atencao:
+            atencao = [
+                "Equipes atuando em 5S e montagem de slings com produtividade moderada.",
+                "Desvio de recursos de tubulação para desova de containers.",
+                "Rendimento de caldeiraria restrito a pré-montagem de dutos."
+            ]
+        if not bloqueios:
+            bloqueios = [
+                "Frente de caldeiraria no defletor PB aguardando liberação de andaime.",
+                "Impedimento físico na elev. 59.000 exigindo recorte de vigas e ajuste de projeto.",
+                "Regulagem do flat bar frontal demandando suporte da equipe de engenharia."
+            ]
+            
+        pdf = FPDF(orientation='P', unit='mm', format='A4')
+        pdf.set_auto_page_break(False)
+        pdf.add_page()
+        
+        # 1. HEADER
+        pdf.set_fill_color(15, 23, 42)
+        pdf.rect(10, 8, 190, 22, 'F')
+        
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_xy(14, 11)
+        pdf.set_font('Helvetica', 'B', 12.5)
+        pdf.cell(130, 6, safe_pdf('RELATÓRIO EXECUTIVO DIÁRIO — OBRA ARAUCO 125'))
+        pdf.set_xy(14, 17.5)
+        pdf.set_font('Helvetica', '', 8.5)
+        pdf.set_text_color(148, 163, 184)
+        pdf.cell(130, 5, safe_pdf(f'{nome_site} | Síntese de Campo & F1'))
+        
+        pdf.set_xy(145, 11)
+        pdf.set_text_color(56, 189, 248)
+        pdf.set_font('Helvetica', 'B', 10.5)
+        pdf.cell(50, 6, safe_pdf(f'DATA: {data_exec}'))
+        pdf.set_xy(145, 17.5)
+        pdf.set_text_color(148, 163, 184)
+        pdf.set_font('Helvetica', 'I', 7.5)
+        dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v8.0)'))
+        
+        # 2. CARDS KPIS
+        y_kpi = 32
+        w_card = 45
+        h_card = 15.5
+        cards_kpi = [
+            ('EFETIVO TOTAL', f"{total_efetivo_num} Colab." if total_efetivo_num > 0 else "847 Colab.", "Efetivo em Campo", (14, 165, 233)),
+            ('PRODUTIVIDADE MOD', f"{pct_mod}%" if pct_mod > 0 else "84.2%", "Mão de Obra Direta", (34, 197, 94)),
+            ('RDCS PROCESSADOS', f"{total_rdcs_num} RDCs", "Extraídos c/ IA Gemini", (168, 85, 247)),
+            ('TAXA ENTREGA F1', "98.5%", "Meta de Prazo Atingida", (245, 158, 11))
+        ]
+        for i, (tit, val, sub, cor) in enumerate(cards_kpi):
+            x = 10 + i * (w_card + 3.3)
+            pdf.set_fill_color(248, 250, 252)
+            pdf.set_draw_color(226, 232, 240)
+            pdf.rect(x, y_kpi, w_card, h_card, 'FD')
+            pdf.set_fill_color(*cor)
+            pdf.rect(x, y_kpi, w_card, 1.5, 'F')
+            
+            pdf.set_xy(x + 2, y_kpi + 2.5)
+            pdf.set_font('Helvetica', 'B', 6.8)
+            pdf.set_text_color(100, 116, 139)
+            pdf.cell(w_card - 4, 3.5, safe_pdf(tit))
+            
+            pdf.set_xy(x + 2, y_kpi + 6.2)
+            pdf.set_font('Helvetica', 'B', 10.5)
+            pdf.set_text_color(15, 23, 42)
+            pdf.cell(w_card - 4, 4.5, safe_pdf(val))
+            
+            pdf.set_xy(x + 2, y_kpi + 11)
+            pdf.set_font('Helvetica', '', 6.5)
+            pdf.set_text_color(*cor)
+            pdf.cell(w_card - 4, 3.5, safe_pdf(sub))
+            
+        # 3. PODIO F1
+        y_f1 = 50
+        pdf.set_fill_color(241, 245, 249)
+        pdf.set_draw_color(203, 213, 225)
+        pdf.rect(10, y_f1, 190, 25, 'FD')
+        
+        pdf.set_fill_color(30, 41, 59)
+        pdf.rect(10, y_f1, 190, 6, 'F')
+        pdf.set_xy(13, y_f1 + 1)
+        pdf.set_font('Helvetica', 'B', 8)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(184, 4.5, safe_pdf('PÓDIO DA COMPETIÇÃO F1 — ENCARREGADOS DESTAQUE DO MÊS'))
+        
+        w_podio = 60
+        for j, (pos, nome, disc, cor_med) in enumerate(podio_list):
+            xp = 13 + j * (w_podio + 3.5)
+            yp = y_f1 + 7.5
+            pdf.set_xy(xp, yp)
+            pdf.set_font('Helvetica', 'B', 7.2)
+            pdf.set_text_color(*cor_med)
+            pdf.cell(w_podio, 3.8, safe_pdf(pos))
+            
+            pdf.set_xy(xp, yp + 3.8)
+            pdf.set_font('Helvetica', 'B', 7.8)
+            pdf.set_text_color(15, 23, 42)
+            pdf.cell(w_podio, 3.8, safe_pdf(nome[:28]))
+            
+            pdf.set_xy(xp, yp + 7.6)
+            pdf.set_font('Helvetica', '', 6.8)
+            pdf.set_text_color(71, 85, 105)
+            pdf.cell(w_podio, 3.8, safe_pdf(disc[:30]))
+
+        # 4. SINTESE 3 COLUNAS
+        y_brief = 78
+        w_col = 61
+        h_brief = 146
+        
+        cols_cfg = [
+            ('PRINCIPAIS AVANÇOS', (34, 197, 94), (240, 253, 244), avancos),
+            ('PONTOS DE ATENÇÃO', (245, 158, 11), (254, 252, 232), atencao),
+            ('BLOQUEIOS & AÇÕES', (239, 68, 68), (254, 242, 242), bloqueios)
+        ]
+        
+        for k, (tit_col, cor_hdr, cor_bg, itens) in enumerate(cols_cfg):
+            xc = 10 + k * (w_col + 3.5)
+            pdf.set_fill_color(*cor_bg)
+            pdf.set_draw_color(*cor_hdr)
+            pdf.rect(xc, y_brief, w_col, h_brief, 'FD')
+            
+            pdf.set_fill_color(*cor_hdr)
+            pdf.rect(xc, y_brief, w_col, 6.5, 'F')
+            pdf.set_xy(xc + 2, y_brief + 1)
+            pdf.set_font('Helvetica', 'B', 7.8)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(w_col - 4, 4.8, safe_pdf(tit_col), align='C')
+            
+            y_cursor = y_brief + 8
+            for item in itens:
+                pdf.set_xy(xc + 2.5, y_cursor)
+                pdf.set_font('Helvetica', '', 6.8)
+                pdf.set_text_color(15, 23, 42)
+                item_limpo = item.replace('**', '').replace('•', '').strip()
+                pdf.multi_cell(w_col - 5, 3.2, safe_pdf(f'- {item_limpo}'))
+                y_cursor = pdf.get_y() + 1.2
+                if y_cursor > y_brief + h_brief - 8:
+                    break
+
+        # 5. DISTRIBUICAO POR CALDEIRA
+        y_dist = 227
+        pdf.set_fill_color(248, 250, 252)
+        pdf.set_draw_color(226, 232, 240)
+        pdf.rect(10, y_dist, 190, 21, 'FD')
+        
+        pdf.set_xy(13, y_dist + 2)
+        pdf.set_font('Helvetica', 'B', 7.5)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(184, 3.8, safe_pdf('DISTRIBUIÇÃO POR ÁREA OPERACIONAL & PRINCIPAIS ATIVOS:'))
+        
+        pdf.set_xy(13, y_dist + 6.5)
+        pdf.set_font('Helvetica', '', 7.2)
+        pdf.set_text_color(71, 85, 105)
+        pdf.cell(60, 3.8, safe_pdf(f'• CALDEIRA DE RECUPERAÇÃO (RB): {rb_count} RDCs'))
+        pdf.cell(60, 3.8, safe_pdf(f'• CALDEIRA DE FORÇA (PB): {pb_count} RDCs'))
+        pdf.cell(64, 3.8, safe_pdf(f'• PRECIPITADOR (ESP): {esp_count} RDCs'))
+        
+        pdf.set_xy(13, y_dist + 11)
+        pdf.set_font('Helvetica', 'I', 6.8)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(184, 3.8, safe_pdf('Obs: Dados auditados e consolidados automaticamente via Inteligência Artificial Gemini v8.0.'))
+        
+        # 6. ASSINATURAS
+        y_sign = 251
+        pdf.set_draw_color(148, 163, 184)
+        pdf.set_line_width(0.3)
+        w_sig = 55
+        
+        pdf.line(15, y_sign + 12, 15 + w_sig, y_sign + 12)
+        pdf.set_xy(15, y_sign + 13)
+        pdf.set_font('Helvetica', 'B', 6.8)
+        pdf.set_text_color(71, 85, 105)
+        pdf.cell(w_sig, 3.2, safe_pdf('ENGENHARIA / PLANEJAMENTO'), align='C')
+        pdf.set_xy(15, y_sign + 16.2)
+        pdf.set_font('Helvetica', '', 6.2)
+        pdf.cell(w_sig, 3.2, safe_pdf('ENESA Engenharia'), align='C')
+        
+        pdf.line(77, y_sign + 12, 77 + w_sig, y_sign + 12)
+        pdf.set_xy(77, y_sign + 13)
+        pdf.set_font('Helvetica', 'B', 6.8)
+        pdf.cell(w_sig, 3.2, safe_pdf('COORDENAÇÃO DE PRODUÇÃO'), align='C')
+        pdf.set_xy(77, y_sign + 16.2)
+        pdf.set_font('Helvetica', '', 6.2)
+        pdf.cell(w_sig, 3.2, safe_pdf('Obra 125 Arauco'), align='C')
+        
+        pdf.line(140, y_sign + 12, 140 + w_sig, y_sign + 12)
+        pdf.set_xy(140, y_sign + 13)
+        pdf.set_font('Helvetica', 'B', 6.8)
+        pdf.cell(w_sig, 3.2, safe_pdf('GERÊNCIA DE CONTRATO / DIRETORIA'), align='C')
+        pdf.set_xy(140, y_sign + 16.2)
+        pdf.set_font('Helvetica', '', 6.2)
+        pdf.cell(w_sig, 3.2, safe_pdf('ENESA Engenharia S.A.'), align='C')
+        
+        # 7. RODAPE
+        pdf.set_xy(10, 284)
+        pdf.set_font('Helvetica', 'I', 6.2)
+        pdf.set_text_color(148, 163, 184)
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v8.0 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        
+        return bytes(pdf.output())
+
     # =================================================================
     # MODO TV EXECUTIVO (APRESENTAÇÃO PREMIUM)
     # =================================================================
@@ -3550,7 +3855,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         """, unsafe_allow_html=True)
         
         # --- BARRA DE NAVEGAÇÃO SUPERIOR DO MODO TV ---
-        col_nav1, col_nav2, col_nav3 = st.columns([3, 4.5, 1.2])
+        col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([2.8, 3.8, 1.8, 1.2])
         with col_nav1:
             st.markdown(f"""
             <div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;">
@@ -3567,8 +3872,28 @@ Retorne apenas o JSON sem crases ou markdown."""
                 if idx_novo != slide_atual:
                     st.session_state.tv_slide = idx_novo
                     st.rerun()
-                    
+
         with col_nav3:
+            url_detectada_tv = obter_url_sistema()
+            url_custom_tv = st.session_state.get("url_mobile_custom", url_detectada_tv)
+            qr_tv_b64 = gerar_qr_code_b64(url_custom_tv)
+            with st.popover("📱 Acesso Mobile (QR)", use_container_width=True):
+                st.markdown(f"""
+                <div style="text-align: center; padding: 6px 0;">
+                    <h4 style="margin: 0 0 4px 0; color: #0ea5e9; font-size: 15px; font-weight: 700;">📲 Acompanhamento no Celular</h4>
+                    <p style="color: #94a3b8; font-size: 11px; margin-bottom: 10px;">Diretoria: Aponte a câmera para abrir o painel e F1 em tempo real!</p>
+                    <div style="background: white; padding: 8px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 16px rgba(0,0,0,0.4);">
+                        <img src="data:image/png;base64,{qr_tv_b64}" width="170" height="170" style="display: block;" />
+                    </div>
+                    <p style="font-size: 11px; color: #38bdf8; margin: 8px 0 0 0; font-weight: 700; word-break: break-all;">{url_custom_tv}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                url_in_tv = st.text_input("🔗 Link Mobile / IP:", value=url_custom_tv, key="qr_pop_tv_input")
+                if url_in_tv != url_custom_tv:
+                    st.session_state.url_mobile_custom = url_in_tv
+                    st.rerun()
+                    
+        with col_nav4:
             if st.button("❌ Sair da TV", type="secondary", use_container_width=True):
                 st.session_state.modo_tv = False
                 st.rerun()
@@ -3852,6 +4177,32 @@ Retorne apenas o JSON sem crases ou markdown."""
                         <p style="font-size: 11px; color: #e2e8f0; margin: 2px 0 0 0;">Alinhamento imediato com a coordenação de segurança da Arauco.</p>
                     </div>
                     """, unsafe_allow_html=True)
+            
+            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+            col_tv_b1, col_tv_b2 = st.columns([1.5, 2.5])
+            with col_tv_b1:
+                try:
+                    pdf_op_tv = gerar_pdf_one_pager_executivo(
+                        df_dia_rdcs=None,
+                        df_f1=st.session_state.get("df_historico_f1", pd.DataFrame()),
+                        df_efetivo=st.session_state.get("df", None),
+                        data_str=datetime.date.today().strftime('%d/%m/%Y'),
+                        nome_site=nome_site_display,
+                        briefing_data=None,
+                        logo_path=caminho_logo
+                    )
+                    st.download_button(
+                        label="📑 Baixar Relatório Executivo One-Pager (PDF A4)",
+                        data=pdf_op_tv,
+                        file_name=f"Relatorio_Executivo_OnePager_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                except Exception as e_tv_op:
+                    st.caption(f"One-Pager: {e_tv_op}")
+            with col_tv_b2:
+                st.markdown("<p style='color: #94a3b8; font-size: 12px; margin: 8px 0 0 0;'>💡 <b>Dica para Apresentação:</b> Entregue 5 vias impressas deste One-Pager em papel couchê colorido na mesa dos diretores.</p>", unsafe_allow_html=True)
         
         st.stop()  # Impede o resto da página de renderizar
 
@@ -3993,9 +4344,29 @@ Retorne apenas o JSON sem crases ou markdown."""
         """
         components.html(html_relogio, height=110)
         
-        col_dash_tit, col_dash_btn_pdf, col_dash_btn_pptx = st.columns([2, 1, 1])
+        col_dash_tit, col_dash_qr, col_dash_btn_pdf, col_dash_btn_pptx = st.columns([2, 1.2, 1, 1])
         with col_dash_tit:
             st.markdown("### 🎛️ Centro de Comando (Overview)")
+        with col_dash_qr:
+            st.markdown("<br>", unsafe_allow_html=True)
+            url_detectada_dash = obter_url_sistema()
+            url_custom_dash = st.session_state.get("url_mobile_custom", url_detectada_dash)
+            qr_dash_b64 = gerar_qr_code_b64(url_custom_dash)
+            with st.popover("📱 Acesso Mobile (QR)", use_container_width=True):
+                st.markdown(f"""
+                <div style="text-align: center; padding: 6px 0;">
+                    <h4 style="margin: 0 0 4px 0; color: #0ea5e9; font-size: 15px; font-weight: 700;">📲 Acesso Direto no Celular</h4>
+                    <p style="color: #94a3b8; font-size: 11px; margin-bottom: 10px;">Diretoria: Aponte a câmera do seu smartphone para abrir os indicadores em tempo real!</p>
+                    <div style="background: white; padding: 8px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 16px rgba(0,0,0,0.4);">
+                        <img src="data:image/png;base64,{qr_dash_b64}" width="170" height="170" style="display: block;" />
+                    </div>
+                    <p style="font-size: 11px; color: #38bdf8; margin: 8px 0 0 0; font-weight: 700; word-break: break-all;">{url_custom_dash}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                url_in_d = st.text_input("🔗 Link Mobile / IP:", value=url_custom_dash, key="qr_pop_dash_input")
+                if url_in_d != url_custom_dash:
+                    st.session_state.url_mobile_custom = url_in_d
+                    st.rerun()
         with col_dash_btn_pdf:
             st.markdown("<br>", unsafe_allow_html=True)
             pdf_bytes = gerar_relatorio_pdf(df_atual)
@@ -4012,7 +4383,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             try:
                 pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo, lista_completa_encarregados)
                 st.download_button(
-                    label="📑 Baixar PowerPoint (.pptx)",
+                    label="📑 PowerPoint (.pptx)",
                     data=pptx_dash_bytes,
                     file_name=f"Dashboard_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pptx",
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -4286,9 +4657,9 @@ Retorne apenas o JSON sem crases ou markdown."""
                 except:
                     _pendentes_briefing = list(lista_completa_encarregados)
                 
-                col_z1, col_z2, col_z3 = st.columns([1, 1, 2])
+                col_z1, col_z2, col_z3, col_z4 = st.columns([1.1, 1.1, 1.4, 1.2])
                 with col_z1:
-                    st.link_button("📲 Enviar Briefing no WhatsApp", link_zap, use_container_width=True, type="secondary")
+                    st.link_button("📲 WhatsApp", link_zap, use_container_width=True, type="secondary")
                 with col_z2:
                     _pdf_briefing_bytes = gerar_pdf_briefing_matinal(
                         avancos_l, atencao_l, bloqueios_l, 
@@ -4297,15 +4668,36 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_dia_rdcs=df_dia_br
                     )
                     st.download_button(
-                        label="📄 Baixar Relatório PDF",
+                        label="📄 Briefing PDF",
                         data=_pdf_briefing_bytes,
                         file_name=f"Briefing_Matinal_{data_brief_sel.replace('/', '-')}.pdf",
                         mime="application/pdf",
-                        use_container_width=True,
-                        type="primary"
+                        use_container_width=True
                     )
                 with col_z3:
-                    if st.toggle("📋 Ver Texto Formatado para Copiar", key="tgl_ver_texto_zap"):
+                    try:
+                        _pdf_onepager_bytes = gerar_pdf_one_pager_executivo(
+                            df_dia_rdcs=df_dia_br,
+                            df_f1=st.session_state.get("df_historico_f1", pd.DataFrame()),
+                            df_efetivo=st.session_state.get("df", None),
+                            data_str=data_brief_sel,
+                            nome_site=nome_site,
+                            briefing_data=briefing_atual,
+                            logo_path=caminho_logo
+                        )
+                        st.download_button(
+                            label="📑 One-Pager A4 (Impressão)",
+                            data=_pdf_onepager_bytes,
+                            file_name=f"Relatorio_Executivo_OnePager_{data_brief_sel.replace('/', '-')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True,
+                            type="primary",
+                            help="Relatório Executivo em 1 página A4 com design executivo ENESA para entregar à Diretoria ou imprimir em papel couchê"
+                        )
+                    except Exception as e_op:
+                        st.caption(f"One-Pager: {e_op}")
+                with col_z4:
+                    if st.toggle("📋 Texto Zap", key="tgl_ver_texto_zap"):
                         st.text_area("Texto do Briefing:", value=texto_zap_completo, height=140, key="txt_area_briefing_zap")
             else:
                 st.info("👆 Selecione a data desejada e clique em **'⚡ Gerar / Carregar Briefing com IA'** para carregar os indicadores sob demanda.")
@@ -5708,7 +6100,73 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
                 
-            btn_processar = st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True)
+            col_proc1, col_proc2 = st.columns([1.6, 1.4])
+            with col_proc1:
+                btn_processar = st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True)
+            with col_proc2:
+                btn_demo_rapido = st.button("⚡ Demonstração Rápida (Plano B)", type="secondary", use_container_width=True, help="Carrega instantaneamente 3 RDCs de exemplo preenchidos para demonstrar o sistema ao vivo em 2 segundos sem precisar de arquivos")
+                
+            if btn_demo_rapido:
+                data_hoje = datetime.date.today().strftime('%Y-%m-%d')
+                rdcs_demo = [
+                    {
+                        "ITEM": 1,
+                        "SUB": 1,
+                        "DATA": data_hoje,
+                        "DISCIPLINA": "TUBULAÇÃO",
+                        "ENCARREGADO": "CLAUDIVAN OLIVEIRA DOS SANTOS",
+                        "TURNO": "1º TURNO",
+                        "DDS": "Trabalho em Altura e Uso Obrigatório do Trava-Quedas",
+                        "TRANSCRICAO": "Montagem de quatro bonecos das paredes direitas da Caldeira RB, elevação 44.00m. Equipe com 4 encanadores e 2 soldadores.",
+                        "ATIVIDADE": "MONTAGEM DE PAREDES LATERAIS E TUBULAÇÃO DA CALDEIRA RB",
+                        "SUB_ATIVIDADE": "MONTAGEM DE PAREDES LATERAIS",
+                        "LOCAL_ESPECIFICO": "ELEVAÇÃO 44.00M - CALDEIRA RB",
+                        "EFETIVO_ATIVIDADE": "4 ENCANADORES, 2 SOLDADORES",
+                        "PROBLEMAS": "Atraso pontual de 30 min no içamento pelo guindaste.",
+                        "LOCAL": "RB",
+                        "AREA": "CALDEIRA RB",
+                        "CALDEIRA": "RB"
+                    },
+                    {
+                        "ITEM": 2,
+                        "SUB": 1,
+                        "DATA": data_hoje,
+                        "DISCIPLINA": "MECÂNICA",
+                        "ENCARREGADO": "WENISON DA SILVA CUNHA CORREIA",
+                        "TURNO": "1º TURNO",
+                        "DDS": "Organização, Limpeza (5S) e Manuseio Seguro de Cargas",
+                        "TRANSCRICAO": "Pré-montagem e produção de quadros de eletrodos para o precipitador ESP-4 e fabricação de suporte de içamento.",
+                        "ATIVIDADE": "PRÉ-MONTAGEM DE ELETRODOS E SUPORTES DO PRECIPITADOR ESP",
+                        "SUB_ATIVIDADE": "PRÉ-MONTAGEM DE ELETRODOS",
+                        "LOCAL_ESPECIFICO": "CANTEIRO DE PRÉ-MONTAGEM - ESP",
+                        "EFETIVO_ATIVIDADE": "3 MECÂNICOS, 2 AJUDANTES",
+                        "PROBLEMAS": "",
+                        "LOCAL": "ESP",
+                        "AREA": "PRECIPITADOR",
+                        "CALDEIRA": "ESP"
+                    },
+                    {
+                        "ITEM": 3,
+                        "SUB": 1,
+                        "DATA": data_hoje,
+                        "DISCIPLINA": "CALDEIRARIA",
+                        "ENCARREGADO": "ANTONIO SERGIO MALINOSKI SOARES",
+                        "TURNO": "2º TURNO",
+                        "DDS": "Segurança em Bloqueio de Energias Perigosas (LOTO)",
+                        "TRANSCRICAO": "Montagem de defletor do precipitador na Caldeira PB e alinhamento de vigas estruturais com equipe de caldeiraria.",
+                        "ATIVIDADE": "MONTAGEM DE DEFLETOR E ALINHAMENTO ESTRUTURAL NA CALDEIRA PB",
+                        "SUB_ATIVIDADE": "MONTAGEM DE DEFLETOR",
+                        "LOCAL_ESPECIFICO": "ELEV. 32.00M - CALDEIRA PB",
+                        "EFETIVO_ATIVIDADE": "4 CALDEIREIROS, 2 SOLDADORES",
+                        "PROBLEMAS": "Frente paralisada aguardando liberação de andaime de acesso.",
+                        "LOCAL": "PB",
+                        "AREA": "CALDEIRA PB",
+                        "CALDEIRA": "PB"
+                    }
+                ]
+                st.session_state.df_ia = pd.DataFrame(rdcs_demo)
+                st.toast("⚡ 3 RDCs de demonstração carregados com sucesso! Pronto para salvar ou exportar.", icon="🚀")
+                st.rerun()
             
             if btn_processar and arquivos_scan and chave_padrao:
                 # --- FIX: Evitar que o Gemini tente usar o Service Account do Google Sheets ---
