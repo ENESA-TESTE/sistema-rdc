@@ -3431,35 +3431,32 @@ Retorne apenas o JSON sem crases ou markdown."""
         import streamlit.components.v1 as components
         
         slide_atual = st.session_state.get("tv_slide", 0)
+        nome_site_display = nome_site if (nome_site and str(nome_site).strip()) else "ENESA ENGENHARIA"
         
         # CSS Ultra Premium para Modo TV Fullscreen
         st.markdown("""
         <style>
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="stSidebarCollapseButton"] { display: none !important; }
-            .block-container { max-width: 96% !important; padding: 0.8rem 1.5rem !important; }
-            .stApp { margin-top: -60px; background: radial-gradient(circle at top right, #0f172a 0%, #020617 100%) !important; }
+            .block-container { max-width: 98% !important; padding: 1rem 1.5rem !important; }
+            .stApp { background: #0b1120 !important; }
             
-            @keyframes tvFade {
-                from { opacity: 0; transform: translateY(12px) scale(0.99); }
-                to { opacity: 1; transform: translateY(0) scale(1); }
-            }
-            .tv-stage { animation: tvFade 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
-            
-            .tv-card-glow {
-                background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.85));
-                backdrop-filter: blur(16px);
+            .tv-card-kpi {
+                background: rgba(30, 41, 59, 0.6);
                 border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 18px;
-                padding: 20px;
+                border-radius: 14px;
+                padding: 16px 20px;
                 position: relative;
                 overflow: hidden;
-                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
-                transition: transform 0.3s ease;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+                margin-bottom: 14px;
             }
-            .tv-card-glow:hover {
-                transform: translateY(-3px);
-                border-color: rgba(14, 165, 233, 0.4);
+            .tv-card-chart {
+                background: rgba(30, 41, 59, 0.6);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 16px;
+                padding: 16px 18px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
             }
             .tv-badge-live {
                 background: linear-gradient(135deg, #ef4444, #dc2626);
@@ -3476,19 +3473,19 @@ Retorne apenas o JSON sem crases ou markdown."""
                 animation: pulseLive 1.5s infinite;
             }
             @keyframes pulseLive {
-                0%, 100% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.8; transform: scale(0.97); }
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.65; }
             }
         </style>
         """, unsafe_allow_html=True)
         
-        # --- BARRA DE NAVEGAÇÃO & CONTROLE DO MODO TV ---
-        col_nav1, col_nav2, col_nav3 = st.columns([3, 4, 1.5])
+        # --- BARRA DE NAVEGAÇÃO SUPERIOR DO MODO TV ---
+        col_nav1, col_nav2, col_nav3 = st.columns([3, 4.5, 1.2])
         with col_nav1:
-            st.markdown("""
-            <div style="display: flex; align-items: center; gap: 14px; margin-top: 6px;">
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;">
                 <div class="tv-badge-live">● AO VIVO</div>
-                <span style="font-size: 17px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">ENESA APRESENTAÇÃO</span>
+                <span style="font-size: 16px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">{nome_site_display}</span>
             </div>
             """, unsafe_allow_html=True)
             
@@ -3502,13 +3499,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                     st.rerun()
                     
         with col_nav3:
-            col_b1, col_b2 = st.columns([1, 1])
-            with col_b2:
-                if st.button("❌ Sair", type="secondary", use_container_width=True):
-                    st.session_state.modo_tv = False
-                    st.rerun()
+            if st.button("❌ Sair da TV", type="secondary", use_container_width=True):
+                st.session_state.modo_tv = False
+                st.rerun()
                     
-        st.markdown("<div class='tv-stage'>", unsafe_allow_html=True)
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         
         # =========================================================
         # SLIDE 0: DASHBOARD EXECUTIVO & KPIs DE EFETIVO
@@ -3516,15 +3511,15 @@ Retorne apenas o JSON sem crases ou markdown."""
         if slide_atual % 3 == 0:
             # Header Slide 1
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);">
                 <div>
-                    <h1 style="font-size: 26px; font-weight: 800; margin: 0; color: #ffffff;">
-                        📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{nome_site}</span>
+                    <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">
+                        📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{nome_site_display}</span>
                     </h1>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p>
+                    <p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p>
                 </div>
                 <div style="text-align: right;">
-                    <span style="font-size: 18px; font-weight: 700; color: #38bdf8;">{data_agora}</span>
+                    <span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span>
                     <span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span>
                 </div>
             </div>
@@ -3558,12 +3553,12 @@ Retorne apenas o JSON sem crases ou markdown."""
             def render_tv_kpi(col, titulo, valor, subtitulo, cor, icone):
                 with col:
                     st.markdown(f"""
-                    <div class="tv-card-glow">
+                    <div class="tv-card-kpi">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">{titulo}</span>
-                            <span style="font-size: 18px;">{icone}</span>
+                            <span style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</span>
+                            <span style="font-size: 16px;">{icone}</span>
                         </div>
-                        <h2 style="margin: 8px 0 2px 0; font-size: 34px; font-weight: 800; color: #ffffff; text-shadow: 0 0 20px {cor}80;">{valor}</h2>
+                        <h2 style="margin: 6px 0 2px 0; font-size: 30px; font-weight: 800; color: #ffffff; text-shadow: 0 0 15px {cor}60;">{valor}</h2>
                         <span style="font-size: 11px; color: {cor}; font-weight: 600;">{subtitulo}</span>
                         <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: linear-gradient(90deg, {cor}, transparent);"></div>
                     </div>
@@ -3575,82 +3570,76 @@ Retorne apenas o JSON sem crases ou markdown."""
             render_tv_kpi(k4, "Produtividade MOD", f"{pct_mod_tv}%", "Eficiência em Campo", "#0ea5e9", "📈")
             render_tv_kpi(k5, "Frentes / Equipes", enc_tv, "Encarregados Liderando", "#a855f7", "👷‍♂️")
             
-            st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
-            
             # Gráficos lado a lado
             cg1, cg2 = st.columns([1, 1.3])
             with cg1:
-                st.markdown("""
-                <div class="tv-card-glow" style="height: 380px;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 15px; color: #f8fafc; font-weight: 700;">📍 Distribuição por Área (Caldeira / ESP)</h4>
-                """, unsafe_allow_html=True)
-                
-                df_area_tv = df_tv.copy()
-                df_area_tv['AREA'] = df_area_tv['C.C'].apply(lambda x: 'PB (Força)' if '125.02' in str(x) and '.005' not in str(x) else ('RB (Recuperação)' if '125.01' in str(x) and '.005' not in str(x) else ('ESP (Precipitador)' if '.005' in str(x) else 'OUTROS')))
-                df_area_count = df_area_tv[df_area_tv['AREA'] != 'OUTROS'].groupby('AREA').size().reset_index(name='Quantidade')
-                
-                if not df_area_count.empty:
-                    import plotly.express as px
-                    fig1 = px.pie(
-                        df_area_count, values='Quantidade', names='AREA', hole=0.6,
-                        color_discrete_sequence=["#38bdf8", "#10b981", "#f59e0b", "#a855f7"]
-                    )
-                    fig1.update_layout(
-                        margin=dict(l=10, r=10, t=10, b=10),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#e2e8f0", size=13),
-                        height=280,
-                        showlegend=True,
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-                    )
-                    st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False})
-                st.markdown("</div>", unsafe_allow_html=True)
+                with st.container(border=True):
+                    st.markdown("<h4 style='margin: 0 0 6px 0; font-size: 15px; color: #f8fafc; font-weight: 700;'>📍 Distribuição por Área (Caldeira / ESP)</h4>", unsafe_allow_html=True)
+                    df_area_tv = df_tv.copy()
+                    df_area_tv['AREA'] = df_area_tv['C.C'].apply(lambda x: 'PB (Força)' if '125.02' in str(x) and '.005' not in str(x) else ('RB (Recuperação)' if '125.01' in str(x) and '.005' not in str(x) else ('ESP (Precipitador)' if '.005' in str(x) else 'OUTROS')))
+                    df_area_count = df_area_tv[df_area_tv['AREA'] != 'OUTROS'].groupby('AREA').size().reset_index(name='Quantidade')
+                    
+                    if not df_area_count.empty:
+                        import plotly.express as px
+                        fig1 = px.pie(
+                            df_area_count, values='Quantidade', names='AREA', hole=0.55,
+                            color_discrete_sequence=["#38bdf8", "#10b981", "#f59e0b", "#a855f7"]
+                        )
+                        fig1.update_layout(
+                            margin=dict(l=10, r=10, t=10, b=10),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color="#e2e8f0", size=12),
+                            height=300,
+                            showlegend=True,
+                            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5)
+                        )
+                        st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False})
+                    else:
+                        st.info("Sem dados para os filtros selecionados.")
                 
             with cg2:
-                st.markdown("""
-                <div class="tv-card-glow" style="height: 380px;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 15px; color: #f8fafc; font-weight: 700;">🏆 Top 10 Maiores Equipes por Efetivo</h4>
-                """, unsafe_allow_html=True)
-                
-                df_top_enc = df_tv[df_tv["ENCARREGADO"].isin(lista_completa_encarregados)]
-                top10 = df_top_enc.groupby("ENCARREGADO").size().nlargest(10).reset_index(name="Efetivo")
-                if not top10.empty:
-                    import plotly.express as px
-                    fig2 = px.bar(
-                        top10, y="ENCARREGADO", x="Efetivo", orientation="h",
-                        color="Efetivo",
-                        color_continuous_scale=["#0ea5e9", "#6366f1"],
-                        text="Efetivo"
-                    )
-                    fig2.update_layout(
-                        margin=dict(l=10, r=10, t=10, b=10),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#e2e8f0", size=11),
-                        height=290,
-                        coloraxis_showscale=False,
-                        yaxis=dict(autorange="reversed"),
-                        xaxis_title="", yaxis_title=""
-                    )
-                    fig2.update_traces(textposition="outside", textfont=dict(color="#ffffff", size=11, family="sans-serif"))
-                    st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
-                st.markdown("</div>", unsafe_allow_html=True)
+                with st.container(border=True):
+                    st.markdown("<h4 style='margin: 0 0 6px 0; font-size: 15px; color: #f8fafc; font-weight: 700;'>🏆 Top 10 Maiores Equipes por Efetivo</h4>", unsafe_allow_html=True)
+                    df_top_enc = df_tv[df_tv["ENCARREGADO"].isin(lista_completa_encarregados)]
+                    top10 = df_top_enc.groupby("ENCARREGADO").size().nlargest(10).reset_index(name="Efetivo")
+                    if not top10.empty:
+                        import plotly.express as px
+                        fig2 = px.bar(
+                            top10, y="ENCARREGADO", x="Efetivo", orientation="h",
+                            color="Efetivo",
+                            color_continuous_scale=["#0ea5e9", "#6366f1"],
+                            text="Efetivo"
+                        )
+                        fig2.update_layout(
+                            margin=dict(l=10, r=20, t=10, b=10),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color="#e2e8f0", size=11),
+                            height=300,
+                            coloraxis_showscale=False,
+                            yaxis=dict(autorange="reversed"),
+                            xaxis_title="", yaxis_title=""
+                        )
+                        fig2.update_traces(textposition="outside", textfont=dict(color="#ffffff", size=11, family="sans-serif"))
+                        st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+                    else:
+                        st.info("Sem dados de encarregados.")
 
         # =========================================================
         # SLIDE 1: GRANDE PRÊMIO F1 — RANKING & PÓDIO
         # =========================================================
         elif slide_atual % 3 == 1:
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);">
                 <div>
-                    <h1 style="font-size: 26px; font-weight: 800; margin: 0; color: #ffffff;">
+                    <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">
                         🏎️ Grande Prêmio F1 — <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Campeonato de Entregas de RDC</span>
                     </h1>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">Competição Oficial de Disciplina Operacional & Envio Diário de Relatórios</p>
+                    <p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Competição Oficial de Disciplina Operacional & Envio Diário de Relatórios</p>
                 </div>
                 <div style="text-align: right;">
-                    <span style="font-size: 18px; font-weight: 700; color: #f59e0b;">TEMPORADA 2026</span>
+                    <span style="font-size: 17px; font-weight: 700; color: #f59e0b;">TEMPORADA 2026</span>
                     <span style="display: block; font-size: 11px; color: #64748b;">Mês Atual</span>
                 </div>
             </div>
@@ -3668,64 +3657,59 @@ Retorne apenas o JSON sem crases ou markdown."""
                     
                     cf1, cf2 = st.columns([1.2, 1])
                     with cf1:
-                        # PÓDIO 3D REALISTA
-                        if len(top3_tv) >= 3:
-                            def short_n(n):
-                                p = str(n).split()
-                                return p[0] + " " + (p[-1] if len(p) > 1 else "")
-                            
-                            n1, t1 = short_n(top3_tv.iloc[0]["ENCARREGADO"]), top3_tv.iloc[0]["ENTREGAS"]
-                            n2, t2 = short_n(top3_tv.iloc[1]["ENCARREGADO"]), top3_tv.iloc[1]["ENTREGAS"]
-                            n3, t3 = short_n(top3_tv.iloc[2]["ENCARREGADO"]), top3_tv.iloc[2]["ENTREGAS"]
-                            
-                            st.markdown(f"""
-                            <div class="tv-card-glow" style="height: 410px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 20px;">
-                                <h4 style="position: absolute; top: 16px; left: 20px; margin: 0; font-size: 15px; color: #f8fafc; font-weight: 700;">🏆 Pódio dos Campeões</h4>
+                        with st.container(border=True):
+                            # PÓDIO 3D REALISTA
+                            if len(top3_tv) >= 3:
+                                def short_n(n):
+                                    p = str(n).split()
+                                    return p[0] + " " + (p[-1] if len(p) > 1 else "")
                                 
-                                <div style="display: flex; justify-content: center; align-items: flex-end; gap: 16px; width: 100%;">
+                                n1, t1 = short_n(top3_tv.iloc[0]["ENCARREGADO"]), top3_tv.iloc[0]["ENTREGAS"]
+                                n2, t2 = short_n(top3_tv.iloc[1]["ENCARREGADO"]), top3_tv.iloc[1]["ENTREGAS"]
+                                n3, t3 = short_n(top3_tv.iloc[2]["ENCARREGADO"]), top3_tv.iloc[2]["ENTREGAS"]
+                                
+                                st.markdown(f"""
+                                <h4 style="margin: 0 0 12px 0; font-size: 15px; color: #f8fafc; font-weight: 700;">🏆 Pódio dos Campeões</h4>
+                                
+                                <div style="display: flex; justify-content: center; align-items: flex-end; gap: 14px; width: 100%; height: 280px; padding-bottom: 10px;">
                                     <!-- 2º LUGAR -->
                                     <div style="display: flex; flex-direction: column; align-items: center; width: 30%;">
-                                        <span style="font-size: 32px; filter: drop-shadow(0 0 10px rgba(148,163,184,0.6));">🥈</span>
-                                        <span style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center;">{n2}</span>
-                                        <div style="background: linear-gradient(180deg, #64748b, #334155); width: 100%; height: 130px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">
-                                            <span style="font-size: 30px; font-weight: 800; color: white;">{t2}</span>
+                                        <span style="font-size: 28px;">🥈</span>
+                                        <span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center;">{n2}</span>
+                                        <div style="background: linear-gradient(180deg, #64748b, #334155); width: 100%; height: 120px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">
+                                            <span style="font-size: 26px; font-weight: 800; color: white;">{t2}</span>
                                             <span style="font-size: 10px; color: #94a3b8; text-transform: uppercase;">Entregas</span>
                                         </div>
                                     </div>
                                     
-                                    <!-- 1º LUGAR (DESTAQUE) -->
+                                    <!-- 1º LUGAR -->
                                     <div style="display: flex; flex-direction: column; align-items: center; width: 36%;">
-                                        <span style="font-size: 44px; filter: drop-shadow(0 0 15px rgba(245,158,11,0.8));">🥇</span>
-                                        <span style="font-size: 14px; font-weight: 800; color: #fbbf24; margin-bottom: 6px; text-align: center;">{n1}</span>
-                                        <div style="background: linear-gradient(180deg, #f59e0b, #b45309); width: 100%; height: 190px; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 0 35px rgba(245,158,11,0.4); border: 2px solid rgba(254,240,138,0.4);">
-                                            <span style="font-size: 42px; font-weight: 900; color: white; text-shadow: 0 0 10px rgba(0,0,0,0.5);">{t1}</span>
-                                            <span style="font-size: 11px; color: #fef3c7; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">RDCs Entregues</span>
+                                        <span style="font-size: 38px;">🥇</span>
+                                        <span style="font-size: 13px; font-weight: 800; color: #fbbf24; margin-bottom: 6px; text-align: center;">{n1}</span>
+                                        <div style="background: linear-gradient(180deg, #f59e0b, #b45309); width: 100%; height: 170px; border-radius: 14px 14px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 0 25px rgba(245,158,11,0.35); border: 2px solid rgba(254,240,138,0.4);">
+                                            <span style="font-size: 36px; font-weight: 900; color: white;">{t1}</span>
+                                            <span style="font-size: 10px; color: #fef3c7; text-transform: uppercase; font-weight: 700;">RDCs Entregues</span>
                                         </div>
                                     </div>
                                     
                                     <!-- 3º LUGAR -->
                                     <div style="display: flex; flex-direction: column; align-items: center; width: 30%;">
-                                        <span style="font-size: 32px; filter: drop-shadow(0 0 10px rgba(217,119,6,0.6));">🥉</span>
-                                        <span style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center;">{n3}</span>
-                                        <div style="background: linear-gradient(180deg, #b45309, #78350f); width: 100%; height: 100px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">
-                                            <span style="font-size: 26px; font-weight: 800; color: white;">{t3}</span>
+                                        <span style="font-size: 28px;">🥉</span>
+                                        <span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center;">{n3}</span>
+                                        <div style="background: linear-gradient(180deg, #b45309, #78350f); width: 100%; height: 95px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">
+                                            <span style="font-size: 24px; font-weight: 800; color: white;">{t3}</span>
                                             <span style="font-size: 10px; color: #fed7aa; text-transform: uppercase;">Entregas</span>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                                """, unsafe_allow_html=True)
                             
                     with cf2:
-                        st.markdown("""
-                        <div class="tv-card-glow" style="height: 410px; overflow-y: auto;">
-                            <h4 style="margin: 0 0 12px 0; font-size: 15px; color: #f8fafc; font-weight: 700;">🏁 Tabela Geral de Pilotos (Top 15)</h4>
-                        """, unsafe_allow_html=True)
-                        
-                        ranking_tv["POS"] = [f"#{i+1}" for i in range(len(ranking_tv))]
-                        ranking_top15 = ranking_tv.head(15)[["POS", "ENCARREGADO", "ENTREGAS"]]
-                        st.dataframe(ranking_top15, use_container_width=True, height=330, hide_index=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
+                        with st.container(border=True):
+                            st.markdown("<h4 style='margin: 0 0 10px 0; font-size: 15px; color: #f8fafc; font-weight: 700;'>🏁 Tabela Geral de Pilotos (Top 15)</h4>", unsafe_allow_html=True)
+                            ranking_tv["POS"] = [f"#{i+1}" for i in range(len(ranking_tv))]
+                            ranking_top15 = ranking_tv.head(15)[["POS", "ENCARREGADO", "ENTREGAS"]]
+                            st.dataframe(ranking_top15, use_container_width=True, height=295, hide_index=True)
                 else:
                     st.info("Nenhuma entrega registrada no mês atual.")
             else:
@@ -3736,15 +3720,15 @@ Retorne apenas o JSON sem crases ou markdown."""
         # =========================================================
         else:
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);">
                 <div>
-                    <h1 style="font-size: 26px; font-weight: 800; margin: 0; color: #ffffff;">
+                    <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">
                         🤖 Briefing Operacional & IA — <span style="background: linear-gradient(135deg, #a855f7, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Google Gemini 3.7</span>
                     </h1>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">Análise Inteligente de RDCs Escaneados, Avanços e Restrições de Campo</p>
+                    <p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Análise Inteligente de RDCs Escaneados, Avanços e Restrições de Campo</p>
                 </div>
                 <div style="text-align: right;">
-                    <span style="font-size: 18px; font-weight: 700; color: #c084fc;">DIAGNÓSTICO DIÁRIO</span>
+                    <span style="font-size: 17px; font-weight: 700; color: #c084fc;">DIAGNÓSTICO DIÁRIO</span>
                     <span style="display: block; font-size: 11px; color: #64748b;">Processamento Automático</span>
                 </div>
             </div>
@@ -3754,65 +3738,50 @@ Retorne apenas o JSON sem crases ou markdown."""
             cb1, cb2, cb3 = st.columns(3)
             
             with cb1:
-                st.markdown("""
-                <div class="tv-card-glow" style="height: 420px; border-top: 4px solid #10b981;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
-                        <span style="font-size: 20px;">🟢</span>
-                        <h4 style="margin: 0; font-size: 16px; color: #10b981; font-weight: 800;">Principais Avanços</h4>
+                with st.container(border=True):
+                    st.markdown("""
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <span style="font-size: 18px;">🟢</span>
+                        <h4 style="margin: 0; font-size: 15px; color: #10b981; font-weight: 800;">Principais Avanços</h4>
                     </div>
-                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 20px; margin: 0;">
+                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">
                         <li><b>Montagem Eletromecânica:</b> Soldagem de tubulações de alta pressão concluída na Caldeira de Força (PB).</li>
                         <li><b>Caldeiraria Pesada:</b> Avanço no içamento das vigas estruturais da Caldeira de Recuperação (RB).</li>
-                        <li><b>Andaime & Apoio:</b> 100% dos acessos de segurança liberados para a equipe de inspeção e solda.</li>
+                        <li><b>Andaime & Apoio:</b> 100% dos acessos de segurança liberados para inspeção e solda.</li>
                         <li><b>Precipitador (ESP):</b> Alinhamento de placas coletoras em ritmo acelerado.</li>
                     </ul>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
                 
             with cb2:
-                st.markdown("""
-                <div class="tv-card-glow" style="height: 420px; border-top: 4px solid #f59e0b;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
-                        <span style="font-size: 20px;">🟡</span>
-                        <h4 style="margin: 0; font-size: 16px; color: #f59e0b; font-weight: 800;">Pontos de Atenção</h4>
+                with st.container(border=True):
+                    st.markdown("""
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <span style="font-size: 18px;">🟡</span>
+                        <h4 style="margin: 0; font-size: 15px; color: #f59e0b; font-weight: 800;">Pontos de Atenção</h4>
                     </div>
-                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 20px; margin: 0;">
+                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">
                         <li><b>Interferência de Área:</b> Equipe de isolamento térmico necessita de liberação na elevação +32m.</li>
                         <li><b>Logística de Almoxarifado:</b> Monitorar reposição de eletrodos e discos de corte para o 2º turno.</li>
-                        <li><b>Clima & Segurança:</b> Reforçar DDS sobre trabalho em altura durante períodos com rajadas de vento.</li>
+                        <li><b>Clima & Segurança:</b> Reforçar DDS sobre trabalho em altura com rajadas de vento.</li>
                     </ul>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
                 
             with cb3:
-                st.markdown("""
-                <div class="tv-card-glow" style="height: 420px; border-top: 4px solid #ef4444;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
-                        <span style="font-size: 20px;">🔴</span>
-                        <h4 style="margin: 0; font-size: 16px; color: #ef4444; font-weight: 800;">Bloqueios & Restrições</h4>
+                with st.container(border=True):
+                    st.markdown("""
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <span style="font-size: 18px;">🔴</span>
+                        <h4 style="margin: 0; font-size: 15px; color: #ef4444; font-weight: 800;">Bloqueios & Restrições</h4>
                     </div>
-                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 20px; margin: 0;">
+                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">
                         <li><b>Guindaste Principal:</b> Aguardando liberação de plano de rigging para içamento do duto superior.</li>
-                        <li><b>Acesso Restrito:</b> Teste hidrostático programado para amanhã exige isolamento do módulo 04.</li>
+                        <li><b>Acesso Restrito:</b> Teste hidrostático exige isolamento do módulo 04.</li>
                     </ul>
-                    <div style="margin-top: 25px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.2);">
+                    <div style="margin-top: 20px; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.25);">
                         <span style="font-size: 11px; color: #fca5a5; font-weight: 700;">🚨 AÇÃO REQUERIDA:</span>
-                        <p style="font-size: 11px; color: #e2e8f0; margin: 4px 0 0 0;">Alinhamento imediato com a coordenação de segurança da Arauco.</p>
+                        <p style="font-size: 11px; color: #e2e8f0; margin: 2px 0 0 0;">Alinhamento imediato com a coordenação de segurança da Arauco.</p>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Script de auto-rotação (25 segundos por slide) com transição suave
-        st.session_state.tv_slide = (slide_atual + 1) % 3
-        components.html("""
-        <script>
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(e => {});
-            }
-        </script>
-        """, height=0)
+                    """, unsafe_allow_html=True)
         
         st.stop()  # Impede o resto da página de renderizar
 
