@@ -2344,7 +2344,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v7.0</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.0</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">{nome_site} — Controle Operacional de Efetivo</p>
             </div>
@@ -2370,79 +2370,25 @@ st.markdown(f"""
 # =================================================================
 # BARRA LATERAL
 # =================================================================
+arquivo_pde = None
+arquivo_modelo = None
+
 with st.sidebar:
     if os.path.exists(caminho_logo):
         col1, col2, col3 = st.columns([1.5, 2, 1.5]) 
         with col2:
             st.image(caminho_logo, use_container_width=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        
-    html_avatar = """
-    <div style="display: flex; align-items: center; gap: 15px; padding: 15px; background: rgba(14, 165, 233, 0.1); border-radius: 12px; border: 1px solid rgba(14, 165, 233, 0.3); margin-bottom: 25px; box-shadow: 0 0 20px rgba(14, 165, 233, 0.2); transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-        <div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); display: flex; justify-content: center; align-items: center; font-size: 24px; color: white; box-shadow: 0 0 15px rgba(14, 165, 233, 0.5);">
-            👨‍💻
-        </div>
-        <div>
-            <div style="font-size: 14px; font-weight: 800; color: #f8fafc; text-shadow: 0 0 10px rgba(255,255,255,0.3); letter-spacing: 0.5px;">ADMINISTRADOR</div>
-            <div style="font-size: 12px; color: #0ea5e9; font-weight: bold; margin-top: 2px; text-shadow: 0 0 5px rgba(14,165,233,0.5);">Acesso Supremo</div>
-        </div>
-    </div>
-    """
-    st.markdown(html_avatar, unsafe_allow_html=True)
-    
-    st.header("📂 Arquivos Base")
-    
-    if st.button("➕ Enviar Nova Base (PDE)", use_container_width=True):
-        st.session_state.mostrar_upload = not st.session_state.mostrar_upload
-        
-    arquivo_pde = None
-    arquivo_modelo = None
-    
-    if st.session_state.mostrar_upload:
-        st.markdown("<div style='background-color: #22262e; padding: 10px; border-radius: 8px;'>", unsafe_allow_html=True)
-        arquivo_pde = st.file_uploader("Base de Efetivo (.csv/.xlsx):", type=["csv", "xlsx"])
-        arquivo_modelo = st.file_uploader("📄 Layout MODELO.xlsx:", type=["xlsx"])
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        if arquivo_pde is not None:
-            if salvar_base_localmente(arquivo_pde):
-                st.success("💾 Base de Efetivo salva localmente!")
-                
-        if arquivo_modelo is not None:
-            if salvar_modelo_no_disco(arquivo_modelo):
-                st.success("💾 Modelo salvo!")
 
-    
-    st.markdown("---")
-    
-    base_existe = os.path.exists(caminho_base_salva_csv) or os.path.exists(caminho_base_salva_xlsx)
-    if base_existe:
-        st.success("✅ Base salva no sistema.")
-    else:
-        st.info("ℹ️ Nenhuma base salva ainda.")
-    
-    st.markdown("---")
-    
-    st.markdown("---")
-    
-    # === MODO TV ===
+    # === MODO TV (Apresentação) ===
     if st.button("📺 Modo TV (Apresentação)", use_container_width=True, type="secondary"):
         st.session_state.modo_tv = True
         st.session_state.tv_slide = 0
         st.rerun()
-    
-    st.markdown(f"👤 Bem-vindo(a), **{st.session_state.nome_completo}**")
-    
-    if st.button("Sair (Logout)", use_container_width=True):
-        cookie_manager.delete("rdc_user_session")
-        st.session_state.usuario_logado = None
-        st.session_state.role_usuario = None
-        st.session_state.nome_completo = None
-        time.sleep(1)
-        st.rerun()
-        
+
+    st.markdown("---")
+
     if st.session_state.role_usuario == "admin":
-        st.markdown("---")
         st.markdown("#### ⚙️ Painel de Configurações")
         
         # --- Seletor de Idioma ---
@@ -2464,34 +2410,7 @@ with st.sidebar:
             st.rerun()
         
         st.markdown("---")
-        
-        if st.toggle("🔑 Ver Usuários e Senhas"):
-            usuarios_carregados = carregar_usuarios()
-            dados_usuarios = []
-            for u_nome, u_dados in sorted(usuarios_carregados.items()):
-                dados_usuarios.append({
-                    "Login": u_nome,
-                    "Senha": u_dados.get("senha", ""),
-                    "Acesso": u_dados.get("role", "user")
-                })
-            df_usuarios = pd.DataFrame(dados_usuarios)
-            st.dataframe(df_usuarios, hide_index=True, use_container_width=True)
-            
-        novo_logo = st.file_uploader("Trocar Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
-        if novo_logo:
-            with open(caminho_logo, "wb") as f:
-                f.write(novo_logo.getbuffer())
-            st.success("Logo atualizado! Recarregue a página.")
-            
-        novo_nome_site = st.text_input("Nome da Empresa/Site:", value=nome_site)
-        if st.button("Salvar Nome"):
-            with open(caminho_nome_site, "w", encoding="utf-8") as f:
-                f.write(novo_nome_site)
-            st.success("Nome atualizado!")
-            time.sleep(1)
-            st.rerun()
-                
-        st.markdown("---")
+
         st.markdown("**💾 Backup Seguro**")
         
         # Função para gerar backup ZIP
@@ -2603,7 +2522,7 @@ with st.sidebar:
                     <span style='font-size: 11px; color: #94a3b8; font-weight: 500;'>Sistema Operacional</span>
                 </div>
                 <span style='font-size: 10px; color: #334155;'>|</span>
-                <span style='font-size: 11px; color: #64748b;'>📅 Última att: 15/07/2026</span>
+                <span style='font-size: 11px; color: #64748b;'>📅 Última att: 12/09/2026</span>
                 <span style='font-size: 10px; color: #334155;'>|</span>
                 <div style='display: inline-block; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 20px; padding: 2px 12px;'>
                     <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v7.0</span>
