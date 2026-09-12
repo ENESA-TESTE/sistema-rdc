@@ -2216,6 +2216,70 @@ if 'mostrar_upload' not in st.session_state:
 # =================================================================
 import extra_streamlit_components as stx
 
+
+# =================================================================
+# NORMALIZAÇÃO DE DATAS PADRÃO BRASIL (DD/MM)
+# =================================================================
+def normalizar_data_brasil(val):
+    """
+    Converte rigorosamente qualquer formato de data brasileira (DD/MM/AAAA, DD-MM-AAAA, DD/MM, DD-MM, YYYY-MM-DD)
+    para o padrão ISO YYYY-MM-DD. Garante que '10-09' ou '10/09' seja 10 de Setembro (2026-09-10) e NUNCA Outubro!
+    Também auto-corrige datas invertidas pela IA (ex: 2026-10-09 -> 2026-09-10).
+    """
+    if not val or pd.isna(val):
+        return datetime.date.today().strftime('%Y-%m-%d')
+    
+    val_str = str(val).strip()
+    ano_atual = datetime.datetime.now().year
+    mes_atual = datetime.datetime.now().month
+    
+    import re
+    
+    # 1. Padrao DD/MM/AAAA ou DD-MM-AAAA ou DD.MM.AAAA (ex: 10/09/2026, 10-09-2026)
+    m1 = re.match(r'^(\d{1,2})[/\.-](\d{1,2})[/\.-](\d{2,4})$', val_str)
+    if m1:
+        d, m, y = int(m1.group(1)), int(m1.group(2)), int(m1.group(3))
+        if y < 100: y += 2000
+        if y < 2024: y = ano_atual
+        if 1 <= d <= 31 and 1 <= m <= 12:
+            return f"{y:04d}-{m:02d}-{d:02d}"
+            
+    # 2. Padrao DD/MM ou DD-MM (ex: 10-09, 11-09, 08/09) -> DIA PRIMEIRO!
+    m2 = re.match(r'^(\d{1,2})[/\.-](\d{1,2})$', val_str)
+    if m2:
+        d, m = int(m2.group(1)), int(m2.group(2))
+        if 1 <= d <= 31 and 1 <= m <= 12:
+            return f"{ano_atual:04d}-{m:02d}-{d:02d}"
+            
+    # 3. Padrao YYYY-MM-DD (ex: 2026-09-10)
+    m3 = re.match(r'^(\d{4})[/\.-](\d{1,2})[/\.-](\d{1,2})$', val_str)
+    if m3:
+        y, m, d = int(m3.group(1)), int(m3.group(2)), int(m3.group(3))
+        if y < 2024: y = ano_atual
+        
+        # Se o mes for maior que o mes atual (ex: mes 10 ou 11 enquanto estamos em setembro 09)
+        # e o dia for <= 12, corrige a inversao: '10-09' que foi salvo como '2026-10-09' vira '2026-09-10'
+        if m > mes_atual and d <= 12:
+            d_real, m_real = m, d
+            if 1 <= d_real <= 31 and 1 <= m_real <= 12:
+                return f"{y:04d}-{m_real:02d}-{d_real:02d}"
+                
+        return f"{y:04d}-{m:02d}-{d:02d}"
+        
+    try:
+        dt = pd.to_datetime(val_str, dayfirst=True, format='mixed', errors='coerce')
+        if pd.notna(dt):
+            y = ano_atual if dt.year < 2024 else dt.year
+            m = dt.month
+            d = dt.day
+            if m > mes_atual and d <= 12:
+                d, m = m, d
+            return f"{y:04d}-{m:02d}-{d:02d}"
+    except:
+        pass
+        
+    return datetime.date.today().strftime('%Y-%m-%d')
+
 cookie_manager = stx.CookieManager()
 
 caminho_usuarios = "usuarios.json"
@@ -5158,10 +5222,24 @@ Retorne apenas o JSON sem crases ou markdown."""
                     time.sleep(3)
                     st.rerun()
 
-        # === FILTROS PRINCIPAIS: MÊS E DISCIPLINA ===
+        # === FILTROS PRINCIPAIS: MÊS E DISCIPLINA (COM AUTO-CORREÇÃO DE DATAS INVERTIDAS) ===
         df_hist = st.session_state.df_historico_f1.copy()
-        if not df_hist.empty:
-            df_hist["DATA"] = pd.to_datetime(df_hist["DATA"], format="%Y-%m-%d", errors="coerce")
+        if not df_hist.empty and "DATA" in df_hist.columns:
+            # Auto-corrigir datas invertidas (ex: 2026-10-09 que na verdade é 10/09/2026)
+            df_hist["DATA_ISO"] = df_hist["DATA"].apply(normalizar_data_brasil)
+            
+            # Se houve correções, sincronizar o histórico limpo
+            if not df_hist["DATA"].equals(df_hist["DATA_ISO"]):
+                st.session_state.df_historico_f1["DATA"] = df_hist["DATA_ISO"]
+                st.session_state.df_historico_f1 = st.session_state.df_historico_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                if conn and not st.session_state.get('force_use_local', False):
+                    try:
+                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                    except Exception:
+                        pass
+                        
+            df_hist["DATA"] = pd.to_datetime(df_hist["DATA_ISO"], errors="coerce")
             df_hist = df_hist.dropna(subset=["DATA"])
             df_hist["MES_ANO"] = df_hist["DATA"].dt.strftime("%Y-%m")
             meses_disponiveis = sorted(df_hist["MES_ANO"].unique(), reverse=True)
@@ -5572,8 +5650,10 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             st.markdown("<br><br>", unsafe_allow_html=True)
 
+
+    
     def extrair_data_do_nome_pdf(nome_arquivo):
-        """Extrai a data do nome do arquivo (ex: 26_08, 26-08, 26.08, 2608, 26_08_2026) e anexa o ano atual."""
+        """Extrai a data do nome do arquivo garantindo o padrão brasileiro (ex: 10-09 -> 2026-09-10)."""
         import re
         import datetime
         ano_atual = datetime.datetime.now().year
@@ -5581,30 +5661,30 @@ Retorne apenas o JSON sem crases ou markdown."""
         nome_limpo = re.sub(r'\(.*?\)', '', str(nome_arquivo)).strip()
         nome_limpo = nome_limpo.rsplit('.', 1)[0]
         
-        # 1. Padrao completo com ano de 4 digitos: DD/MM/AAAA ou DD_MM_AAAA ou DD-MM-AAAA
+        # 1. Padrao completo: DD/MM/AAAA ou DD_MM_AAAA ou DD-MM-AAAA
         m_full = re.search(r'\b(0?[1-9]|[12][0-9]|3[01])[/\._-](0?[1-9]|1[0-2])[/\._-](20\d{2})\b', nome_limpo)
         if m_full:
             d, m, y = int(m_full.group(1)), int(m_full.group(2)), int(m_full.group(3))
-            return f"{y:04d}-{m:02d}-{d:02d}"
+            return normalizar_data_brasil(f"{d:02d}/{m:02d}/{y}")
             
         # 2. Padrao com ano de 2 digitos: DD_MM_AA
         m_2y = re.search(r'\b(0?[1-9]|[12][0-9]|3[01])[/\._-](0?[1-9]|1[0-2])[/\._-](\d{2})\b', nome_limpo)
         if m_2y:
             d, m, y = int(m_2y.group(1)), int(m_2y.group(2)), int(m_2y.group(3))
             ano = 2000 + y if y < 50 else 1900 + y
-            return f"{ano:04d}-{m:02d}-{d:02d}"
+            return normalizar_data_brasil(f"{d:02d}/{m:02d}/{ano}")
             
-        # 3. Padrao Dia e Mes: DD_MM ou DD-MM ou DD.MM (ex: 26_08, 26-08, 26.08, RDC_26_08)
+        # 3. Padrao Dia e Mes: DD_MM ou DD-MM ou DD.MM (ex: 10-09, 11-09, 26_08)
         m_dm = re.search(r'(?:^|[^\d])(0?[1-9]|[12][0-9]|3[01])[/\._-](0?[1-9]|1[0-2])(?:[^\d]|$)', nome_limpo)
         if m_dm:
             d, m = int(m_dm.group(1)), int(m_dm.group(2))
-            return f"{ano_atual:04d}-{m:02d}-{d:02d}"
+            return normalizar_data_brasil(f"{d:02d}/{m:02d}/{ano_atual}")
             
-        # 4. Padrao 4 digitos continuos: DDMM (ex: 2608)
+        # 4. Padrao 4 digitos continuos: DDMM (ex: 1009 -> 10 de setembro)
         m_4d = re.search(r'(?:^|[^\d])(0[1-9]|[12][0-9]|3[01])(0[1-9]|1[0-2])(?:[^\d]|$)', nome_limpo)
         if m_4d:
             d, m = int(m_4d.group(1)), int(m_4d.group(2))
-            return f"{ano_atual:04d}-{m:02d}-{d:02d}"
+            return normalizar_data_brasil(f"{d:02d}/{m:02d}/{ano_atual}")
             
         return None
 
@@ -5699,7 +5779,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                 ]
 
                 Regras de negócio:
-                - DATA: Extraia a data em que o RDC foi preenchido. Retorne RIGOROSAMENTE no formato YYYY-MM-DD (Ano-Mês-Dia).
+                - DATA: Extraia a data em que o RDC foi preenchido. REGRA CRÍTICA PARA O BRASIL (DIA/MÊS):
+                  * O encarregado escreve sempre DIA primeiro e MÊS depois (ex: '10-09' ou '10/09' significa DIA 10 DE SETEMBRO, e NUNCA mês 10/outubro!).
+                  * '11-09' = DIA 11 DE SETEMBRO (2026-09-11).
+                  * '08-09' = DIA 08 DE SETEMBRO (2026-09-08).
+                  * Retorne RIGOROSAMENTE no formato YYYY-MM-DD (Ano-Mês-Dia) com o ano 2026 (ex: 2026-09-10).
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
                 - ENCARREGADO: É QUASE PROIBIDO retornar 'AJUSTAR NOME'. Você DEVE escolher o nome da lista oficial [{nomes_para_prompt}] que for mais parecido fonética ou visualmente com o que está escrito à mão, mesmo que a letra seja péssima, haja apenas o primeiro nome, iniciais (ex: "J. Silva") ou erros grosseiros. Faça o cruzamento lógico e retorne EXATAMENTE o nome completo da lista. Só use 'AJUSTAR NOME' se o campo estiver 100% em branco ou completamente rasurado sem nenhuma letra legível.
                 - TURNO: Extraia o turno marcado ('1º TURNO', '2º TURNO', '3º TURNO', 'DIURNO' ou 'NOTURNO').
