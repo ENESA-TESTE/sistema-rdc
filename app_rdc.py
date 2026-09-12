@@ -6094,6 +6094,15 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     <p style="color: #cbd5e1; font-size: 12px; margin: 6px 0 0 0; font-style: italic; line-height: 1.5;">{transcricao}</p>
                                 </div>
                                 """, unsafe_allow_html=True)
+
+                            prob_rdc = bloco.iloc[0].get('PROBLEMAS', '')
+                            if prob_rdc and str(prob_rdc).strip() and str(prob_rdc).lower() not in ["none", "nan", "nenhum", "-", "não informado", "nao informado", "sem problemas"]:
+                                st.markdown(f"""
+                                <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.35); border-radius: 8px; padding: 10px 14px; margin-top: 8px;">
+                                    <span style="color: #ef4444; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">⚠️ Problemas / Bloqueios Identificados:</span>
+                                    <p style="color: #fca5a5; font-size: 12px; margin: 4px 0 0 0; font-weight: 600; line-height: 1.4;">{prob_rdc}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 
                             st.markdown("</div>", unsafe_allow_html=True)
                 
