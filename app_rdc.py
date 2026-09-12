@@ -2234,94 +2234,15 @@ def salvar_usuarios(users):
     with open(caminho_usuarios, "w", encoding="utf-8") as f:
         json.dump(users, f)
 
+# === ACESSO DIRETO (SEM TELA DE LOGIN) ===
 if "usuario_logado" not in st.session_state:
-    st.session_state.usuario_logado = None
+    st.session_state.usuario_logado = "admin"
 if "role_usuario" not in st.session_state:
-    st.session_state.role_usuario = None
+    st.session_state.role_usuario = "admin"
 if "nome_completo" not in st.session_state:
-    st.session_state.nome_completo = None
+    st.session_state.nome_completo = "Administrador"
 
 usuarios_db = carregar_usuarios()
-
-# Tentativa de auto-login via Cookie
-cookie_user = cookie_manager.get("rdc_user_session")
-if st.session_state.usuario_logado is None and cookie_user and cookie_user in usuarios_db:
-    st.session_state.usuario_logado = cookie_user
-    st.session_state.role_usuario = usuarios_db[cookie_user].get("role", "user")
-    st.session_state.nome_completo = usuarios_db[cookie_user].get("nome", cookie_user)
-
-if st.session_state.usuario_logado is None:
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
-        # Se houver logo, mostra logo acima da caixa
-        if os.path.exists(caminho_logo):
-            col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-            with col_l2:
-                st.image(caminho_logo, use_container_width=True)
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-        with st.container():
-            st.markdown("""
-                <style>
-                    .login-premium-card {
-                        background: rgba(15, 23, 42, 0.7);
-                        backdrop-filter: blur(24px);
-                        -webkit-backdrop-filter: blur(24px);
-                        border-radius: 24px;
-                        border: 1px solid rgba(255,255,255,0.08);
-                        padding: 48px 40px;
-                        box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 40px rgba(14, 165, 233, 0.08);
-                        text-align: center;
-                        margin-bottom: 20px;
-                    }
-                    .login-premium-icon {
-                        width: 80px; height: 80px;
-                        border-radius: 50%;
-                        background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
-                        display: flex; align-items: center; justify-content: center;
-                        margin: 0 auto 24px;
-                        font-size: 36px;
-                        box-shadow: 0 8px 30px rgba(14, 165, 233, 0.3);
-                        animation: pulseGlow 3s ease-in-out infinite;
-                    }
-                </style>
-                <div class="login-premium-card">
-                    <div class="login-premium-icon">🔐</div>
-                    <h3 style='color: #f8fafc; margin-bottom: 5px; font-weight: 700; font-size: 26px; font-family: "Outfit", sans-serif;'>{t("Sistema RDC & PDE")}</h3>
-                    <p style='color: #0ea5e9; font-size: 12px; font-weight: 600; letter-spacing: 2px;'>{t("ACESSO RESTRITO")}</p>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            user_input = st.text_input(t("Usuário (Login):"), placeholder="Digite sua credencial")
-            pass_input = st.text_input(t("Senha:"), type="password", placeholder="••••••••")
-            lembrar_me = st.checkbox(t("Manter conectado"), value=True)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Entrar no Sistema", type="primary", use_container_width=True):
-                user_clean = user_input.strip().upper()
-                pass_clean = pass_input.strip()
-                
-                user_encontrado = None
-                for key_db in usuarios_db.keys():
-                    if key_db.strip().upper() == user_clean:
-                        user_encontrado = key_db
-                        break
-                
-                if user_encontrado and usuarios_db[user_encontrado]["senha"] == pass_clean:
-                    st.session_state.usuario_logado = user_encontrado
-                    st.session_state.role_usuario = usuarios_db[user_encontrado].get("role", "user")
-                    st.session_state.nome_completo = usuarios_db[user_encontrado].get("nome", user_encontrado)
-                    
-                    if lembrar_me:
-                        cookie_manager.set("rdc_user_session", user_encontrado, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
-                        
-                    time.sleep(1) # Tempo para o cookie assentar
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha incorretos. Verifique espaços em branco ou letras erradas.")
-    st.stop() # Bloqueia todo o resto do sistema!
 
 
 # =================================================================
@@ -2436,45 +2357,7 @@ with st.sidebar:
             use_container_width=True
         )
 
-        st.markdown("---")
-        st.markdown("#### 👥 Gestão de Usuários")
-        with st.form("form_novo_usuario"):
-            st.markdown("**Adicionar / Editar Usuário**")
-            novo_user = st.text_input("Usuário (Login):")
-            nova_senha = st.text_input("Senha:")
-            novo_nome = st.text_input("Nome Completo:")
-            nova_role = st.selectbox("Nível de Acesso:", ["user", "admin", "apontador"])
-            submit_user = st.form_submit_button("Salvar Usuário")
-            if submit_user and novo_user and nova_senha:
-                usuarios_db[novo_user] = {"senha": nova_senha, "nome": novo_nome, "role": nova_role}
-                salvar_usuarios(usuarios_db)
-                st.success(f"Usuário '{novo_user}' salvo!")
-                time.sleep(1)
-                st.rerun()
-        
-        st.markdown("**Usuários Cadastrados:**")
-        for u, dados in sorted(usuarios_db.items()):
-            col_u, col_del = st.columns([4, 1])
-            if u == "admin":
-                col_u.markdown(f"👤 **{u}** (admin)")
-            else:
-                current_role = dados.get('role', 'user')
-                roles_options = ["user", "admin", "apontador"]
-                idx = roles_options.index(current_role) if current_role in roles_options else 0
-                
-                new_role = col_u.selectbox(f"👤 {u}", roles_options, index=idx, key=f"role_{u}")
-                
-                if new_role != current_role:
-                    usuarios_db[u]['role'] = new_role
-                    salvar_usuarios(usuarios_db)
-                    st.rerun()
-                    
-                with col_del:
-                    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                    if st.button("❌", key=f"del_{u}"):
-                        del usuarios_db[u]
-                        salvar_usuarios(usuarios_db)
-                        st.rerun()
+
 
         st.markdown("---")
         if st.toggle("🏎️ Gerenciar Lista F1", key="toggle_f1_config"):
