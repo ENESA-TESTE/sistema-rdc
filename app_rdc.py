@@ -2223,19 +2223,20 @@ import extra_streamlit_components as stx
 def normalizar_data_brasil(val):
     """
     Converte rigorosamente qualquer formato de data brasileira (DD/MM/AAAA, DD-MM-AAAA, DD/MM, DD-MM, YYYY-MM-DD)
-    para o padrão ISO YYYY-MM-DD. Garante que '10-09' ou '10/09' seja 10 de Setembro (2026-09-10) e NUNCA Outubro!
-    Também auto-corrige datas invertidas pela IA (ex: 2026-10-09 -> 2026-09-10).
+    para o padrão ISO YYYY-MM-DD. Garante que '07-09' ou '07/09' seja 07 de Setembro (2026-09-07) e NUNCA Julho!
+    Garante que '10-09' seja 10 de Setembro (2026-09-10) e NUNCA Outubro!
+    Também auto-corrige datas invertidas pela IA (ex: 2026-07-09 -> 2026-09-07, 2026-10-09 -> 2026-09-10).
     """
     if not val or pd.isna(val):
         return datetime.date.today().strftime('%Y-%m-%d')
     
     val_str = str(val).strip()
     ano_atual = datetime.datetime.now().year
-    mes_atual = datetime.datetime.now().month
+    mes_atual = datetime.datetime.now().month  # 9 em Setembro de 2026
     
     import re
     
-    # 1. Padrao DD/MM/AAAA ou DD-MM-AAAA ou DD.MM.AAAA (ex: 10/09/2026, 10-09-2026)
+    # 1. Padrao DD/MM/AAAA ou DD-MM-AAAA ou DD.MM.AAAA (ex: 07/09/2026, 10-09-2026)
     m1 = re.match(r'^(\d{1,2})[/\.-](\d{1,2})[/\.-](\d{2,4})$', val_str)
     if m1:
         d, m, y = int(m1.group(1)), int(m1.group(2)), int(m1.group(3))
@@ -2244,21 +2245,24 @@ def normalizar_data_brasil(val):
         if 1 <= d <= 31 and 1 <= m <= 12:
             return f"{y:04d}-{m:02d}-{d:02d}"
             
-    # 2. Padrao DD/MM ou DD-MM (ex: 10-09, 11-09, 08/09) -> DIA PRIMEIRO!
-    m2 = re.match(r'^(\d{1,2})[/\.-](\d{1,2})$', val_str)
+    # 2. Padrao DD/MM ou DD-MM ou DD_MM ou DD.MM (ex: 07-09, 10-09, 11-09) -> DIA PRIMEIRO, MES SEGUNDO!
+    m2 = re.match(r'^(\d{1,2})[/\._-](\d{1,2})$', val_str)
     if m2:
         d, m = int(m2.group(1)), int(m2.group(2))
         if 1 <= d <= 31 and 1 <= m <= 12:
             return f"{ano_atual:04d}-{m:02d}-{d:02d}"
             
-    # 3. Padrao YYYY-MM-DD (ex: 2026-09-10)
+    # 3. Padrao YYYY-MM-DD ou YYYY/MM/DD (ex: 2026-07-09 ou 2026-09-07 ou 2026-10-09)
     m3 = re.match(r'^(\d{4})[/\.-](\d{1,2})[/\.-](\d{1,2})$', val_str)
     if m3:
         y, m, d = int(m3.group(1)), int(m3.group(2)), int(m3.group(3))
         if y < 2024: y = ano_atual
         
-        # Se o mes for maior que o mes atual (ex: mes 10 ou 11 enquanto estamos em setembro 09)
-        # e o dia for <= 12, corrige a inversao: '10-09' que foi salvo como '2026-10-09' vira '2026-09-10'
+        # Correção A: A IA inverteu Dia e Mês quando o encarregado escreveu DD-09 (ex: 07-09 virou 2026-07-09 com mes=7 e dia=9)
+        if d == mes_atual and m != mes_atual and 1 <= m <= 31:
+            return f"{y:04d}-{mes_atual:02d}-{m:02d}"
+            
+        # Correção B: Mês no futuro (ex: mês 10 ou 11 enquanto estamos em setembro 09) e dia <= 12
         if m > mes_atual and d <= 12:
             d_real, m_real = m, d
             if 1 <= d_real <= 31 and 1 <= m_real <= 12:
@@ -2272,6 +2276,8 @@ def normalizar_data_brasil(val):
             y = ano_atual if dt.year < 2024 else dt.year
             m = dt.month
             d = dt.day
+            if d == mes_atual and m != mes_atual and 1 <= m <= 31:
+                return f"{y:04d}-{mes_atual:02d}-{m:02d}"
             if m > mes_atual and d <= 12:
                 d, m = m, d
             return f"{y:04d}-{m:02d}-{d:02d}"
@@ -4136,31 +4142,16 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             datas_disponiveis_br = []
             if df_rdc_briefing is not None and not df_rdc_briefing.empty and "DATA" in df_rdc_briefing.columns:
-                ano_atual_br = datetime.datetime.now().year
-                
-                # Funcao para auto-corrigir anos errados (ex: 2020, 2016) para 2026
-                def _ajustar_ano_errado(val):
-                    try:
-                        dt = pd.to_datetime(val, dayfirst=True, format='mixed', errors='coerce')
-                        if pd.notna(dt) and dt.year < 2024:
-                            dt = dt.replace(year=ano_atual_br)
-                            return dt.strftime('%Y-%m-%d')
-                        elif pd.notna(dt):
-                            return dt.strftime('%Y-%m-%d')
-                    except:
-                        pass
-                    return val
-                
-                # Aplicar correcao automatica
+                # Normaliza todas as datas do banco permanente com padrão brasileiro
                 datas_antes = df_rdc_briefing["DATA"].copy()
-                df_rdc_briefing["DATA"] = df_rdc_briefing["DATA"].apply(_ajustar_ano_errado)
+                df_rdc_briefing["DATA"] = df_rdc_briefing["DATA"].apply(normalizar_data_brasil)
                 if not df_rdc_briefing["DATA"].equals(datas_antes):
                     try:
                         df_rdc_briefing.to_csv(caminho_rdc_registros_csv, index=False)
                     except:
                         pass
                 
-                df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], dayfirst=True, format='mixed', errors='coerce')
+                df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], errors='coerce')
                 # Apenas datas com ano valido (>= 2024)
                 df_datas_validas = df_rdc_briefing[df_rdc_briefing["_DATA_DT"].dt.year >= 2024]
                 datas_disponiveis_br = sorted(df_datas_validas["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
@@ -5780,10 +5771,11 @@ Retorne apenas o JSON sem crases ou markdown."""
 
                 Regras de negócio:
                 - DATA: Extraia a data em que o RDC foi preenchido. REGRA CRÍTICA PARA O BRASIL (DIA/MÊS):
-                  * O encarregado escreve sempre DIA primeiro e MÊS depois (ex: '10-09' ou '10/09' significa DIA 10 DE SETEMBRO, e NUNCA mês 10/outubro!).
+                  * O encarregado escreve sempre DIA primeiro e MÊS depois (ex: '07-09' ou '07/09' significa DIA 07 DE SETEMBRO -> 2026-09-07, NUNCA mês 07/julho!).
+                  * '10-09' ou '10/09' = DIA 10 DE SETEMBRO (2026-09-10), NUNCA mês 10/outubro!
                   * '11-09' = DIA 11 DE SETEMBRO (2026-09-11).
                   * '08-09' = DIA 08 DE SETEMBRO (2026-09-08).
-                  * Retorne RIGOROSAMENTE no formato YYYY-MM-DD (Ano-Mês-Dia) com o ano 2026 (ex: 2026-09-10).
+                  * Retorne RIGOROSAMENTE no formato YYYY-MM-DD (Ano-Mês-Dia) com o ano 2026 (ex: 2026-09-07).
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
                 - ENCARREGADO: É QUASE PROIBIDO retornar 'AJUSTAR NOME'. Você DEVE escolher o nome da lista oficial [{nomes_para_prompt}] que for mais parecido fonética ou visualmente com o que está escrito à mão, mesmo que a letra seja péssima, haja apenas o primeiro nome, iniciais (ex: "J. Silva") ou erros grosseiros. Faça o cruzamento lógico e retorne EXATAMENTE o nome completo da lista. Só use 'AJUSTAR NOME' se o campo estiver 100% em branco ou completamente rasurado sem nenhuma letra legível.
                 - TURNO: Extraia o turno marcado ('1º TURNO', '2º TURNO', '3º TURNO', 'DIURNO' ou 'NOTURNO').
@@ -5867,7 +5859,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                         img = img.convert('RGB')
                                     img.save(tmp_img.name, "JPEG")
                                     tmp_img.close()
-                                    arquivos_processar.append({'name': f"{nome} (Recuperado)", 'tmp_path': tmp_img.name})
+                                    arquivos_processar.append({'name': f"{nome} (Recuperado)", 'tmp_path': tmp_img.name, 'data_extraida': extrair_data_do_nome_pdf(nome)})
                                     st.info(f"⚙️ {nome}: Arquivo corrigido (era uma imagem salva como PDF).")
                                 except Exception:
                                     # Se nem o PIL abrir, o arquivo está realmente quebrado
@@ -5903,7 +5895,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     tmp2 = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
                                     tmp2.write(pdf_bytes)
                                     tmp2.close()
-                                    arquivos_processar.append({'name': nome, 'tmp_path': tmp2.name})
+                                    arquivos_processar.append({'name': nome, 'tmp_path': tmp2.name, 'data_extraida': extrair_data_do_nome_pdf(nome)})
                                 else:
                                     check.close()
                                     arquivos_processar.append({'name': nome, 'tmp_path': tmp.name, 'data_extraida': extrair_data_do_nome_pdf(nome)})
@@ -6022,17 +6014,21 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
 
-                                # Se o nome do arquivo contem data (ex: 26_08.pdf), ela tem prioridade absoluta com o ano atual
+                                # Se o nome do arquivo contem data (ex: 07-09.pdf -> 2026-09-07), ela tem prioridade absoluta com o ano atual
                                 data_do_nome = arquivo_dict.get('data_extraida')
                                 if data_do_nome:
+                                    data_norm = normalizar_data_brasil(data_do_nome)
                                     for d in dados_extraidos_lista:
-                                        d["DATA"] = data_do_nome
+                                        d["DATA"] = data_norm
                                 else:
-                                    datas_encontradas = [str(d.get("DATA")).strip() for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
+                                    datas_encontradas = [normalizar_data_brasil(str(d.get("DATA")).strip()) for d in dados_extraidos_lista if d.get("DATA") and str(d.get("DATA")).strip() != ""]
                                     if datas_encontradas:
                                         data_consenso = max(set(datas_encontradas), key=datas_encontradas.count)
                                         for d in dados_extraidos_lista:
                                             d["DATA"] = data_consenso
+                                    else:
+                                        for d in dados_extraidos_lista:
+                                            d["DATA"] = normalizar_data_brasil(d.get("DATA"))
 
                                 for dados in dados_extraidos_lista:
                                     if 'LOCAL' not in dados:
@@ -6212,23 +6208,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 
                     st.session_state.df_ia = pd.concat([df_restante, df_filtrado], ignore_index=True)
                     
-                    # Função para padronizar data no formato ISO YYYY-MM-DD
-                    def _padronizar_data_iso(d_val):
-                        try:
-                            dt = pd.to_datetime(d_val, dayfirst=True, format='mixed', errors='coerce')
-                            if pd.notna(dt):
-                                if dt.year < 2024:
-                                    dt = dt.replace(year=datetime.datetime.now().year)
-                                return dt.strftime('%Y-%m-%d')
-                        except:
-                            pass
-                        return datetime.date.today().strftime('%Y-%m-%d')
-
                     # === PERSISTIR RDCs COMPLETOS NO BANCO DE DADOS ===
                     try:
                         colunas_rdc = ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA']
                         df_salvar_rdc = df_filtrado.copy()
-                        df_salvar_rdc['DATA'] = df_salvar_rdc['DATA'].apply(_padronizar_data_iso)
+                        df_salvar_rdc['DATA'] = df_salvar_rdc['DATA'].apply(normalizar_data_brasil)
                         for col in colunas_rdc:
                             if col not in df_salvar_rdc.columns:
                                 df_salvar_rdc[col] = ''
@@ -6252,7 +6236,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         enc_lido = str(row.get('ENCARREGADO', '')).strip()
                         if enc_lido and enc_lido in lista_encarregados_base:
                             data_raw = str(row.get('DATA', '')).strip()
-                            data_registro = _padronizar_data_iso(data_raw)
+                            data_registro = normalizar_data_brasil(data_raw)
                             
                             ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
                             if not ja_existe:
