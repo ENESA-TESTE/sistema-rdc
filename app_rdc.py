@@ -3530,6 +3530,31 @@ Retorne apenas o JSON sem crases ou markdown."""
         except Exception:
             return ""
 
+    @st.dialog("📱 Acesso Mobile em Tempo Real (Diretoria)")
+    def modal_qr_code_mobile():
+        """Modal executivo centralizado para exibir QR Code de acesso mobile."""
+        url_detectada = obter_url_sistema()
+        url_custom = st.session_state.get("url_mobile_custom", url_detectada)
+        qr_b64 = gerar_qr_code_b64(url_custom)
+        st.markdown(f"""
+        <div style="text-align: center; padding: 10px 0;">
+            <p style="color: #94a3b8; font-size: 14px; margin-bottom: 16px;">
+                <b>Diretoria & Gerência:</b> Aponte a câmera do seu smartphone para abrir o painel e os indicadores em tempo real na palma da sua mão!
+            </p>
+            <div style="background: white; padding: 14px; border-radius: 16px; display: inline-block; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
+                <img src="data:image/png;base64,{qr_b64}" width="220" height="220" style="display: block;" />
+            </div>
+            <div style="margin-top: 14px; padding: 8px 12px; background: rgba(14, 165, 233, 0.1); border-radius: 8px; border: 1px solid rgba(14, 165, 233, 0.25);">
+                <span style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">Endereço de Acesso Local:</span>
+                <p style="font-size: 14px; color: #38bdf8; margin: 2px 0 0 0; font-weight: 700; word-break: break-all;">{url_custom}</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        url_in = st.text_input("🔗 Link Mobile Personalizado (ex: Cloudflare / ngrok):", value=url_custom, key="qr_modal_url_input")
+        if url_in != url_custom:
+            st.session_state.url_mobile_custom = url_in
+            st.rerun()
+
     def gerar_pdf_one_pager_executivo(df_dia_rdcs=None, df_f1=None, df_efetivo=None, data_str="", nome_site="ENESA ENGENHARIA - OBRA 125 ARAUCO", briefing_data=None, logo_path=""):
         """Gera Relatório Executivo One-Pager condensado em 1 página A4 de alto padrão corporativo."""
         from fpdf import FPDF
@@ -3874,24 +3899,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                     st.rerun()
 
         with col_nav3:
-            url_detectada_tv = obter_url_sistema()
-            url_custom_tv = st.session_state.get("url_mobile_custom", url_detectada_tv)
-            qr_tv_b64 = gerar_qr_code_b64(url_custom_tv)
-            with st.popover("📱 Acesso Mobile (QR)", use_container_width=True):
-                st.markdown(f"""
-                <div style="text-align: center; padding: 6px 0;">
-                    <h4 style="margin: 0 0 4px 0; color: #0ea5e9; font-size: 15px; font-weight: 700;">📲 Acompanhamento no Celular</h4>
-                    <p style="color: #94a3b8; font-size: 11px; margin-bottom: 10px;">Diretoria: Aponte a câmera para abrir o painel e F1 em tempo real!</p>
-                    <div style="background: white; padding: 8px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 16px rgba(0,0,0,0.4);">
-                        <img src="data:image/png;base64,{qr_tv_b64}" width="170" height="170" style="display: block;" />
-                    </div>
-                    <p style="font-size: 11px; color: #38bdf8; margin: 8px 0 0 0; font-weight: 700; word-break: break-all;">{url_custom_tv}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                url_in_tv = st.text_input("🔗 Link Mobile / IP:", value=url_custom_tv, key="qr_pop_tv_input")
-                if url_in_tv != url_custom_tv:
-                    st.session_state.url_mobile_custom = url_in_tv
-                    st.rerun()
+            if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_tv_open_qr", type="secondary"):
+                modal_qr_code_mobile()
                     
         with col_nav4:
             if st.button("❌ Sair da TV", type="secondary", use_container_width=True):
@@ -4349,24 +4358,8 @@ Retorne apenas o JSON sem crases ou markdown."""
             st.markdown("### 🎛️ Centro de Comando (Overview)")
         with col_dash_qr:
             st.markdown("<br>", unsafe_allow_html=True)
-            url_detectada_dash = obter_url_sistema()
-            url_custom_dash = st.session_state.get("url_mobile_custom", url_detectada_dash)
-            qr_dash_b64 = gerar_qr_code_b64(url_custom_dash)
-            with st.popover("📱 Acesso Mobile (QR)", use_container_width=True):
-                st.markdown(f"""
-                <div style="text-align: center; padding: 6px 0;">
-                    <h4 style="margin: 0 0 4px 0; color: #0ea5e9; font-size: 15px; font-weight: 700;">📲 Acesso Direto no Celular</h4>
-                    <p style="color: #94a3b8; font-size: 11px; margin-bottom: 10px;">Diretoria: Aponte a câmera do seu smartphone para abrir os indicadores em tempo real!</p>
-                    <div style="background: white; padding: 8px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 16px rgba(0,0,0,0.4);">
-                        <img src="data:image/png;base64,{qr_dash_b64}" width="170" height="170" style="display: block;" />
-                    </div>
-                    <p style="font-size: 11px; color: #38bdf8; margin: 8px 0 0 0; font-weight: 700; word-break: break-all;">{url_custom_dash}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                url_in_d = st.text_input("🔗 Link Mobile / IP:", value=url_custom_dash, key="qr_pop_dash_input")
-                if url_in_d != url_custom_dash:
-                    st.session_state.url_mobile_custom = url_in_d
-                    st.rerun()
+            if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_dash_open_qr", type="secondary"):
+                modal_qr_code_mobile()
         with col_dash_btn_pdf:
             st.markdown("<br>", unsafe_allow_html=True)
             pdf_bytes = gerar_relatorio_pdf(df_atual)
