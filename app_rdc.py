@@ -5770,7 +5770,12 @@ Retorne apenas o JSON sem crases ou markdown."""
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
                 - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou.
                 - ATIVIDADE: Crie um RESUMO GERAL de no máximo 35 palavras contendo as principais atividades executadas em todo o RDC. TUDO EM MAIÚSCULAS. CORRIJA a ortografia usando o glossário acima. NÃO CRIE SUBNÍVEIS, APENAS UM ÚNICO RESUMO TEXTUAL.
-                - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se a descrição da atividade mencionar 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
+                - CALDEIRA: OBRIGATÓRIO classificar. Analise TODO o conteúdo do RDC (local marcado, atividades, cabeçalho) e classifique:
+                  * Se houver QUALQUER menção a 'caldeira de recuperação', 'recovery boiler', 'caldeira RB', 'RB' marcado, ou local/área vinculada à recuperação → retorne 'RB'
+                  * Se houver QUALQUER menção a 'caldeira de força', 'caldeira de potência', 'power boiler', 'caldeira PB', 'PB' marcado → retorne 'PB'
+                  * Se houver menção a 'precipitador', 'ESP', 'precipitador eletrostático' → retorne 'ESP'
+                  * Se nenhuma das opções acima for identificada → retorne ''
+                  * RETORNE APENAS uma dessas 4 opções: 'PB', 'RB', 'ESP' ou '' (vazio).
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', um rabisco, um visto ou qualquer marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB' correspondente ao que estiver marcado. Se nenhum, retorne ''.
                 - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. As opções são exatamente: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE o nome da área que estiver marcada. Se nenhuma estiver marcada, retorne ''.
 
@@ -6103,8 +6108,10 @@ Retorne apenas o JSON sem crases ou markdown."""
                 with col_dw1:
                     buffer_df = io.BytesIO()
                     
-                    # Preparar Excel
+                    # Preparar Excel — Modelo simplificado (6 colunas)
+                    colunas_excel = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
                     df_excel_ia = df_filtrado.copy()
+                    df_excel_ia = df_excel_ia[[c for c in colunas_excel if c in df_excel_ia.columns]]
                     df_excel_ia.to_excel(buffer_df, index=False, engine='openpyxl')
                     buffer_df.seek(0)
                     st.download_button(
@@ -6155,7 +6162,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
                 # Preparar dados para edição
                 df_editavel = df_filtrado.copy()
-                colunas_mostrar = ['ITEM', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'CALDEIRA', 'ATIVIDADE']
+                colunas_mostrar = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
                 df_editavel = df_editavel[[c for c in colunas_mostrar if c in df_editavel.columns]]
                 
                 df_editado = st.data_editor(df_editavel, hide_index=True, use_container_width=True, key="editor_ia_df")
@@ -6169,7 +6176,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     for _, row_edit in df_editado.iterrows():
                         item_id = row_edit['ITEM']
                         idx = df_filtrado[df_filtrado['ITEM'] == item_id].index
-                        for col in ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'CALDEIRA', 'ATIVIDADE']:
+                        for col in ['DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']:
                             if col in row_edit:
                                 df_filtrado.loc[idx, col] = row_edit[col]
                                 
@@ -6252,7 +6259,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             disc_count = df_filtrado['DISCIPLINA'].replace('', 'Não Informado').value_counts()
                             st.bar_chart(disc_count, color="#4ade80")
                             
-                        st.markdown("**Distribuição por Caldeira (PB/RB)**")
+                        st.markdown("**Distribuição por Caldeira (PB/RB/ESP)**")
                         caldeira_count = df_filtrado['CALDEIRA'].copy()
                         caldeira_count = caldeira_count.replace('', 'Não Identificada').value_counts()
                         st.bar_chart(caldeira_count, color="#f59e0b")
@@ -6300,7 +6307,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 Regras de negócio:
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL.
                 - ENCARREGADO: Extraia o nome do Encarregado escrito no papel. Compare com: [{nomes_para_prompt}]. Retorne EXATAMENTE o nome correspondente. Se ilegível, retorne 'AJUSTAR NOME'.
-                - CALDEIRA: Se mencionar 'caldeira de recuperação' = 'RB'. Se 'caldeira de potência' = 'PB'. Se 'PRECIPITADOR' ou 'ESP' = 'ESP'. Se nenhum = ''.
+                - CALDEIRA: Analise o RDC e classifique: 'caldeira de recuperação' / 'recovery boiler' / RB marcado → 'RB'. 'caldeira de força' / 'power boiler' / PB marcado → 'PB'. 'precipitador' / ESP → 'ESP'. Se nenhum → ''.
                 - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', rabisco, visto ou marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB'. Se nenhum, retorne ''.
                 - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. Opções: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE a área marcada. Se nenhuma, retorne ''.
 
