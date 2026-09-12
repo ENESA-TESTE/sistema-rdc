@@ -1455,6 +1455,7 @@ caminho_historico_f1_csv = os.path.join(pasta_base, "historico_f1_local.csv")
 caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
 caminho_escala_csv = os.path.join(pasta_base, "escala_diaria.csv")
 caminho_rdc_registros_csv = os.path.join(pasta_base, "rdc_registros.csv")
+caminho_briefings_json = os.path.join(pasta_base, "briefings_historico.json")
 
 celula_encarregado = "I4"
 celula_matricula = "B9"
@@ -2287,6 +2288,69 @@ def normalizar_data_brasil(val):
     return datetime.date.today().strftime('%Y-%m-%d')
 
 # =================================================================
+# PERSISTÊNCIA E GESTÃO DE BRIEFINGS DIÁRIOS
+# =================================================================
+def carregar_briefings_salvos():
+    """Carrega todos os briefings matinais salvos no arquivo JSON permanente."""
+    if os.path.exists(caminho_briefings_json):
+        try:
+            with open(caminho_briefings_json, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+                if isinstance(dados, dict):
+                    return dados
+        except Exception:
+            return {}
+    return {}
+
+def salvar_briefing_dia(data_str, briefing_dict):
+    """Salva ou atualiza o briefing matinal de uma data específica no disco."""
+    try:
+        dados = carregar_briefings_salvos()
+        chave_iso = normalizar_data_brasil(data_str)
+        briefing_dict["data_iso"] = chave_iso
+        try:
+            dt = datetime.datetime.strptime(chave_iso, "%Y-%m-%d")
+            briefing_dict["data_formatada"] = dt.strftime("%d/%m/%Y")
+        except Exception:
+            briefing_dict["data_formatada"] = str(data_str)
+        briefing_dict["data_salvo"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        dados[chave_iso] = briefing_dict
+        with open(caminho_briefings_json, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+def obter_briefing_dia(data_str):
+    """Obtém o briefing salvo de uma data específica ou None se não existir."""
+    if not data_str:
+        return None
+    dados = carregar_briefings_salvos()
+    chave_iso = normalizar_data_brasil(data_str)
+    if chave_iso in dados:
+        return dados[chave_iso]
+    for k, v in dados.items():
+        if normalizar_data_brasil(k) == chave_iso:
+            return v
+    return None
+
+def excluir_briefing_dia(data_str):
+    """Exclui o briefing salvo de uma data específica do disco."""
+    try:
+        dados = carregar_briefings_salvos()
+        chave_iso = normalizar_data_brasil(data_str)
+        chaves_remover = [k for k in dados.keys() if normalizar_data_brasil(k) == chave_iso]
+        if chaves_remover:
+            for k in chaves_remover:
+                del dados[k]
+            with open(caminho_briefings_json, "w", encoding="utf-8") as f:
+                json.dump(dados, f, ensure_ascii=False, indent=2)
+            return True
+    except Exception:
+        pass
+    return False
+
+# =================================================================
 # SINCRONIZAÇÃO GLOBAL EM TEMPO REAL (MULTI-DISPOSITIVO / TV / MOBILE)
 # =================================================================
 def sincronizar_dados_globais():
@@ -2492,6 +2556,22 @@ with st.sidebar:
                 buffer_f1 = io.BytesIO()
                 st.session_state.df_historico_f1.to_excel(buffer_f1, index=False, engine='openpyxl')
                 z.writestr("HISTORICO_F1.xlsx", buffer_f1.getvalue())
+                
+            # Backup do Histórico de Briefings
+            if os.path.exists(caminho_briefings_json):
+                try:
+                    with open(caminho_briefings_json, "rb") as fb:
+                        z.writestr("briefings_historico.json", fb.read())
+                except Exception:
+                    pass
+
+            # Backup do Banco de RDCs
+            if os.path.exists(caminho_rdc_registros_csv):
+                try:
+                    with open(caminho_rdc_registros_csv, "rb") as fr:
+                        z.writestr("rdc_registros.csv", fr.read())
+                except Exception:
+                    pass
         
         st.download_button(
             label="📥 Baixar Backup (.zip)",
@@ -4110,57 +4190,78 @@ Retorne apenas o JSON sem crases ou markdown."""
         # SLIDE 2: BRIEFING EXECUTIVO & IA GEMINI 3.7
         # =========================================================
         else:
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">🤖 Briefing Operacional & IA — <span style="background: linear-gradient(135deg, #a855f7, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Google Gemini 3.7</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Análise Inteligente de RDCs Escaneados, Avanços e Restrições de Campo</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #c084fc;">DIAGNÓSTICO DIÁRIO</span><span style="display: block; font-size: 11px; color: #64748b;">Processamento Automático</span></div></div>""", unsafe_allow_html=True)
+            # Buscar briefing salvo de hoje ou o mais recente no banco permanente
+            hoje_iso = datetime.date.today().strftime('%Y-%m-%d')
+            briefing_tv = obter_briefing_dia(hoje_iso)
+            if not briefing_tv:
+                briefings_todos_tv = carregar_briefings_salvos()
+                if briefings_todos_tv:
+                    chaves_ord = sorted(briefings_todos_tv.keys(), reverse=True)
+                    briefing_tv = briefings_todos_tv[chaves_ord[0]]
+            
+            if briefing_tv:
+                avancos_tv = briefing_tv.get("avancos", [])
+                atencao_tv = briefing_tv.get("atencao", [])
+                bloqueios_tv = briefing_tv.get("bloqueios", [])
+                data_tv_brief_str = briefing_tv.get("data_formatada", datetime.date.today().strftime('%d/%m/%Y'))
+                origem_tv_str = briefing_tv.get("origem", "IA Gemini")
+            else:
+                avancos_tv = [
+                    "Montagem Eletromecânica: Soldagem de tubulações de alta pressão concluída na Caldeira de Força (PB).",
+                    "Caldeiraria Pesada: Avanço no içamento das vigas estruturais da Caldeira de Recuperação (RB).",
+                    "Andaime & Apoio: 100% dos acessos de segurança liberados para inspeção e solda.",
+                    "Precipitador (ESP): Alinhamento de placas coletoras em ritmo acelerado."
+                ]
+                atencao_tv = [
+                    "Interferência de Área: Equipe de isolamento térmico necessita de liberação na elevação +32m.",
+                    "Logística de Almoxarifado: Monitorar reposição de eletrodos e discos de corte para o 2º turno.",
+                    "Clima & Segurança: Reforçar DDS sobre trabalho em altura com rajadas de vento."
+                ]
+                bloqueios_tv = [
+                    "Guindaste Principal: Aguardando liberação de plano de rigging para içamento do duto superior.",
+                    "Acesso Restrito: Teste hidrostático exige isolamento do módulo 04."
+                ]
+                data_tv_brief_str = datetime.date.today().strftime('%d/%m/%Y')
+                origem_tv_str = "Diagnóstico Base"
+
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">🤖 Briefing Operacional & IA — <span style="background: linear-gradient(135deg, #a855f7, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{origem_tv_str}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Data de Referência: <b style="color: #38bdf8;">{data_tv_brief_str}</b> · Análise Inteligente de RDCs e Restrições de Campo</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #c084fc;">DIAGNÓSTICO DIÁRIO</span><span style="display: block; font-size: 11px; color: #64748b;">Sincronizado em Tempo Real</span></div></div>""", unsafe_allow_html=True)
             
             # 3 Colunas Executivas de Briefing
             cb1, cb2, cb3 = st.columns(3)
             
             with cb1:
                 with st.container(border=True):
+                    itens_av_html = "".join([f'<li style="margin-bottom: 6px;">{it}</li>' for it in avancos_tv])
                     html_c1 = (
                         '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
                         '<span style="font-size: 18px;">🟢</span>'
                         '<h4 style="margin: 0; font-size: 15px; color: #10b981; font-weight: 800;">Principais Avanços</h4>'
                         '</div>'
-                        '<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">'
-                        '<li><b>Montagem Eletromecânica:</b> Soldagem de tubulações de alta pressão concluída na Caldeira de Força (PB).</li>'
-                        '<li><b>Caldeiraria Pesada:</b> Avanço no içamento das vigas estruturais da Caldeira de Recuperação (RB).</li>'
-                        '<li><b>Andaime & Apoio:</b> 100% dos acessos de segurança liberados para inspeção e solda.</li>'
-                        '<li><b>Precipitador (ESP):</b> Alinhamento de placas coletoras em ritmo acelerado.</li>'
-                        '</ul>'
+                        f'<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_av_html}</ul>'
                     )
                     st.markdown(html_c1, unsafe_allow_html=True)
                 
             with cb2:
                 with st.container(border=True):
+                    itens_at_html = "".join([f'<li style="margin-bottom: 6px;">{it}</li>' for it in atencao_tv])
                     html_c2 = (
                         '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
                         '<span style="font-size: 18px;">🟡</span>'
                         '<h4 style="margin: 0; font-size: 15px; color: #f59e0b; font-weight: 800;">Pontos de Atenção</h4>'
                         '</div>'
-                        '<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">'
-                        '<li><b>Interferência de Área:</b> Equipe de isolamento térmico necessita de liberação na elevação +32m.</li>'
-                        '<li><b>Logística de Almoxarifado:</b> Monitorar reposição de eletrodos e discos de corte para o 2º turno.</li>'
-                        '<li><b>Clima & Segurança:</b> Reforçar DDS sobre trabalho em altura com rajadas de vento.</li>'
-                        '</ul>'
+                        f'<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_at_html}</ul>'
                     )
                     st.markdown(html_c2, unsafe_allow_html=True)
                 
             with cb3:
                 with st.container(border=True):
+                    itens_bl_html = "".join([f'<li style="margin-bottom: 6px;">{it}</li>' for it in bloqueios_tv])
                     html_c3 = (
                         '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
                         '<span style="font-size: 18px;">🔴</span>'
                         '<h4 style="margin: 0; font-size: 15px; color: #ef4444; font-weight: 800;">Bloqueios & Restrições</h4>'
                         '</div>'
-                        '<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">'
-                        '<li><b>Guindaste Principal:</b> Aguardando liberação de plano de rigging para içamento do duto superior.</li>'
-                        '<li><b>Acesso Restrito:</b> Teste hidrostático exige isolamento do módulo 04.</li>'
-                        '</ul>'
-                        '<div style="margin-top: 20px; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.25);">'
-                        '<span style="font-size: 11px; color: #fca5a5; font-weight: 700;">🚨 AÇÃO REQUERIDA:</span>'
-                        '<p style="font-size: 11px; color: #e2e8f0; margin: 2px 0 0 0;">Alinhamento imediato com a coordenação de segurança da Arauco.</p>'
-                        '</div>'
+                        f'<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_bl_html}</ul>'
                     )
                     st.markdown(html_c3, unsafe_allow_html=True)
             
@@ -4172,9 +4273,9 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_dia_rdcs=None,
                         df_f1=st.session_state.get("df_historico_f1", pd.DataFrame()),
                         df_efetivo=st.session_state.get("df", None),
-                        data_str=datetime.date.today().strftime('%d/%m/%Y'),
+                        data_str=data_tv_brief_str,
                         nome_site=nome_site_display,
-                        briefing_data=None,
+                        briefing_data=briefing_tv,
                         logo_path=caminho_logo
                     )
                     st.download_button(
@@ -4363,13 +4464,14 @@ Retorne apenas o JSON sem crases ou markdown."""
             except Exception as e_pptx_dash:
                 st.error(f"Erro ao gerar PPTX: {e_pptx_dash}")
         
-        # Filtro de MOI / MOD, Local, Turno e Status
+        # Filtro de MOI / MOD, Local, Turno e Status com chaves explícitas
         col_filtros1, col_filtros2, col_filtros3, col_filtros4 = st.columns(4)
         with col_filtros1:
             filtro_dash_mo = st.segmented_control(
                 "Filtrar Visão por Tipo de Mão de Obra:", 
                 ["Ambas", "MOD", "MOI"], 
-                default="Ambas"
+                default="Ambas",
+                key="filtro_dash_mo_ctrl_v8"
             )
             if not filtro_dash_mo:
                 filtro_dash_mo = "Ambas"
@@ -4379,96 +4481,96 @@ Retorne apenas o JSON sem crases ou markdown."""
                 "Filtrar Dados por Local:", 
                 ["Ambas", "PB", "RB", "ESP"], 
                 default="Ambas",
-                key="filtro_dash_local_key"
+                key="filtro_dash_local_ctrl_v8"
             )
             if not filtro_dash_local:
                 filtro_dash_local = "Ambas"
                 
         with col_filtros3:
-            # Pegar todos os turnos únicos do PDE, ou padronizar
             turnos_disponiveis = ["Todos"]
             if "TURNO" in df_atual.columns:
-                turnos_reais = [t for t in df_atual["TURNO"].unique() if str(t).strip() and str(t) != "nan"]
-                turnos_disponiveis.extend(sorted(turnos_reais))
+                turnos_reais = [str(t).strip() for t in df_atual["TURNO"].dropna().unique() if str(t).strip() and str(t).upper() != "NAN"]
+                turnos_disponiveis.extend(sorted(list(set(turnos_reais))))
             
             filtro_dash_turno = st.selectbox(
                 "Filtrar por Turno:", 
                 turnos_disponiveis,
-                index=0
+                index=0,
+                key="filtro_dash_turno_ctrl_v8"
             )
             
         with col_filtros4:
-            # Pegar todos os status únicos do PDE, ou padronizar
             status_disponiveis = ["Todos"]
             if "STATUS" in df_atual.columns:
-                status_reais = [s for s in df_atual["STATUS"].unique() if str(s).strip() and str(s) != "nan"]
-                status_disponiveis.extend(sorted(status_reais))
+                status_reais = [str(s).strip() for s in df_atual["STATUS"].dropna().unique() if str(s).strip() and str(s).upper() != "NAN"]
+                status_disponiveis.extend(sorted(list(set(status_reais))))
                 
+            idx_st = status_disponiveis.index("ATIVO") if "ATIVO" in status_disponiveis else 0
             filtro_dash_status = st.selectbox(
                 "Filtrar por Status:", 
                 status_disponiveis,
-                index=status_disponiveis.index("ATIVO") if "ATIVO" in status_disponiveis else 0
+                index=idx_st,
+                key="filtro_dash_status_ctrl_v8"
             )
             
         df_dash = df_atual.copy()
         
-        # Aplicar filtro MOI/MOD
+        # 1. Aplicar filtro Status
+        if filtro_dash_status != "Todos" and "STATUS" in df_dash.columns:
+            df_dash = df_dash[df_dash["STATUS"].astype(str).str.strip().str.upper() == filtro_dash_status.strip().upper()]
+            
+        # 2. Aplicar filtro Turno
+        if filtro_dash_turno != "Todos" and "TURNO" in df_dash.columns:
+            df_dash = df_dash[df_dash["TURNO"].astype(str).str.strip().str.upper() == filtro_dash_turno.strip().upper()]
+            
+        # 3. Aplicar filtro MOI/MOD
         if filtro_dash_mo == "MOD":
             df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]
         elif filtro_dash_mo == "MOI":
             df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]
             
-        # Aplicar filtro Local
-        df_dash = df_dash[df_dash["C.C"].str.strip() != ""]
+        # 4. Aplicar filtro Local (apenas quando não for 'Ambas')
         if filtro_dash_local == "PB":
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
         elif filtro_dash_local == "RB":
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
         elif filtro_dash_local == "ESP":
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
-            
-        # Aplicar filtro Turno
-        if filtro_dash_turno != "Todos" and "TURNO" in df_dash.columns:
-            df_dash = df_dash[df_dash["TURNO"] == filtro_dash_turno]
-            
-        # Aplicar filtro Status
-        if filtro_dash_status != "Todos" and "STATUS" in df_dash.columns:
-            df_dash = df_dash[df_dash["STATUS"] == filtro_dash_status]
         
-        # Linha 1: Cartões de KPI Customizados (Premium)
-        qtd_encarregados_dash = len([e for e in df_dash["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
-        qtd_mod_g = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOD"])
-        qtd_moi_g = len(df_atual[df_atual["MÃO DE OBRA"].str.strip().str.upper() == "MOI"])
-        total_mo_g = qtd_mod_g + qtd_moi_g
-        pct_mod_g = round((qtd_mod_g / total_mo_g * 100), 1) if total_mo_g > 0 else 0
-        span_control = round(len(df_dash) / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0
+        # Linha 1: Cartões de KPI Customizados (Premium e Dinâmicos)
+        total_efetivo_dash = len(df_dash)
+        
+        encs_unicos_dash = [e for e in df_dash["ENCARREGADO"].dropna().unique() if str(e).strip() != "" and str(e).upper() != "AJUSTAR NOME" and str(e).upper() != "NAN"]
+        qtd_encarregados_dash = len(encs_unicos_dash)
+        
+        qtd_mod_dash = len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"])
+        qtd_moi_dash = len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"])
+        total_mo_dash = qtd_mod_dash + qtd_moi_dash
+        pct_mod_dash = round((qtd_mod_dash / total_mo_dash * 100), 1) if total_mo_dash > 0 else 0.0
+        
+        qtd_funcoes_dash = len([f for f in df_dash["FUNÇÃO"].dropna().unique() if str(f).strip() != "" and str(f).upper() != "NAN"])
+        span_control = round(total_efetivo_dash / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0.0
         
         def card_kpi(titulo, valor, icone, cor):
-            return f"""
-            <div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0px)'">
-                <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p>
-                <h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2>
-                <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div>
-            </div>
-            """
+            return f"""<div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;"><p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p><h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2><div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div></div>"""
             
         st.markdown("<br>", unsafe_allow_html=True)
         m1, m2, m3, m4, m5 = st.columns(5)
-        with m1: st.markdown(card_kpi(f"{t('Efetivo')} ({filtro_dash_mo})", len(df_dash), "engineering", "#3b82f6"), unsafe_allow_html=True)
+        with m1: st.markdown(card_kpi(f"{t('Efetivo')} ({filtro_dash_mo})", total_efetivo_dash, "engineering", "#3b82f6"), unsafe_allow_html=True)
         with m2: st.markdown(card_kpi(t("Encarregados"), qtd_encarregados_dash, "shield_person", "#10b981"), unsafe_allow_html=True)
-        with m3: st.markdown(card_kpi(t("% MOD Global"), f"{pct_mod_g}%", "pie_chart", "#0ea5e9"), unsafe_allow_html=True)
-        with m4: st.markdown(card_kpi(t("Funções"), df_dash["FUNÇÃO"].nunique(), "build", "#f59e0b"), unsafe_allow_html=True)
+        with m3: st.markdown(card_kpi(t("% MOD"), f"{pct_mod_dash}%", "pie_chart", "#0ea5e9"), unsafe_allow_html=True)
+        with m4: st.markdown(card_kpi(t("Funções"), qtd_funcoes_dash, "build", "#f59e0b"), unsafe_allow_html=True)
         with m5: st.markdown(card_kpi(t("Span of Control"), span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
         
         # ==============================================================
-        # BRIEFING MATINAL COM IA (SOB DEMANDA - RÁPIDO)
+        # BRIEFING MATINAL COM IA (PERSISTENTE POR DIA & EDITÁVEL)
         # ==============================================================
         st.markdown("<br>", unsafe_allow_html=True)
         with st.container(border=True):
             st.markdown("""
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <h4 style="margin: 0; color: #f8fafc; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-                    🤖 Briefing Matinal com IA — Resumo Executivo para Reunião Diária
+                    🤖 Briefing Matinal & IA — Resumo Executivo Diário
                 </h4>
             </div>
             """, unsafe_allow_html=True)
@@ -4481,9 +4583,12 @@ Retorne apenas o JSON sem crases ou markdown."""
                 except:
                     pass
             
-            datas_disponiveis_br = []
+            # Carregar todos os briefings salvos no disco permanente
+            todos_briefings_salvos = carregar_briefings_salvos()
+
+            datas_disponiveis_set = set()
+            # 1. Datas dos RDCs escaneados
             if df_rdc_briefing is not None and not df_rdc_briefing.empty and "DATA" in df_rdc_briefing.columns:
-                # Normaliza todas as datas do banco permanente com padrão brasileiro
                 datas_antes = df_rdc_briefing["DATA"].copy()
                 df_rdc_briefing["DATA"] = df_rdc_briefing["DATA"].apply(normalizar_data_brasil)
                 if not df_rdc_briefing["DATA"].equals(datas_antes):
@@ -4493,21 +4598,48 @@ Retorne apenas o JSON sem crases ou markdown."""
                         pass
                 
                 df_rdc_briefing["_DATA_DT"] = pd.to_datetime(df_rdc_briefing["DATA"], errors='coerce')
-                # Apenas datas com ano valido (>= 2024)
                 df_datas_validas = df_rdc_briefing[df_rdc_briefing["_DATA_DT"].dt.year >= 2024]
-                datas_disponiveis_br = sorted(df_datas_validas["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
-            
+                for d_str in df_datas_validas["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique():
+                    datas_disponiveis_set.add(d_str)
+
+            # 2. Datas com briefings já salvos
+            for k_iso, b_item in todos_briefings_salvos.items():
+                d_fmt = b_item.get("data_formatada", "")
+                if not d_fmt:
+                    try:
+                        d_fmt = pd.to_datetime(k_iso).strftime("%d/%m/%Y")
+                    except:
+                        d_fmt = k_iso
+                if d_fmt:
+                    datas_disponiveis_set.add(d_fmt)
+
+            # 3. Data de Hoje
+            hoje_fmt = datetime.datetime.now().strftime("%d/%m/%Y")
+            datas_disponiveis_set.add(hoje_fmt)
+
+            # Ordenar todas as datas em ordem decrescente
+            lista_datas_obj = []
+            for d in datas_disponiveis_set:
+                try:
+                    dt = pd.to_datetime(d, format="%d/%m/%Y", errors='coerce')
+                    if pd.notna(dt) and dt.year >= 2024:
+                        lista_datas_obj.append((d, dt))
+                except:
+                    pass
+            datas_disponiveis_br = [x[0] for x in sorted(lista_datas_obj, key=lambda x: x[1], reverse=True)]
+
             col_b1, col_b2, col_b3, col_b4 = st.columns([3, 3, 2, 2])
             with col_b1:
                 data_brief_sel = st.selectbox(
                     "📅 Selecionar Data do Briefing:",
-                    options=datas_disponiveis_br if datas_disponiveis_br else [datetime.datetime.now().strftime("%d/%m/%Y")],
+                    options=datas_disponiveis_br if datas_disponiveis_br else [hoje_fmt],
                     index=0,
+                    format_func=lambda d: f"{d}  💾 (Salvo)" if obter_briefing_dia(d) else f"{d}  ⚡ (Novo)",
                     key="select_data_briefing"
                 )
             with col_b2:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                btn_gerar_br = st.button("⚡ Gerar / Carregar Briefing com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
+                btn_gerar_br = st.button("⚡ Gerar / Recalcular com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
             with col_b3:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                 if st.button("🗑️ Limpar / Apagar RDCs", use_container_width=True, key="btn_reset_briefing_cache", help="Apaga todos os RDCs salvos e limpa a lista de datas para reprocessar do zero"):
@@ -4524,7 +4656,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                         st.error(f"Erro ao limpar: {e}")
             with col_b4:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                st.caption("💡 Clique no botão para gerar sob demanda")
+                b_salvo_status = obter_briefing_dia(data_brief_sel)
+                if b_salvo_status:
+                    st.success("💾 Salvo no Banco")
+                else:
+                    st.caption("💡 Não gerado para este dia")
 
             # Filtrar dados para a data selecionada
             df_dia_br = pd.DataFrame()
@@ -4535,21 +4671,31 @@ Retorne apenas o JSON sem crases ou markdown."""
                 except:
                     df_dia_br = df_rdc_briefing
             
-            # Gerar briefing APENAS quando o usuário clicar no botão
             cache_key = f"briefing_cache_{data_brief_sel}"
+            
+            # Se já existir briefing salvo para essa data no disco e não estiver na sessão, carrega automaticamente!
+            briefing_salvo_disco = obter_briefing_dia(data_brief_sel)
+            if briefing_salvo_disco and cache_key not in st.session_state:
+                st.session_state[cache_key] = briefing_salvo_disco
+
+            # Gerar novo briefing quando o usuário clicar no botão
             if btn_gerar_br:
                 with st.spinner("🤖 IA analisando RDCs e montando síntese da reunião..."):
                     res_brief = gerar_briefing_matinal_ia(df_dia_br, data_brief_sel, nome_site)
+                    salvar_briefing_dia(data_brief_sel, res_brief)
                     st.session_state[cache_key] = res_brief
+                    st.toast(f"✅ Briefing de {data_brief_sel} gerado e salvo permanentemente!")
+                    st.rerun()
 
-            if cache_key in st.session_state:
-                briefing_atual = st.session_state[cache_key]
+            if cache_key in st.session_state or briefing_salvo_disco:
+                briefing_atual = st.session_state.get(cache_key) or briefing_salvo_disco
                 avancos_l = briefing_atual.get("avancos", [])
                 atencao_l = briefing_atual.get("atencao", [])
                 bloqueios_l = briefing_atual.get("bloqueios", [])
                 origem_b = briefing_atual.get("origem", "IA")
+                data_salvo_b = briefing_atual.get("data_salvo", "Registrado")
 
-                st.markdown(f"<p style='color: #64748b; font-size: 12px; margin: 6px 0 14px 0;'>Fonte: <b style='color: #0ea5e9;'>{origem_b}</b> · Total de {len(df_dia_br)} RDCs analisados nesta data</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='color: #64748b; font-size: 12px; margin: 6px 0 14px 0;'>Origem: <b style='color: #0ea5e9;'>{origem_b}</b> · Status: <b style='color: #10b981;'>💾 Salvo ({data_salvo_b})</b> · Total de {len(df_dia_br)} RDCs analisados nesta data</p>", unsafe_allow_html=True)
 
                 # 3 Cards Coloridos (Verde, Amarelo, Vermelho)
                 col_c1, col_c2, col_c3 = st.columns(3)
@@ -4589,6 +4735,41 @@ Retorne apenas o JSON sem crases ou markdown."""
                         </ul>
                     </div>
                     """, unsafe_allow_html=True)
+
+                # Editor Manual de Briefing
+                with st.expander(f"✏️ Editar / Personalizar Tópicos do Briefing ({data_brief_sel})", expanded=False):
+                    st.caption("Edite cada tópico (1 item por linha). Ao salvar, o briefing deste dia será atualizado no sistema, TV e PDFs.")
+                    ed_col1, ed_col2, ed_col3 = st.columns(3)
+                    with ed_col1:
+                        txt_avancos = st.text_area("🟢 Principais Avanços (1 por linha):", value="\n".join(avancos_l), height=140, key=f"edit_avancos_{data_brief_sel}")
+                    with ed_col2:
+                        txt_atencao = st.text_area("🟡 Pontos de Atenção (1 por linha):", value="\n".join(atencao_l), height=140, key=f"edit_atencao_{data_brief_sel}")
+                    with ed_col3:
+                        txt_bloqueios = st.text_area("🔴 Bloqueios & Restrições (1 por linha):", value="\n".join(bloqueios_l), height=140, key=f"edit_bloqueios_{data_brief_sel}")
+                    
+                    btn_save_col, btn_del_col, _ = st.columns([2, 2, 4])
+                    with btn_save_col:
+                        if st.button("💾 Salvar Alterações", key=f"btn_salvar_edit_{data_brief_sel}", type="primary", use_container_width=True):
+                            novos_avancos = [linha.strip() for linha in txt_avancos.split("\n") if linha.strip()]
+                            novos_atencao = [linha.strip() for linha in txt_atencao.split("\n") if linha.strip()]
+                            novos_bloqueios = [linha.strip() for linha in txt_bloqueios.split("\n") if linha.strip()]
+                            
+                            briefing_atual["avancos"] = novos_avancos if novos_avancos else ["Nenhum avanço registrado."]
+                            briefing_atual["atencao"] = novos_atencao if novos_atencao else ["Nenhum ponto de atenção registrado."]
+                            briefing_atual["bloqueios"] = novos_bloqueios if novos_bloqueios else ["Nenhum bloqueio registrado."]
+                            briefing_atual["origem"] = "Editado pela Engenharia"
+                            
+                            salvar_briefing_dia(data_brief_sel, briefing_atual)
+                            st.session_state[cache_key] = briefing_atual
+                            st.toast(f"💾 Briefing de {data_brief_sel} atualizado e salvo com sucesso!")
+                            st.rerun()
+                    with btn_del_col:
+                        if st.button("🗑️ Excluir Briefing Deste Dia", key=f"btn_excluir_brief_{data_brief_sel}", use_container_width=True):
+                            excluir_briefing_dia(data_brief_sel)
+                            if cache_key in st.session_state:
+                                del st.session_state[cache_key]
+                            st.toast(f"🗑️ Briefing de {data_brief_sel} excluído!")
+                            st.rerun()
 
                 # Texto formatado para WhatsApp
                 import urllib.parse
@@ -4670,20 +4851,20 @@ Retorne apenas o JSON sem crases ou markdown."""
                     if st.toggle("📋 Texto Zap", key="tgl_ver_texto_zap"):
                         st.text_area("Texto do Briefing:", value=texto_zap_completo, height=140, key="txt_area_briefing_zap")
             else:
-                st.info("👆 Selecione a data desejada e clique em **'⚡ Gerar / Carregar Briefing com IA'** para carregar os indicadores sob demanda.")
+                st.info("👆 Selecione a data desejada e clique em **'⚡ Gerar / Recalcular com IA'** para montar e salvar o briefing deste dia.")
         st.markdown("---")
         
         col_dash1, col_dash2, col_dash3 = st.columns([3, 3, 4])
         
         with col_dash1:
-            st.markdown("**Status Operacional (Global)**")
-            if total_mo_g > 0:
-                df_mo_global = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_g, qtd_moi_g]})
-                fig_mo_g = px.pie(df_mo_global, values="Quantidade", names="Tipo", hole=0.6, color_discrete_sequence=["#10b981", "#ef4444"])
+            st.markdown(f"**Status Operacional ({filtro_dash_local})**")
+            if total_mo_dash > 0:
+                df_mo_pie = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_dash, qtd_moi_dash]})
+                fig_mo_g = px.pie(df_mo_pie, values="Quantidade", names="Tipo", hole=0.6, color="Tipo", color_discrete_map={"MOD": "#10b981", "MOI": "#ef4444"})
                 fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                 st.plotly_chart(fig_mo_g, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
-                st.info("Classificação de Mão de Obra não encontrada.")
+                st.info("Sem dados de Mão de Obra para os filtros selecionados.")
                 
         with col_dash2:
             st.markdown("**Efetivo por Área**")
@@ -4701,7 +4882,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
         with col_dash3:
             st.markdown(f"**Top 10 Maiores Equipes ({filtro_dash_mo})**")
-            df_enc_dash = df_dash[(df_dash["ENCARREGADO"].str.strip() != "") & (df_dash["ENCARREGADO"].isin(lista_completa_encarregados))]
+            df_enc_dash = df_dash[df_dash["ENCARREGADO"].astype(str).str.strip().isin(encs_unicos_dash)]
             if not df_enc_dash.empty:
                 top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
                 top_enc.columns = ["Encarregado", "Efetivo"]
