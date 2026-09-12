@@ -2286,6 +2286,80 @@ def normalizar_data_brasil(val):
         
     return datetime.date.today().strftime('%Y-%m-%d')
 
+# =================================================================
+# SINCRONIZAÇÃO GLOBAL EM TEMPO REAL (MULTI-DISPOSITIVO / TV / MOBILE)
+# =================================================================
+def sincronizar_dados_globais():
+    """
+    Sincroniza todos os dados em tempo real entre todos os acessos (PC, TV, Celular).
+    Garante que qualquer RDC escaneado, alteração de PDE ou atualização de F1
+    seja imediatamente refletido em todas as telas conectadas.
+    """
+    # 1. SINCRONIZAR HISTÓRICO F1 E RDCs ESCANEADOS
+    registros_f1 = []
+    
+    # 1.1 Do estado atual da sessão (se houver)
+    if "df_historico_f1" in st.session_state and isinstance(st.session_state.df_historico_f1, pd.DataFrame) and not st.session_state.df_historico_f1.empty:
+        df_mem = st.session_state.df_historico_f1.copy()
+        if "DATA" in df_mem.columns and "ENCARREGADO" in df_mem.columns:
+            df_mem["DATA"] = df_mem["DATA"].apply(normalizar_data_brasil)
+            df_mem["ENCARREGADO"] = df_mem["ENCARREGADO"].astype(str).str.strip().str.upper()
+            registros_para_filtrar = df_mem[df_mem["ENCARREGADO"] != ""][["DATA", "ENCARREGADO"]].dropna()
+            registros_f1.append(registros_para_filtrar)
+            
+    # 1.2 Do arquivo local historico_f1_local.csv
+    if os.path.exists(caminho_historico_f1_csv):
+        try:
+            df_local = pd.read_csv(caminho_historico_f1_csv)
+            if not df_local.empty and "DATA" in df_local.columns and "ENCARREGADO" in df_local.columns:
+                df_local["DATA"] = df_local["DATA"].apply(normalizar_data_brasil)
+                df_local["ENCARREGADO"] = df_local["ENCARREGADO"].astype(str).str.strip().str.upper()
+                registros_f1.append(df_local[df_local["ENCARREGADO"] != ""][["DATA", "ENCARREGADO"]].dropna())
+        except Exception:
+            pass
+            
+    # 1.3 Do banco de RDCs escaneados (rdc_registros.csv)
+    if os.path.exists(caminho_rdc_registros_csv):
+        try:
+            df_rdc_reg = pd.read_csv(caminho_rdc_registros_csv)
+            if not df_rdc_reg.empty and "DATA" in df_rdc_reg.columns and "ENCARREGADO" in df_rdc_reg.columns:
+                df_rdc_reg["DATA"] = df_rdc_reg["DATA"].apply(normalizar_data_brasil)
+                df_rdc_reg["ENCARREGADO"] = df_rdc_reg["ENCARREGADO"].astype(str).str.strip().str.upper()
+                registros_f1.append(df_rdc_reg[df_rdc_reg["ENCARREGADO"] != ""][["DATA", "ENCARREGADO"]].dropna())
+        except Exception:
+            pass
+            
+    # Unificar e atualizar no session_state e salvar cópia no disco
+    if registros_f1:
+        df_unificado = pd.concat(registros_f1, ignore_index=True)
+        df_unificado["ENCARREGADO"] = df_unificado["ENCARREGADO"].astype(str).str.strip().str.upper()
+        df_unificado = df_unificado[df_unificado["ENCARREGADO"] != ""]
+        df_unificado = df_unificado.drop_duplicates(subset=["DATA", "ENCARREGADO"])
+        st.session_state.df_historico_f1 = df_unificado
+        try:
+            df_unificado.to_csv(caminho_historico_f1_csv, index=False)
+        except Exception:
+            pass
+    elif "df_historico_f1" not in st.session_state:
+        st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
+        
+    # 2. SINCRONIZAR BASE DE EFETIVO (PDE)
+    if st.session_state.get("df") is None:
+        if os.path.exists(caminho_base_salva_xlsx):
+            _df = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
+            if _df is not None:
+                st.session_state.df = preparar_dataframe(_df)
+        elif os.path.exists(caminho_base_salva_csv):
+            _df = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
+            if _df is not None:
+                st.session_state.df = preparar_dataframe(_df)
+        elif os.path.exists(caminho_pde_padrao):
+            _df = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
+            if _df is not None:
+                st.session_state.df = preparar_dataframe(_df)
+
+sincronizar_dados_globais()
+
 cookie_manager = stx.CookieManager()
 
 caminho_usuarios = "usuarios.json"
@@ -3594,22 +3668,6 @@ Retorne apenas o JSON sem crases ou markdown."""
             rb_count, pb_count, esp_count = 54, 31, 12
             total_rdcs_num = 97
             
-        # Pódio F1
-        podio_list = []
-        if df_f1 is not None and not df_f1.empty and "ENCARREGADO" in df_f1.columns:
-            top_f1 = df_f1["ENCARREGADO"].value_counts().head(3)
-            medals = ["1º LUGAR (OURO)", "2º LUGAR (PRATA)", "3º LUGAR (BRONZE)"]
-            cores_m = [(234, 179, 8), (148, 163, 184), (217, 119, 6)]
-            for idx_p, (enc_p, count_p) in enumerate(top_f1.items()):
-                podio_list.append((medals[idx_p], str(enc_p), f"{count_p} Entregas", cores_m[idx_p]))
-        while len(podio_list) < 3:
-            defaults_p = [
-                ("1º LUGAR (OURO)", "CLAUDIVAN OLIVEIRA DOS SANTOS", "TUBULAÇÃO | 100% Pontual", (234, 179, 8)),
-                ("2º LUGAR (PRATA)", "WENISON DA SILVA CUNHA CORREIA", "MECÂNICA | 98.3% Pontual", (148, 163, 184)),
-                ("3º LUGAR (BRONZE)", "ANTONIO SERGIO MALINOSKI SOARES", "CALDEIRARIA | 96.0% Pontual", (217, 119, 6))
-            ]
-            podio_list.append(defaults_p[len(podio_list)])
-            
         # Síntese de Avanços, Atenção e Bloqueios
         avancos = briefing_data.get("avancos", []) if briefing_data else []
         atencao = briefing_data.get("atencao", []) if briefing_data else []
@@ -3650,7 +3708,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(14, 17.5)
         pdf.set_font('Helvetica', '', 8.5)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(130, 5, safe_pdf(f'{nome_site} | Síntese de Campo & F1'))
+        pdf.cell(130, 5, safe_pdf(f'{nome_site} | Síntese Operacional & Produção de Campo'))
         
         pdf.set_xy(145, 11)
         pdf.set_text_color(56, 189, 248)
@@ -3670,7 +3728,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             ('EFETIVO TOTAL', f"{total_efetivo_num} Colab." if total_efetivo_num > 0 else "847 Colab.", "Efetivo em Campo", (14, 165, 233)),
             ('PRODUTIVIDADE MOD', f"{pct_mod}%" if pct_mod > 0 else "84.2%", "Mão de Obra Direta", (34, 197, 94)),
             ('RDCS PROCESSADOS', f"{total_rdcs_num} RDCs", "Extraídos c/ IA Gemini", (168, 85, 247)),
-            ('TAXA ENTREGA F1', "98.5%", "Meta de Prazo Atingida", (245, 158, 11))
+            ('FRENTES DE SERVIÇO', f"{rb_count + pb_count + esp_count} Frentes", "Operação em Campo", (245, 158, 11))
         ]
         for i, (tit, val, sub, cor) in enumerate(cards_kpi):
             x = 10 + i * (w_card + 3.3)
@@ -3695,42 +3753,10 @@ Retorne apenas o JSON sem crases ou markdown."""
             pdf.set_text_color(*cor)
             pdf.cell(w_card - 4, 3.5, safe_pdf(sub))
             
-        # 3. PODIO F1
-        y_f1 = 50
-        pdf.set_fill_color(241, 245, 249)
-        pdf.set_draw_color(203, 213, 225)
-        pdf.rect(10, y_f1, 190, 25, 'FD')
-        
-        pdf.set_fill_color(30, 41, 59)
-        pdf.rect(10, y_f1, 190, 6, 'F')
-        pdf.set_xy(13, y_f1 + 1)
-        pdf.set_font('Helvetica', 'B', 8)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(184, 4.5, safe_pdf('PÓDIO DA COMPETIÇÃO F1 — ENCARREGADOS DESTAQUE DO MÊS'))
-        
-        w_podio = 60
-        for j, (pos, nome, disc, cor_med) in enumerate(podio_list):
-            xp = 13 + j * (w_podio + 3.5)
-            yp = y_f1 + 7.5
-            pdf.set_xy(xp, yp)
-            pdf.set_font('Helvetica', 'B', 7.2)
-            pdf.set_text_color(*cor_med)
-            pdf.cell(w_podio, 3.8, safe_pdf(pos))
-            
-            pdf.set_xy(xp, yp + 3.8)
-            pdf.set_font('Helvetica', 'B', 7.8)
-            pdf.set_text_color(15, 23, 42)
-            pdf.cell(w_podio, 3.8, safe_pdf(nome[:28]))
-            
-            pdf.set_xy(xp, yp + 7.6)
-            pdf.set_font('Helvetica', '', 6.8)
-            pdf.set_text_color(71, 85, 105)
-            pdf.cell(w_podio, 3.8, safe_pdf(disc[:30]))
-
-        # 4. SINTESE 3 COLUNAS
-        y_brief = 78
+        # 3. SINTESE 3 COLUNAS (EXPANDIDA E CENTRALIZADA)
+        y_brief = 51
         w_col = 61
-        h_brief = 146
+        h_brief = 172
         
         cols_cfg = [
             ('PRINCIPAIS AVANÇOS', (34, 197, 94), (240, 253, 244), avancos),
@@ -3751,14 +3777,14 @@ Retorne apenas o JSON sem crases ou markdown."""
             pdf.set_text_color(255, 255, 255)
             pdf.cell(w_col - 4, 4.8, safe_pdf(tit_col), align='C')
             
-            y_cursor = y_brief + 8
+            y_cursor = y_brief + 8.5
             for item in itens:
                 pdf.set_xy(xc + 2.5, y_cursor)
-                pdf.set_font('Helvetica', '', 6.8)
+                pdf.set_font('Helvetica', '', 7.2)
                 pdf.set_text_color(15, 23, 42)
                 item_limpo = item.replace('**', '').replace('•', '').strip()
-                pdf.multi_cell(w_col - 5, 3.2, safe_pdf(f'- {item_limpo}'))
-                y_cursor = pdf.get_y() + 1.2
+                pdf.multi_cell(w_col - 5, 3.5, safe_pdf(f'• {item_limpo}'))
+                y_cursor = pdf.get_y() + 1.8
                 if y_cursor > y_brief + h_brief - 8:
                     break
 
@@ -3830,6 +3856,9 @@ Retorne apenas o JSON sem crases ou markdown."""
     if st.session_state.get("modo_tv", False):
         import streamlit.components.v1 as components
         
+        # Forçar sincronização global em tempo real
+        sincronizar_dados_globais()
+        
         slide_atual = st.session_state.get("tv_slide", 0)
         nome_site_display = nome_site if (nome_site and str(nome_site).strip()) else "ENESA ENGENHARIA"
         
@@ -3882,12 +3911,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         # --- BARRA DE NAVEGAÇÃO SUPERIOR DO MODO TV ---
         col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([2.8, 3.8, 1.8, 1.2])
         with col_nav1:
-            st.markdown(f"""
-            <div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;">
-                <div class="tv-badge-live">● AO VIVO</div>
-                <span style="font-size: 16px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">{nome_site_display}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;"><div class="tv-badge-live">● AO VIVO</div><span style="font-size: 16px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">{nome_site_display}</span></div>""", unsafe_allow_html=True)
             
         with col_nav2:
             opcoes_slides = ["📊 1. Efetivo & KPIs", "🏎️ 2. Competição F1", "🤖 3. Briefing & IA"]
@@ -3913,21 +3937,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         # SLIDE 0: DASHBOARD EXECUTIVO & KPIs DE EFETIVO
         # =========================================================
         if slide_atual % 3 == 0:
-            # Header Slide 1
-            st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-                <div>
-                    <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">
-                        📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{nome_site_display}</span>
-                    </h1>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p>
-                </div>
-                <div style="text-align: right;">
-                    <span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span>
-                    <span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{nome_site_display}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span><span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span></div></div>""", unsafe_allow_html=True)
             
             # Filtro rápido de Local
             filtro_tv_local = st.segmented_control(
@@ -3956,17 +3966,8 @@ Retorne apenas o JSON sem crases ou markdown."""
             k1, k2, k3, k4, k5 = st.columns(5)
             def render_tv_kpi(col, titulo, valor, subtitulo, cor, icone):
                 with col:
-                    st.markdown(f"""
-                    <div class="tv-card-kpi">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</span>
-                            <span style="font-size: 16px;">{icone}</span>
-                        </div>
-                        <h2 style="margin: 6px 0 2px 0; font-size: 30px; font-weight: 800; color: #ffffff; text-shadow: 0 0 15px {cor}60;">{valor}</h2>
-                        <span style="font-size: 11px; color: {cor}; font-weight: 600;">{subtitulo}</span>
-                        <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: linear-gradient(90deg, {cor}, transparent);"></div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    html_kpi = f'<div class="tv-card-kpi"><div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</span><span style="font-size: 16px;">{icone}</span></div><h2 style="margin: 6px 0 2px 0; font-size: 30px; font-weight: 800; color: #ffffff; text-shadow: 0 0 15px {cor}60;">{valor}</h2><span style="font-size: 11px; color: {cor}; font-weight: 600;">{subtitulo}</span><div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: linear-gradient(90deg, {cor}, transparent);"></div></div>'
+                    st.markdown(html_kpi, unsafe_allow_html=True)
                     
             render_tv_kpi(k1, "Efetivo Total", total_tv, "Colaboradores Ativos", "#38bdf8", "👥")
             render_tv_kpi(k2, "Mão de Obra Direta", mod_tv, "MOD Operacional", "#10b981", "⚡")
@@ -4034,26 +4035,13 @@ Retorne apenas o JSON sem crases ou markdown."""
         # SLIDE 1: GRANDE PRÊMIO F1 — RANKING & PÓDIO
         # =========================================================
         elif slide_atual % 3 == 1:
-            st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-                <div>
-                    <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">
-                        🏎️ Grande Prêmio F1 — <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Campeonato de Entregas de RDC</span>
-                    </h1>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Competição Oficial de Disciplina Operacional & Envio Diário de Relatórios</p>
-                </div>
-                <div style="text-align: right;">
-                    <span style="font-size: 17px; font-weight: 700; color: #f59e0b;">TEMPORADA 2026</span>
-                    <span style="display: block; font-size: 11px; color: #64748b;">Mês Atual</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">🏎️ Grande Prêmio F1 — <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Campeonato de Entregas de RDC</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Competição Oficial de Disciplina Operacional & Envio Diário de Relatórios</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #f59e0b;">TEMPORADA 2026</span><span style="display: block; font-size: 11px; color: #64748b;">Mês Atual</span></div></div>""", unsafe_allow_html=True)
             
             df_hist_tv = st.session_state.get("df_historico_f1", pd.DataFrame())
-            if not df_hist_tv.empty:
+            if not df_hist_tv.empty and "DATA" in df_hist_tv.columns and "ENCARREGADO" in df_hist_tv.columns:
                 mes_atual_str = datetime.date.today().strftime("%Y-%m")
-                df_hist_tv["DATA"] = df_hist_tv["DATA"].astype(str)
-                df_mes = df_hist_tv[df_hist_tv["DATA"].str.startswith(mes_atual_str)]
+                df_hist_tv["DATA_NORM"] = df_hist_tv["DATA"].apply(normalizar_data_brasil)
+                df_mes = df_hist_tv[df_hist_tv["DATA_NORM"].astype(str).str.startswith(mes_atual_str)]
                 
                 if not df_mes.empty:
                     ranking_tv = df_mes.groupby("ENCARREGADO").size().reset_index(name="ENTREGAS").sort_values("ENTREGAS", ascending=False)
@@ -4063,50 +4051,49 @@ Retorne apenas o JSON sem crases ou markdown."""
                     with cf1:
                         with st.container(border=True):
                             # PÓDIO 3D REALISTA
-                            if len(top3_tv) >= 3:
-                                def short_n(n):
-                                    p = str(n).split()
-                                    return p[0] + " " + (p[-1] if len(p) > 1 else "")
-                                
-                                n1, t1 = short_n(top3_tv.iloc[0]["ENCARREGADO"]), top3_tv.iloc[0]["ENTREGAS"]
-                                n2, t2 = short_n(top3_tv.iloc[1]["ENCARREGADO"]), top3_tv.iloc[1]["ENTREGAS"]
-                                n3, t3 = short_n(top3_tv.iloc[2]["ENCARREGADO"]), top3_tv.iloc[2]["ENTREGAS"]
-                                
-                                st.markdown(f"""
-                                <h4 style="margin: 0 0 12px 0; font-size: 15px; color: #f8fafc; font-weight: 700;">🏆 Pódio dos Campeões</h4>
-                                
-                                <div style="display: flex; justify-content: center; align-items: flex-end; gap: 14px; width: 100%; height: 280px; padding-bottom: 10px;">
-                                    <!-- 2º LUGAR -->
-                                    <div style="display: flex; flex-direction: column; align-items: center; width: 30%;">
-                                        <span style="font-size: 28px;">🥈</span>
-                                        <span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center;">{n2}</span>
-                                        <div style="background: linear-gradient(180deg, #64748b, #334155); width: 100%; height: 120px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">
-                                            <span style="font-size: 26px; font-weight: 800; color: white;">{t2}</span>
-                                            <span style="font-size: 10px; color: #94a3b8; text-transform: uppercase;">Entregas</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- 1º LUGAR -->
-                                    <div style="display: flex; flex-direction: column; align-items: center; width: 36%;">
-                                        <span style="font-size: 38px;">🥇</span>
-                                        <span style="font-size: 13px; font-weight: 800; color: #fbbf24; margin-bottom: 6px; text-align: center;">{n1}</span>
-                                        <div style="background: linear-gradient(180deg, #f59e0b, #b45309); width: 100%; height: 170px; border-radius: 14px 14px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 0 25px rgba(245,158,11,0.35); border: 2px solid rgba(254,240,138,0.4);">
-                                            <span style="font-size: 36px; font-weight: 900; color: white;">{t1}</span>
-                                            <span style="font-size: 10px; color: #fef3c7; text-transform: uppercase; font-weight: 700;">RDCs Entregues</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- 3º LUGAR -->
-                                    <div style="display: flex; flex-direction: column; align-items: center; width: 30%;">
-                                        <span style="font-size: 28px;">🥉</span>
-                                        <span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center;">{n3}</span>
-                                        <div style="background: linear-gradient(180deg, #b45309, #78350f); width: 100%; height: 95px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">
-                                            <span style="font-size: 24px; font-weight: 800; color: white;">{t3}</span>
-                                            <span style="font-size: 10px; color: #fed7aa; text-transform: uppercase;">Entregas</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                            def short_n(n):
+                                p = str(n).split()
+                                return p[0] + " " + (p[-1] if len(p) > 1 else "")
+                            
+                            n1 = short_n(top3_tv.iloc[0]["ENCARREGADO"]) if len(top3_tv) >= 1 else "-"
+                            t1 = top3_tv.iloc[0]["ENTREGAS"] if len(top3_tv) >= 1 else 0
+                            n2 = short_n(top3_tv.iloc[1]["ENCARREGADO"]) if len(top3_tv) >= 2 else "-"
+                            t2 = top3_tv.iloc[1]["ENTREGAS"] if len(top3_tv) >= 2 else 0
+                            n3 = short_n(top3_tv.iloc[2]["ENCARREGADO"]) if len(top3_tv) >= 3 else "-"
+                            t3 = top3_tv.iloc[2]["ENTREGAS"] if len(top3_tv) >= 3 else 0
+                            
+                            html_podio = (
+                                '<div style="width: 100%;">'
+                                '<h4 style="margin: 0 0 12px 0; font-size: 15px; color: #f8fafc; font-weight: 700;">🏆 Pódio dos Campeões (Mês Atual)</h4>'
+                                '<div style="display: flex; justify-content: center; align-items: flex-end; gap: 14px; width: 100%; height: 280px; padding-bottom: 10px;">'
+                                '<div style="display: flex; flex-direction: column; align-items: center; width: 30%;">'
+                                '<span style="font-size: 28px;">🥈</span>'
+                                f'<span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n2}</span>'
+                                '<div style="background: linear-gradient(180deg, #64748b, #334155); width: 100%; height: 120px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">'
+                                f'<span style="font-size: 26px; font-weight: 800; color: white;">{t2}</span>'
+                                '<span style="font-size: 10px; color: #94a3b8; text-transform: uppercase;">Entregas</span>'
+                                '</div>'
+                                '</div>'
+                                '<div style="display: flex; flex-direction: column; align-items: center; width: 36%;">'
+                                '<span style="font-size: 38px;">🥇</span>'
+                                f'<span style="font-size: 13px; font-weight: 800; color: #fbbf24; margin-bottom: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n1}</span>'
+                                '<div style="background: linear-gradient(180deg, #f59e0b, #b45309); width: 100%; height: 170px; border-radius: 14px 14px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 0 25px rgba(245,158,11,0.35); border: 2px solid rgba(254,240,138,0.4);">'
+                                f'<span style="font-size: 36px; font-weight: 900; color: white;">{t1}</span>'
+                                '<span style="font-size: 10px; color: #fef3c7; text-transform: uppercase; font-weight: 700;">RDCs Entregues</span>'
+                                '</div>'
+                                '</div>'
+                                '<div style="display: flex; flex-direction: column; align-items: center; width: 30%;">'
+                                '<span style="font-size: 28px;">🥉</span>'
+                                f'<span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n3}</span>'
+                                '<div style="background: linear-gradient(180deg, #b45309, #78350f); width: 100%; height: 95px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">'
+                                f'<span style="font-size: 24px; font-weight: 800; color: white;">{t3}</span>'
+                                '<span style="font-size: 10px; color: #fed7aa; text-transform: uppercase;">Entregas</span>'
+                                '</div>'
+                                '</div>'
+                                '</div>'
+                                '</div>'
+                            )
+                            st.markdown(html_podio, unsafe_allow_html=True)
                             
                     with cf2:
                         with st.container(border=True):
@@ -4123,69 +4110,59 @@ Retorne apenas o JSON sem crases ou markdown."""
         # SLIDE 2: BRIEFING EXECUTIVO & IA GEMINI 3.7
         # =========================================================
         else:
-            st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-                <div>
-                    <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">
-                        🤖 Briefing Operacional & IA — <span style="background: linear-gradient(135deg, #a855f7, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Google Gemini 3.7</span>
-                    </h1>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Análise Inteligente de RDCs Escaneados, Avanços e Restrições de Campo</p>
-                </div>
-                <div style="text-align: right;">
-                    <span style="font-size: 17px; font-weight: 700; color: #c084fc;">DIAGNÓSTICO DIÁRIO</span>
-                    <span style="display: block; font-size: 11px; color: #64748b;">Processamento Automático</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">🤖 Briefing Operacional & IA — <span style="background: linear-gradient(135deg, #a855f7, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Google Gemini 3.7</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Análise Inteligente de RDCs Escaneados, Avanços e Restrições de Campo</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #c084fc;">DIAGNÓSTICO DIÁRIO</span><span style="display: block; font-size: 11px; color: #64748b;">Processamento Automático</span></div></div>""", unsafe_allow_html=True)
             
             # 3 Colunas Executivas de Briefing
             cb1, cb2, cb3 = st.columns(3)
             
             with cb1:
                 with st.container(border=True):
-                    st.markdown("""
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                        <span style="font-size: 18px;">🟢</span>
-                        <h4 style="margin: 0; font-size: 15px; color: #10b981; font-weight: 800;">Principais Avanços</h4>
-                    </div>
-                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">
-                        <li><b>Montagem Eletromecânica:</b> Soldagem de tubulações de alta pressão concluída na Caldeira de Força (PB).</li>
-                        <li><b>Caldeiraria Pesada:</b> Avanço no içamento das vigas estruturais da Caldeira de Recuperação (RB).</li>
-                        <li><b>Andaime & Apoio:</b> 100% dos acessos de segurança liberados para inspeção e solda.</li>
-                        <li><b>Precipitador (ESP):</b> Alinhamento de placas coletoras em ritmo acelerado.</li>
-                    </ul>
-                    """, unsafe_allow_html=True)
+                    html_c1 = (
+                        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
+                        '<span style="font-size: 18px;">🟢</span>'
+                        '<h4 style="margin: 0; font-size: 15px; color: #10b981; font-weight: 800;">Principais Avanços</h4>'
+                        '</div>'
+                        '<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">'
+                        '<li><b>Montagem Eletromecânica:</b> Soldagem de tubulações de alta pressão concluída na Caldeira de Força (PB).</li>'
+                        '<li><b>Caldeiraria Pesada:</b> Avanço no içamento das vigas estruturais da Caldeira de Recuperação (RB).</li>'
+                        '<li><b>Andaime & Apoio:</b> 100% dos acessos de segurança liberados para inspeção e solda.</li>'
+                        '<li><b>Precipitador (ESP):</b> Alinhamento de placas coletoras em ritmo acelerado.</li>'
+                        '</ul>'
+                    )
+                    st.markdown(html_c1, unsafe_allow_html=True)
                 
             with cb2:
                 with st.container(border=True):
-                    st.markdown("""
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                        <span style="font-size: 18px;">🟡</span>
-                        <h4 style="margin: 0; font-size: 15px; color: #f59e0b; font-weight: 800;">Pontos de Atenção</h4>
-                    </div>
-                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">
-                        <li><b>Interferência de Área:</b> Equipe de isolamento térmico necessita de liberação na elevação +32m.</li>
-                        <li><b>Logística de Almoxarifado:</b> Monitorar reposição de eletrodos e discos de corte para o 2º turno.</li>
-                        <li><b>Clima & Segurança:</b> Reforçar DDS sobre trabalho em altura com rajadas de vento.</li>
-                    </ul>
-                    """, unsafe_allow_html=True)
+                    html_c2 = (
+                        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
+                        '<span style="font-size: 18px;">🟡</span>'
+                        '<h4 style="margin: 0; font-size: 15px; color: #f59e0b; font-weight: 800;">Pontos de Atenção</h4>'
+                        '</div>'
+                        '<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">'
+                        '<li><b>Interferência de Área:</b> Equipe de isolamento térmico necessita de liberação na elevação +32m.</li>'
+                        '<li><b>Logística de Almoxarifado:</b> Monitorar reposição de eletrodos e discos de corte para o 2º turno.</li>'
+                        '<li><b>Clima & Segurança:</b> Reforçar DDS sobre trabalho em altura com rajadas de vento.</li>'
+                        '</ul>'
+                    )
+                    st.markdown(html_c2, unsafe_allow_html=True)
                 
             with cb3:
                 with st.container(border=True):
-                    st.markdown("""
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                        <span style="font-size: 18px;">🔴</span>
-                        <h4 style="margin: 0; font-size: 15px; color: #ef4444; font-weight: 800;">Bloqueios & Restrições</h4>
-                    </div>
-                    <ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">
-                        <li><b>Guindaste Principal:</b> Aguardando liberação de plano de rigging para içamento do duto superior.</li>
-                        <li><b>Acesso Restrito:</b> Teste hidrostático exige isolamento do módulo 04.</li>
-                    </ul>
-                    <div style="margin-top: 20px; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.25);">
-                        <span style="font-size: 11px; color: #fca5a5; font-weight: 700;">🚨 AÇÃO REQUERIDA:</span>
-                        <p style="font-size: 11px; color: #e2e8f0; margin: 2px 0 0 0;">Alinhamento imediato com a coordenação de segurança da Arauco.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    html_c3 = (
+                        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
+                        '<span style="font-size: 18px;">🔴</span>'
+                        '<h4 style="margin: 0; font-size: 15px; color: #ef4444; font-weight: 800;">Bloqueios & Restrições</h4>'
+                        '</div>'
+                        '<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.8; padding-left: 18px; margin: 0;">'
+                        '<li><b>Guindaste Principal:</b> Aguardando liberação de plano de rigging para içamento do duto superior.</li>'
+                        '<li><b>Acesso Restrito:</b> Teste hidrostático exige isolamento do módulo 04.</li>'
+                        '</ul>'
+                        '<div style="margin-top: 20px; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.25);">'
+                        '<span style="font-size: 11px; color: #fca5a5; font-weight: 700;">🚨 AÇÃO REQUERIDA:</span>'
+                        '<p style="font-size: 11px; color: #e2e8f0; margin: 2px 0 0 0;">Alinhamento imediato com a coordenação de segurança da Arauco.</p>'
+                        '</div>'
+                    )
+                    st.markdown(html_c3, unsafe_allow_html=True)
             
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             col_tv_b1, col_tv_b2 = st.columns([1.5, 2.5])
