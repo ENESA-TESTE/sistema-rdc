@@ -5706,6 +5706,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
                 - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou.
                 - ATIVIDADE: Crie um RESUMO GERAL de no máximo 35 palavras contendo as principais atividades executadas em todo o RDC. TUDO EM MAIÚSCULAS. CORRIJA a ortografia usando o glossário acima. NÃO CRIE SUBNÍVEIS, APENAS UM ÚNICO RESUMO TEXTUAL.
+                - PROBLEMAS: Extraia qualquer relato de problema, desvio, baixa produtividade, bloqueio, paralisação, falta de material/ferramenta/guindaste, interferência de outra equipe, chuva/clima, ou restrição técnica anotado pelo encarregado. Se não houver problemas relatados, retorne ''.
                 - CALDEIRA: OBRIGATÓRIO classificar. Analise TODO o conteúdo do RDC (local marcado, atividades, cabeçalho) e classifique:
                   * Se houver QUALQUER menção a 'caldeira de recuperação', 'recovery boiler', 'caldeira RB', 'RB' marcado, ou local/área vinculada à recuperação → retorne 'RB'
                   * Se houver QUALQUER menção a 'caldeira de força', 'caldeira de potência', 'power boiler', 'caldeira PB', 'PB' marcado → retorne 'PB'
@@ -6118,10 +6119,23 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 
                     st.session_state.df_ia = pd.concat([df_restante, df_filtrado], ignore_index=True)
                     
-                    # === PERSISTIR RDCs NO BANCO DE DADOS ===
+                    # Função para padronizar data no formato ISO YYYY-MM-DD
+                    def _padronizar_data_iso(d_val):
+                        try:
+                            dt = pd.to_datetime(d_val, dayfirst=True, format='mixed', errors='coerce')
+                            if pd.notna(dt):
+                                if dt.year < 2024:
+                                    dt = dt.replace(year=datetime.datetime.now().year)
+                                return dt.strftime('%Y-%m-%d')
+                        except:
+                            pass
+                        return datetime.date.today().strftime('%Y-%m-%d')
+
+                    # === PERSISTIR RDCs COMPLETOS NO BANCO DE DADOS ===
                     try:
                         colunas_rdc = ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA']
-                        df_salvar_rdc = df_editado.copy()
+                        df_salvar_rdc = df_filtrado.copy()
+                        df_salvar_rdc['DATA'] = df_salvar_rdc['DATA'].apply(_padronizar_data_iso)
                         for col in colunas_rdc:
                             if col not in df_salvar_rdc.columns:
                                 df_salvar_rdc[col] = ''
@@ -6130,7 +6144,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         
                         if os.path.exists(caminho_rdc_registros_csv):
                             df_rdc_existente = pd.read_csv(caminho_rdc_registros_csv)
-                            df_rdc_final = pd.concat([df_rdc_existente, df_salvar_rdc], ignore_index=True)
+                            df_rdc_final = pd.concat([df_rdc_existente, df_salvar_rdc], ignore_index=True).drop_duplicates(subset=['DATA', 'ENCARREGADO', 'ATIVIDADE'])
                         else:
                             df_rdc_final = df_salvar_rdc
                         
@@ -6139,16 +6153,13 @@ Retorne apenas o JSON sem crases ou markdown."""
                     except Exception as e_rdc_save:
                         st.warning(f"⚠️ RDCs processados, mas erro ao salvar no banco permanente: {e_rdc_save}")
                     
-                    # Salva no F1
+                    # Salva no F1 e Resumo Diário (usando df_filtrado com DATA real)
                     novos_registros = []
-                    for _, row in df_editado.iterrows():
+                    for _, row in df_filtrado.iterrows():
                         enc_lido = str(row.get('ENCARREGADO', '')).strip()
                         if enc_lido and enc_lido in lista_encarregados_base:
-                            data_extraida = str(row.get('DATA', '')).strip()
-                            try:
-                                data_registro = pd.to_datetime(data_extraida).strftime('%Y-%m-%d')
-                            except:
-                                data_registro = datetime.date.today().strftime('%Y-%m-%d')
+                            data_raw = str(row.get('DATA', '')).strip()
+                            data_registro = _padronizar_data_iso(data_raw)
                             
                             ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
                             if not ja_existe:
