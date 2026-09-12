@@ -146,8 +146,9 @@ st.set_page_config(page_title=f"Sistema RDC & PDE - {nome_site}", layout="wide",
 # Injeção de CSS para ajustes de interface
 st.markdown("""
     <style>
-        /* Tipografia Moderna */
+        /* Tipografia Moderna e Ícones */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
         
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
@@ -281,12 +282,11 @@ st.markdown("""
             display: none !important;
         }
         
-        /* Ocultar texto quebrado "arrow_down" do st.expander caso a fonte não carregue */
-        summary .material-symbols-rounded,
-        .st-emotion-cache-1t8fpt5 .material-symbols-rounded,
-        [data-testid="stExpander"] .material-symbols-rounded {
-            display: none !important;
-            color: transparent !important;
+        /* Garantir fonte correta para os ícones do st.expander sem vazar texto */
+        [data-testid="stExpander"] summary [data-testid="stIconMaterial"],
+        [data-testid="stExpander"] summary .material-symbols-rounded {
+            font-family: 'Material Symbols Rounded' !important;
+            font-size: 18px !important;
         }
         
         /* Esconder o menu superior chato do Streamlit (Deploy, Rerun, etc) */
