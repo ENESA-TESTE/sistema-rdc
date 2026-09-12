@@ -2525,7 +2525,7 @@ with st.sidebar:
                 <span style='font-size: 11px; color: #64748b;'>📅 Última att: 12/09/2026</span>
                 <span style='font-size: 10px; color: #334155;'>|</span>
                 <div style='display: inline-block; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 20px; padding: 2px 12px;'>
-                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v7.0</span>
+                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v8.0</span>
                 </div>
             </div>
             <div style='border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;'>
