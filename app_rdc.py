@@ -2026,17 +2026,21 @@ def preparar_dataframe(df):
     # Remover colunas duplicadas mantendo a primeira encontrada (que geralmente é a principal da esquerda pra direita)
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
     
-    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "TURNO", "STATUS"]:
-        if c not in df.columns:
-            df[c] = ""
-        df[c] = df[c].fillna("").astype(str).str.strip()
-        df[c] = df[c].replace(["nan", "NaN", "None", "0.0", "0", "#N/D", "#N/A", "#REF!", "-"], "")
+    def _limpar_celula_segura(val):
+        if val is None or pd.isna(val):
+            return ""
+        s = str(val).strip()
+        s_up = s.upper()
+        if s_up in ["NAN", "NONE", "NULL", "0.0", "0", "-", "", "AJUSTAR NOME", "AJUSTAR"]:
+            return ""
+        if s_up.startswith("#") or s_up.startswith("=") or "VLOOKUP" in s_up or "PROCV" in s_up or "DID NOT FIND" in s_up:
+            return ""
+        return s
 
-    for c in ["C.C", "DISCIPLINA", "MÃO DE OBRA"]:
+    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "TURNO", "STATUS", "C.C", "DISCIPLINA", "MÃO DE OBRA"]:
         if c not in df.columns:
             df[c] = ""
-        df[c] = df[c].fillna("").astype(str).str.strip()
-        df[c] = df[c].replace(["nan", "NaN", "None", "0.0", "0", "#N/D", "#N/A", "#REF!", "-"], "")
+        df[c] = df[c].apply(_limpar_celula_segura)
 
     df["MATRICULA"] = df["MATRICULA"].str.replace(".0", "", regex=False)
     
@@ -2351,6 +2355,29 @@ def excluir_briefing_dia(data_str):
     return False
 
 # =================================================================
+# VALIDAÇÃO E SANITIZAÇÃO DE NOMES DE ENCARREGADOS
+# =================================================================
+def eh_encarregado_valido(nome):
+    """
+    Verifica se um valor de encarregado é um nome real e válido,
+    eliminando erros de fórmulas (#N/A, #REF!, VLOOKUP, PROCV, etc.), nulos e textos de preenchimento.
+    """
+    if not nome or pd.isna(nome):
+        return False
+    s = str(nome).strip().upper()
+    if not s or s in ["", "NAN", "NONE", "NULL", "0", "0.0", "-", "N/I", "N/A", "NÃO INFORMADO", "NAO INFORMADO", "AJUSTAR NOME", "AJUSTAR", "NÃO ENCONTRADO", "NAO ENCONTRADO"]:
+        return False
+    # Detectar erros de fórmulas do Excel / Google Sheets
+    if s.startswith("#") or s.startswith("="):
+        return False
+    if "VLOOKUP" in s or "PROCV" in s or "DID NOT FIND" in s or "EVALUATION" in s or "#N/A" in s or "#REF" in s or "#VAL" in s or "#NAME" in s or "#N/D" in s:
+        return False
+    # Nomes precisam ter pelo menos 2 caracteres e letras
+    if len(s) < 2 or not any(c.isalpha() for c in s):
+        return False
+    return True
+
+# =================================================================
 # SINCRONIZAÇÃO GLOBAL EM TEMPO REAL (MULTI-DISPOSITIVO / TV / MOBILE)
 # =================================================================
 def sincronizar_dados_globais():
@@ -2368,7 +2395,7 @@ def sincronizar_dados_globais():
         if "DATA" in df_mem.columns and "ENCARREGADO" in df_mem.columns:
             df_mem["DATA"] = df_mem["DATA"].apply(normalizar_data_brasil)
             df_mem["ENCARREGADO"] = df_mem["ENCARREGADO"].astype(str).str.strip().str.upper()
-            registros_para_filtrar = df_mem[df_mem["ENCARREGADO"] != ""][["DATA", "ENCARREGADO"]].dropna()
+            registros_para_filtrar = df_mem[df_mem["ENCARREGADO"].apply(eh_encarregado_valido)][["DATA", "ENCARREGADO"]].dropna()
             registros_f1.append(registros_para_filtrar)
             
     # 1.2 Do arquivo local historico_f1_local.csv
@@ -2378,7 +2405,7 @@ def sincronizar_dados_globais():
             if not df_local.empty and "DATA" in df_local.columns and "ENCARREGADO" in df_local.columns:
                 df_local["DATA"] = df_local["DATA"].apply(normalizar_data_brasil)
                 df_local["ENCARREGADO"] = df_local["ENCARREGADO"].astype(str).str.strip().str.upper()
-                registros_f1.append(df_local[df_local["ENCARREGADO"] != ""][["DATA", "ENCARREGADO"]].dropna())
+                registros_f1.append(df_local[df_local["ENCARREGADO"].apply(eh_encarregado_valido)][["DATA", "ENCARREGADO"]].dropna())
         except Exception:
             pass
             
@@ -2389,7 +2416,7 @@ def sincronizar_dados_globais():
             if not df_rdc_reg.empty and "DATA" in df_rdc_reg.columns and "ENCARREGADO" in df_rdc_reg.columns:
                 df_rdc_reg["DATA"] = df_rdc_reg["DATA"].apply(normalizar_data_brasil)
                 df_rdc_reg["ENCARREGADO"] = df_rdc_reg["ENCARREGADO"].astype(str).str.strip().str.upper()
-                registros_f1.append(df_rdc_reg[df_rdc_reg["ENCARREGADO"] != ""][["DATA", "ENCARREGADO"]].dropna())
+                registros_f1.append(df_rdc_reg[df_rdc_reg["ENCARREGADO"].apply(eh_encarregado_valido)][["DATA", "ENCARREGADO"]].dropna())
         except Exception:
             pass
             
@@ -2397,7 +2424,7 @@ def sincronizar_dados_globais():
     if registros_f1:
         df_unificado = pd.concat(registros_f1, ignore_index=True)
         df_unificado["ENCARREGADO"] = df_unificado["ENCARREGADO"].astype(str).str.strip().str.upper()
-        df_unificado = df_unificado[df_unificado["ENCARREGADO"] != ""]
+        df_unificado = df_unificado[df_unificado["ENCARREGADO"].apply(eh_encarregado_valido)]
         df_unificado = df_unificado.drop_duplicates(subset=["DATA", "ENCARREGADO"])
         st.session_state.df_historico_f1 = df_unificado
         try:
@@ -2737,7 +2764,7 @@ if conn and not st.session_state.get('force_use_local', False):
             df_f1 = df_f1.dropna(how='all')
             # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
             if not df_f1.empty and 'ENCARREGADO' in df_f1.columns:
-                df_f1 = df_f1[df_f1['ENCARREGADO'].notna() & (df_f1['ENCARREGADO'] != '')]
+                df_f1 = df_f1[df_f1['ENCARREGADO'].apply(eh_encarregado_valido)]
             
             qtd_nuvem = len(df_f1) if not df_f1.empty else 0
             qtd_local = len(st.session_state.df_historico_f1) if not st.session_state.df_historico_f1.empty else 0
@@ -2840,7 +2867,7 @@ if st.session_state.df is not None:
         with open(caminho_f1_json, "w", encoding="utf-8") as f:
             json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
     
-    lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
+    lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if eh_encarregado_valido(e)])
     
     # Carregar exceções (Abonos)
     if "df_f1_excecoes" not in st.session_state:
@@ -5536,7 +5563,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 if not df_banco_rdc.empty and "DATA" in df_banco_rdc.columns and "ENCARREGADO" in df_banco_rdc.columns:
                     df_banco_val = df_banco_rdc[["DATA", "ENCARREGADO"]].dropna().copy()
                     df_banco_val["ENCARREGADO"] = df_banco_val["ENCARREGADO"].astype(str).str.strip().str.upper()
-                    df_banco_val = df_banco_val[df_banco_val["ENCARREGADO"] != ""]
+                    df_banco_val = df_banco_val[df_banco_val["ENCARREGADO"].apply(eh_encarregado_valido)]
                     
                     if not df_banco_val.empty:
                         if st.session_state.df_historico_f1.empty:
@@ -5550,8 +5577,8 @@ Retorne apenas o JSON sem crases ou markdown."""
         dict_enc_disciplina = {}
         if "DISCIPLINA" in df_atual.columns and "ENCARREGADO" in df_atual.columns:
             for enc_n in df_atual["ENCARREGADO"].dropna().unique():
-                enc_n_str = str(enc_n).strip().upper()
-                if enc_n_str:
+                if eh_encarregado_valido(enc_n):
+                    enc_n_str = str(enc_n).strip().upper()
                     sub_d = df_atual[df_atual["ENCARREGADO"].astype(str).str.upper().str.strip() == enc_n_str]
                     if not sub_d.empty:
                         d_val = sub_d["DISCIPLINA"].dropna()
@@ -5796,9 +5823,10 @@ Retorne apenas o JSON sem crases ou markdown."""
         ano, mes = map(int, mes_selecionado.split('-'))
         num_dias = calendar.monthrange(ano, mes)[1]
         
-        nomes_no_mes = df_mes["ENCARREGADO"].dropna().unique().tolist() if not df_mes.empty else []
-        todos_encarregados_matriz = sorted(list(set(lista_completa_encarregados + encarregados_f1_oficial + nomes_no_mes)))
-        todos_encarregados_matriz = [e for e in todos_encarregados_matriz if str(e).strip() != "" and str(e).upper() != "AJUSTAR NOME"]
+        nomes_no_mes = [e for e in (df_mes["ENCARREGADO"].dropna().unique().tolist() if not df_mes.empty else []) if eh_encarregado_valido(e)]
+        encs_oficiais_validos = [e for e in encarregados_f1_oficial if eh_encarregado_valido(e)]
+        todos_encarregados_matriz = sorted(list(set(lista_completa_encarregados + encs_oficiais_validos + nomes_no_mes)))
+        todos_encarregados_matriz = [e for e in todos_encarregados_matriz if eh_encarregado_valido(e)]
         
         # Aplicar filtro por disciplina se selecionado
         if filtro_f1_disc != "Todas as Disciplinas":
