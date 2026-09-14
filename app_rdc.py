@@ -2557,11 +2557,11 @@ with st.sidebar:
             st.rerun()
         
         # --- Seletor de Modelo Gemini (Versões Mais Recentes) ---
-        modelos_gemini = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-pro-latest"]
-        modelo_atual = st.session_state.get("modelo_gemini", "gemini-3.7-flash")
+        modelos_gemini = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-pro-latest"]
+        modelo_atual = st.session_state.get("modelo_gemini", "gemini-2.5-flash")
         idx_modelo = modelos_gemini.index(modelo_atual) if modelo_atual in modelos_gemini else 0
         modelo_sel = st.selectbox("🤖 Modelo de IA (Gemini)", modelos_gemini, index=idx_modelo, key="sel_modelo_gemini")
-        if modelo_sel != st.session_state.get("modelo_gemini", "gemini-3.7-flash"):
+        if modelo_sel != st.session_state.get("modelo_gemini", "gemini-2.5-flash"):
             st.session_state.modelo_gemini = modelo_sel
             st.rerun()
         
@@ -3579,20 +3579,29 @@ Retorne ESTRITAMENTE um JSON puro válido:
 }}
 Retorne apenas o JSON sem crases ou markdown."""
                 
-                modelo_brief = st.session_state.get('modelo_gemini', 'gemini-3.7-flash')
-                try:
-                    resp = client.models.generate_content(
-                        model=modelo_brief,
-                        contents=prompt
-                    )
-                except Exception as e_br:
-                    # Fallback caso o modelo de ponta esteja com alta demanda temporaria
-                    bkp_m = 'gemini-3.5-flash' if modelo_brief != 'gemini-3.5-flash' else 'gemini-2.5-flash'
-                    resp = client.models.generate_content(
-                        model=bkp_m,
-                        contents=prompt
-                    )
-                    modelo_brief = bkp_m
+                modelos_brief = []
+                m_pref = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
+                if m_pref: modelos_brief.append(m_pref)
+                for mb_f in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
+                    if mb_f not in modelos_brief:
+                        modelos_brief.append(mb_f)
+                
+                resp = None
+                modelo_brief = 'gemini-2.5-flash'
+                for mb in modelos_brief:
+                    try:
+                        resp = client.models.generate_content(
+                            model=mb,
+                            contents=prompt
+                        )
+                        if resp and resp.text:
+                            modelo_brief = mb
+                            break
+                    except Exception:
+                        continue
+                
+                if not resp or not resp.text:
+                    raise Exception("Falha ao consultar modelos de IA.")
                 
                 resp_text = resp.text.strip()
                 if resp_text.startswith("```"):
@@ -6553,43 +6562,45 @@ Retorne apenas o JSON sem crases ou markdown."""
                         from google import genai
                         
                         tmp_path = arquivo_dict['tmp_path']
-                        max_tentativas = 3
+                        max_tentativas = 2
                         idx_chave_atual_local = 0
                         client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
                         
                         for tentativa in range(max_tentativas):
+                            arquivo_up = None
                             try:
                                 arquivo_up = client_local.files.upload(file=tmp_path)
                                 
                                 tempo_espera = 0
-                                while tempo_espera < 180:
-                                    file_info = client_local.files.get(name=arquivo_up.name)
-                                    estado = str(file_info.state).upper()
-                                    if "ACTIVE" in estado:
+                                while tempo_espera < 60:
+                                    try:
+                                        file_info = client_local.files.get(name=arquivo_up.name)
+                                        estado = str(file_info.state).upper()
+                                        if "ACTIVE" in estado or "STATE_ACTIVE" in estado:
+                                            break
+                                        elif "FAILED" in estado:
+                                            raise Exception("Falha interna ao processar arquivo no Google.")
+                                    except Exception as e_st:
+                                        if "FAILED" in str(e_st):
+                                            raise e_st
                                         break
-                                    elif "FAILED" in estado:
-                                        raise Exception("Falha interna do Google ao processar este arquivo. Tente um arquivo menor.")
-                                    time.sleep(3)
-                                    tempo_espera += 3
-                                    
-                                if tempo_espera >= 180:
-                                    raise Exception("Tempo limite esgotado aguardando o Google processar o PDF (demorou mais de 3 minutos).")
+                                    time.sleep(1.5)
+                                    tempo_espera += 1.5
                                 
-                                try:
-                                    resposta = client_local.models.generate_content(
-                                        model=modelo_gemini,
-                                        contents=[arquivo_up, prompt_ia],
-                                        config=genai.types.GenerateContentConfig(
-                                            response_mime_type="application/json",
-                                            response_schema=list[schema],
-                                            temperature=0.0
-                                        )
-                                    )
-                                except Exception as err_gen:
-                                    if ('503' in str(err_gen) or 'UNAVAILABLE' in str(err_gen)) and modelo_gemini != 'gemini-2.5-flash':
-                                        bkp_m = 'gemini-3.5-flash' if modelo_gemini != 'gemini-3.5-flash' else 'gemini-2.5-flash'
+                                # Lista de modelos em ordem de tentativa para máxima resiliência
+                                modelos_tentativa = []
+                                if modelo_gemini:
+                                    modelos_tentativa.append(modelo_gemini)
+                                for m_fb in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
+                                    if m_fb not in modelos_tentativa:
+                                        modelos_tentativa.append(m_fb)
+                                
+                                resposta = None
+                                ultimo_err_mod = None
+                                for mod_atual in modelos_tentativa:
+                                    try:
                                         resposta = client_local.models.generate_content(
-                                            model=bkp_m,
+                                            model=mod_atual,
                                             contents=[arquivo_up, prompt_ia],
                                             config=genai.types.GenerateContentConfig(
                                                 response_mime_type="application/json",
@@ -6597,8 +6608,17 @@ Retorne apenas o JSON sem crases ou markdown."""
                                                 temperature=0.0
                                             )
                                         )
-                                    else:
-                                        raise err_gen
+                                        if resposta and resposta.text:
+                                            break
+                                    except Exception as err_gen:
+                                        ultimo_err_mod = err_gen
+                                        # Tenta o próximo modelo imediatamente em caso de 503, 404, 429
+                                        continue
+                                
+                                if not resposta or not resposta.text:
+                                    if ultimo_err_mod:
+                                        raise ultimo_err_mod
+                                    raise Exception("Não foi possível obter resposta da IA.")
                                 
                                 if _old_cred:
                                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _old_cred
@@ -6689,14 +6709,19 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             time.sleep(2)
                                             continue
                                         else:
-                                            time.sleep(60)
+                                            time.sleep(15)
                                             continue
                                 elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
                                     if tentativa < max_tentativas - 1:
-                                        time.sleep(10)
+                                        time.sleep(2)
                                         continue
-                                raise Exception(f"Erro detalhado na IA: {inner_e}")
-                        raise Exception("Falha após múltiplas tentativas.")
+                                raise Exception(f"Erro na IA: {inner_e}")
+                            finally:
+                                if arquivo_up:
+                                    try:
+                                        client_local.files.delete(name=arquivo_up.name)
+                                    except:
+                                        pass
 
                     import concurrent.futures
                     modelo_usado = st.session_state.get('modelo_gemini', 'gemini-3.7-flash')
