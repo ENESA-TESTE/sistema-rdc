@@ -1933,46 +1933,83 @@ def salvar_base_localmente(arquivo_upload):
     except Exception:
         return False
 
+def obter_planilha_google():
+    """Retorna o objeto da planilha Google Sheets autenticado via Service Account."""
+    try:
+        from google.oauth2 import service_account
+        import gspread
+        if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+            creds_info = st.secrets["connections"]["gsheets"]
+            scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
+            client = gspread.authorize(creds)
+            sh = client.open_by_url(creds_info['spreadsheet'])
+            return sh
+    except Exception:
+        pass
+    return None
+
 def salvar_f1_seguro(conn, df_f1, caminho_csv):
-    """Salva o Histórico F1 no Google Sheets COM PROTEÇÃO ANTI-PERDA.
-    NUNCA sobrescreve a nuvem com dados vazios ou muito menores.
+    """Salva o Histórico F1 no Google Sheets e localmente COM PROTEÇÃO ANTI-PERDA.
+    Garante persistência total entre todos os usuários da nuvem.
     """
     if df_f1 is None or df_f1.empty:
-        return False, "Bloqueado: tentativa de salvar dados vazios na nuvem."
+        return False, "Bloqueado: tentativa de salvar dados vazios."
     
-    # Filtrar linhas inválidas antes de salvar
+    # Filtrar linhas válidas antes de salvar
     if 'ENCARREGADO' in df_f1.columns:
-        df_f1 = df_f1[df_f1['ENCARREGADO'].notna() & (df_f1['ENCARREGADO'] != '')]
+        df_f1 = df_f1[df_f1['ENCARREGADO'].notna() & (df_f1['ENCARREGADO'].astype(str).str.strip() != '') & (df_f1['ENCARREGADO'].astype(str).str.strip() != '-')]
+    if 'DATA' in df_f1.columns:
+        df_f1 = df_f1[df_f1['DATA'].notna() & (df_f1['DATA'].astype(str).str.strip() != '')]
     
     if df_f1.empty:
         return False, "Bloqueado: todos os registros são inválidos."
     
-    # Verificar quantos registros existem na nuvem antes de sobrescrever
+    df_f1 = df_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
+    
+    # 1. Backup Local CSV
     try:
-        df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
-        if df_nuvem is not None:
-            df_nuvem = df_nuvem.dropna(how='all')
-            qtd_nuvem = len(df_nuvem)
-        else:
-            qtd_nuvem = 0
-    except Exception:
-        qtd_nuvem = 0
-    
-    qtd_novo = len(df_f1)
-    
-    # PROTEÇÃO: Se os dados novos têm MUITO MENOS registros que a nuvem (mais de 50% menor),
-    # algo está errado. Bloquear a escrita para não perder dados.
-    if qtd_nuvem > 10 and qtd_novo < qtd_nuvem * 0.5:
-        return False, f"Bloqueado: tentativa de reduzir de {qtd_nuvem} para {qtd_novo} registros (perda >50%)."
-    
-    # Tudo OK, salvar
-    try:
-        conn.update(worksheet="Historico_F1", data=df_f1)
-        # Backup local
         df_f1.to_csv(caminho_csv, index=False)
-        return True, f"OK: {qtd_novo} registros salvos."
+    except Exception:
+        pass
+
+    # 2. Persistência na Nuvem (Google Sheets via gspread)
+    try:
+        sh = obter_planilha_google()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            if "Historico_F1" not in ws_names:
+                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
+            else:
+                ws_f1 = sh.worksheet("Historico_F1")
+                
+            # Ler dados atuais da nuvem para mesclar se necessário (proteção anti-perda)
+            recs_nuvem = ws_f1.get_all_records()
+            if recs_nuvem:
+                df_nuvem_atual = pd.DataFrame(recs_nuvem)
+                if not df_nuvem_atual.empty and "DATA" in df_nuvem_atual.columns and "ENCARREGADO" in df_nuvem_atual.columns:
+                    # Se o df atual tiver muito menos que a nuvem, mesclar para não perder
+                    if len(df_f1) < len(df_nuvem_atual) * 0.5 and len(df_nuvem_atual) > 10:
+                        df_f1 = pd.concat([df_nuvem_atual, df_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+            
+            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
+            if ws_f1.row_count < len(valores) + 50:
+                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
+                
+            ws_f1.clear()
+            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
+            return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
     except Exception as e:
-        return False, f"Erro ao salvar: {e}"
+        # Fallback via st.connection se gspread direto falhar
+        if conn:
+            try:
+                conn.update(worksheet="Historico_F1", data=df_f1)
+                return True, f"OK (fallback conn): {len(df_f1)} registros salvos."
+            except Exception as e2:
+                return False, f"Erro ao salvar na nuvem: {e2}"
+        return False, f"Erro na nuvem: {e}"
+    
+    return True, f"OK: {len(df_f1)} registros salvos localmente."
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -1997,7 +2034,10 @@ def preparar_dataframe(df):
             else:
                 mapeamento[col] = "MATRICULA"
                 
-        elif "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean or "SUPERVISOR" in col_clean or "COORDENADOR" in col_clean:
+        elif "COORDENADOR" in col_clean or "SUPERVISOR" in col_clean or "GERENTE" in col_clean:
+            mapeamento[col] = "COORDENADOR"
+            
+        elif "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean:
             mapeamento[col] = "ENCARREGADO"
             
         elif "NOME" in col_clean or "COLABORADOR" in col_clean or "FUNCIONÁRIO" in col_clean or "FUNCIONARIO" in col_clean or "EMPREGADO" in col_clean:
@@ -2037,7 +2077,7 @@ def preparar_dataframe(df):
             return ""
         return s
 
-    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "TURNO", "STATUS", "C.C", "DISCIPLINA", "MÃO DE OBRA"]:
+    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "COORDENADOR", "TURNO", "STATUS", "C.C", "DISCIPLINA", "MÃO DE OBRA"]:
         if c not in df.columns:
             df[c] = ""
         df[c] = df[c].apply(_limpar_celula_segura)
@@ -2125,6 +2165,89 @@ def preparar_dataframe(df):
     df = df[df["NOME"].str.strip() != ""]
     
     return df
+
+def obter_mapa_encarregado_coordenador(df):
+    """
+    Mapeia cada encarregado para o seu Coordenador/Supervisor/Gerente a partir do PDE.
+    Busca na coluna COORDENADOR tanto pelo colaborador quanto pela equipe.
+    """
+    mapa = {}
+    if df is None or df.empty:
+        return mapa
+    
+    col_nome = "NOME" if "NOME" in df.columns else None
+    col_func = "FUNÇÃO" if "FUNÇÃO" in df.columns else None
+    col_enc = "ENCARREGADO" if "ENCARREGADO" in df.columns else None
+    col_coord = "COORDENADOR" if "COORDENADOR" in df.columns else None
+    
+    if not col_coord:
+        for c in df.columns:
+            if any(k in str(c).upper() for k in ["COORDENADOR", "SUPERVISOR", "GERENTE"]):
+                col_coord = c
+                break
+                
+    if col_coord:
+        for _, r in df.iterrows():
+            coord_val = str(r[col_coord]).strip().upper()
+            if not coord_val or coord_val in ['NAN', 'NONE', 'NULL', '-', '', '0', '0.0', 'N/A', 'N/I']:
+                continue
+                
+            # 1. Se a linha for do próprio Encarregado/Líder
+            if col_nome and col_func:
+                nome_val = str(r[col_nome]).strip().upper()
+                func_val = str(r[col_func]).strip().upper()
+                if any(k in func_val for k in ['ENCARREGADO', 'LIDER', 'LÍDER', 'SUPERVISOR', 'ENC.']):
+                    mapa[nome_val] = coord_val
+                    
+            # 2. Se a linha tiver a coluna ENCARREGADO preenchida com a equipe dele
+            if col_enc:
+                enc_val = str(r[col_enc]).strip().upper()
+                if enc_val and enc_val not in ['NAN', 'NONE', 'NULL', '-', '', '0', '0.0', 'N/A', 'N/I']:
+                    if enc_val not in mapa:
+                        mapa[enc_val] = coord_val
+                        
+    return mapa
+
+def obter_mapa_encarregado_disciplina(df):
+    """
+    Mapeia cada encarregado para a sua Disciplina a partir do PDE.
+    """
+    mapa = {}
+    if df is None or df.empty:
+        return mapa
+    
+    col_nome = "NOME" if "NOME" in df.columns else None
+    col_func = "FUNÇÃO" if "FUNÇÃO" in df.columns else None
+    col_enc = "ENCARREGADO" if "ENCARREGADO" in df.columns else None
+    col_disc = "DISCIPLINA" if "DISCIPLINA" in df.columns else None
+    
+    if not col_disc:
+        for c in df.columns:
+            if any(k in str(c).upper() for k in ["DISCIPLINA", "DISC", "AREA", "SETOR"]):
+                col_disc = c
+                break
+                
+    if col_disc:
+        for _, r in df.iterrows():
+            disc_val = str(r[col_disc]).strip().upper()
+            if not disc_val or disc_val in ['NAN', 'NONE', 'NULL', '-', '', '0', '0.0', 'N/A', 'N/I']:
+                continue
+                
+            # 1. Se a linha for do próprio Encarregado/Líder
+            if col_nome and col_func:
+                nome_val = str(r[col_nome]).strip().upper()
+                func_val = str(r[col_func]).strip().upper()
+                if any(k in func_val for k in ['ENCARREGADO', 'LIDER', 'LÍDER', 'SUPERVISOR', 'ENC.']):
+                    mapa[nome_val] = disc_val
+                    
+            # 2. Se a linha tiver a coluna ENCARREGADO preenchida com a equipe dele
+            if col_enc:
+                enc_val = str(r[col_enc]).strip().upper()
+                if enc_val and enc_val not in ['NAN', 'NONE', 'NULL', '-', '', '0', '0.0', 'N/A', 'N/I']:
+                    if enc_val not in mapa:
+                        mapa[enc_val] = disc_val
+                        
+    return mapa
 
 # =================================================================
 # INTEGRAÇÃO GOOGLE DRIVE (BACKUP NUVEM)
@@ -2292,22 +2415,52 @@ def normalizar_data_brasil(val):
     return datetime.date.today().strftime('%Y-%m-%d')
 
 # =================================================================
-# PERSISTÊNCIA E GESTÃO DE BRIEFINGS DIÁRIOS
+# PERSISTÊNCIA E GESTÃO DE BRIEFINGS DIÁRIOS (LOCAL + NUVEM)
 # =================================================================
 def carregar_briefings_salvos():
-    """Carrega todos os briefings matinais salvos no arquivo JSON permanente."""
+    """Carrega todos os briefings matinais salvos (mescla cache local com a nuvem permanente)."""
+    dados = {}
+    
+    # 1. Carregar do cache local
     if os.path.exists(caminho_briefings_json):
         try:
             with open(caminho_briefings_json, "r", encoding="utf-8") as f:
                 dados = json.load(f)
-                if isinstance(dados, dict):
-                    return dados
+                if not isinstance(dados, dict):
+                    dados = {}
         except Exception:
-            return {}
-    return {}
+            dados = {}
+            
+    # 2. Sincronizar com a Nuvem (Google Sheets -> Worksheet 'Briefings')
+    try:
+        sh = obter_planilha_google()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            if "Briefings" in ws_names:
+                ws_br = sh.worksheet("Briefings")
+                recs = ws_br.get_all_records()
+                houve_novos = False
+                for r in recs:
+                    dt_iso = str(r.get("DATA_ISO", "")).strip()
+                    c_json = r.get("CONTEUDO_JSON", "")
+                    if dt_iso and c_json:
+                        try:
+                            b_dict = json.loads(c_json)
+                            if dt_iso not in dados or r.get("DATA_SALVO", "") >= dados[dt_iso].get("data_salvo", ""):
+                                dados[dt_iso] = b_dict
+                                houve_novos = True
+                        except Exception:
+                            pass
+                if houve_novos:
+                    with open(caminho_briefings_json, "w", encoding="utf-8") as f:
+                        json.dump(dados, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+        
+    return dados
 
 def salvar_briefing_dia(data_str, briefing_dict):
-    """Salva ou atualiza o briefing matinal de uma data específica no disco."""
+    """Salva ou atualiza o briefing matinal de uma data específica no disco e na nuvem."""
     try:
         dados = carregar_briefings_salvos()
         chave_iso = normalizar_data_brasil(data_str)
@@ -2319,8 +2472,40 @@ def salvar_briefing_dia(data_str, briefing_dict):
             briefing_dict["data_formatada"] = str(data_str)
         briefing_dict["data_salvo"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         dados[chave_iso] = briefing_dict
+        
+        # 1. Salvar no arquivo local
         with open(caminho_briefings_json, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
+            
+        # 2. Salvar na Nuvem (Google Sheets -> Worksheet 'Briefings')
+        try:
+            sh = obter_planilha_google()
+            if sh:
+                ws_names = [w.title for w in sh.worksheets()]
+                if "Briefings" not in ws_names:
+                    ws_br = sh.add_worksheet(title="Briefings", rows=1000, cols=10)
+                    ws_br.update(values=[["DATA_ISO", "DATA_FORMATADA", "DATA_SALVO", "CONTEUDO_JSON", "RESUMO_TEXTO"]], range_name="A1:E1")
+                else:
+                    ws_br = sh.worksheet("Briefings")
+                    
+                records = ws_br.get_all_records()
+                row_idx = None
+                for i, rec in enumerate(records, start=2):
+                    if str(rec.get("DATA_ISO", "")).strip() == chave_iso:
+                        row_idx = i
+                        break
+                        
+                conteudo_json_str = json.dumps(briefing_dict, ensure_ascii=False)
+                resumo_texto = str(briefing_dict.get("briefing_texto", ""))[:1500]
+                linha = [chave_iso, briefing_dict.get("data_formatada", ""), briefing_dict.get("data_salvo", ""), conteudo_json_str, resumo_texto]
+                
+                if row_idx:
+                    ws_br.update(values=[linha], range_name=f"A{row_idx}:E{row_idx}")
+                else:
+                    ws_br.append_row(linha)
+        except Exception:
+            pass
+            
         return True
     except Exception:
         return False
@@ -2339,7 +2524,7 @@ def obter_briefing_dia(data_str):
     return None
 
 def excluir_briefing_dia(data_str):
-    """Exclui o briefing salvo de uma data específica do disco."""
+    """Exclui o briefing salvo de uma data específica do disco e da nuvem."""
     try:
         dados = carregar_briefings_salvos()
         chave_iso = normalizar_data_brasil(data_str)
@@ -2349,6 +2534,20 @@ def excluir_briefing_dia(data_str):
                 del dados[k]
             with open(caminho_briefings_json, "w", encoding="utf-8") as f:
                 json.dump(dados, f, ensure_ascii=False, indent=2)
+                
+            # Excluir da Nuvem
+            try:
+                sh = obter_planilha_google()
+                if sh and "Briefings" in [w.title for w in sh.worksheets()]:
+                    ws_br = sh.worksheet("Briefings")
+                    records = ws_br.get_all_records()
+                    for i, rec in enumerate(records, start=2):
+                        if str(rec.get("DATA_ISO", "")).strip() == chave_iso:
+                            ws_br.delete_rows(i)
+                            break
+            except Exception:
+                pass
+                
             return True
     except Exception:
         pass
@@ -2502,7 +2701,7 @@ st.markdown(f"""
                     </h1>
                     <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.0</span>
                 </div>
-                <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">{nome_site} — Controle Operacional de Efetivo</p>
+                <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 20px; padding: 5px 14px; font-size: 11px; color: #10b981; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
@@ -2664,7 +2863,7 @@ with st.sidebar:
             </div>
             <div style='border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;'>
                 <p style='font-size: 10px; color: #475569; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 4px 0;'>Desenvolvido por</p>
-                <p style='font-size: 14px; font-weight: 700; margin: 0; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Edson Garcia · {nome_site}</p>
+                <p style='font-size: 14px; font-weight: 700; margin: 0; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Edson Garcia</p>
             </div>
         </div>
         """, 
