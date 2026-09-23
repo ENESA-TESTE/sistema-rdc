@@ -1456,6 +1456,7 @@ caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
 caminho_escala_csv = os.path.join(pasta_base, "escala_diaria.csv")
 caminho_rdc_registros_csv = os.path.join(pasta_base, "rdc_registros.csv")
 caminho_briefings_json = os.path.join(pasta_base, "briefings_historico.json")
+caminho_fila_sheets_json = os.path.join(pasta_base, "fila_sheets_pendente.json")
 
 celula_encarregado = "I4"
 celula_matricula = "B9"
@@ -1949,11 +1950,108 @@ def obter_planilha_google():
         pass
     return None
 
+def _carregar_fila_sheets():
+    try:
+        if os.path.exists(caminho_fila_sheets_json):
+            with open(caminho_fila_sheets_json, "r", encoding="utf-8") as arquivo:
+                dados = json.load(arquivo)
+                return dados if isinstance(dados, list) else []
+    except Exception:
+        pass
+    return []
+
+
+def _salvar_fila_sheets(fila):
+    """Gravacao atomica da fila para reduzir risco de arquivo parcial."""
+    try:
+        temporario = caminho_fila_sheets_json + ".tmp"
+        with open(temporario, "w", encoding="utf-8") as arquivo:
+            json.dump(fila, arquivo, ensure_ascii=False, indent=2)
+            arquivo.flush()
+            os.fsync(arquivo.fileno())
+        os.replace(temporario, caminho_fila_sheets_json)
+        return True
+    except Exception:
+        return False
+
+
+def _adicionar_fila_sheets(registros):
+    fila = _carregar_fila_sheets()
+    chaves = {(str(x.get("DATA", "")), str(x.get("ENCARREGADO", "")).upper()) for x in fila}
+    agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    for data, encarregado in registros:
+        chave = (str(data), str(encarregado).upper())
+        if chave not in chaves:
+            fila.append({
+                "DATA": str(data), "ENCARREGADO": str(encarregado).upper(),
+                "CRIADO_EM": agora, "TENTATIVAS": 0, "ULTIMO_ERRO": ""
+            })
+            chaves.add(chave)
+    _salvar_fila_sheets(fila)
+    st.session_state.fila_sheets_pendente = fila
+    return len(fila)
+
+
+def _append_sheets_sem_leitura(registros):
+    """Adiciona linhas nas duas abas usando apenas requests de escrita."""
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import AuthorizedSession
+    from urllib.parse import quote
+
+    info = dict(st.secrets["connections"]["gsheets"])
+    match_id = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", str(info.get("spreadsheet", "")))
+    if not match_id:
+        raise RuntimeError("ID da planilha não encontrado nos Secrets.")
+    credenciais = service_account.Credentials.from_service_account_info(
+        info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    sessao = AuthorizedSession(credenciais)
+    planilha_id = match_id.group(1)
+    agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    def append(nome_aba, linhas):
+        intervalo = quote(f"{nome_aba}!A:Z", safe="")
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{planilha_id}/values/{intervalo}:append"
+        resposta = sessao.post(
+            url,
+            params={"valueInputOption": "USER_ENTERED", "insertDataOption": "INSERT_ROWS"},
+            json={"majorDimension": "ROWS", "values": linhas}, timeout=30,
+        )
+        resposta.raise_for_status()
+
+    append("Historico_F1", [[d, e, "SISTEMA", agora, "inocencia"] for d, e in registros])
+    append("Resumo_Diario", [[d, e, "ENTREGUE", "SISTEMA", agora, "inocencia"] for d, e in registros])
+
+
+def processar_fila_sheets():
+    """Reenvia a fila em um unico lote. Nao le o Google Sheets."""
+    fila = _carregar_fila_sheets()
+    if not fila:
+        st.session_state.fila_sheets_pendente = []
+        return True, "Nenhum registro aguardando envio."
+    registros = [(x.get("DATA", ""), x.get("ENCARREGADO", "")) for x in fila]
+    try:
+        _append_sheets_sem_leitura(registros)
+        _salvar_fila_sheets([])
+        st.session_state.fila_sheets_pendente = []
+        st.session_state.ultimo_status_sheets = "OK"
+        st.session_state.ultima_gravacao_sheets = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        return True, f"{len(registros)} registro(s) pendente(s) enviado(s)."
+    except Exception as erro:
+        texto = str(erro)
+        for item in fila:
+            item["TENTATIVAS"] = int(item.get("TENTATIVAS", 0)) + 1
+            item["ULTIMO_ERRO"] = texto[:300]
+        _salvar_fila_sheets(fila)
+        st.session_state.fila_sheets_pendente = fila
+        st.session_state.ultimo_status_sheets = "FALHA"
+        return False, ("Google temporariamente indisponível. A fila foi preservada." if "429" in texto or "RESOURCE_EXHAUSTED" in texto else f"Falha no reenvio: {erro}")
+
+
 def salvar_f1_seguro(conn, df_f1, caminho_csv):
-    """Grava somente linhas novas no Historico_F1 e Resumo_Diario, sem ler o Google Sheets."""
+    """Grava linhas novas sem leitura; em falha, preserva tudo na fila local."""
     if df_f1 is None or df_f1.empty or not {"DATA", "ENCARREGADO"}.issubset(df_f1.columns):
         return False, "Nenhum registro válido para salvar."
-
     envio = df_f1[["DATA", "ENCARREGADO"]].copy()
     envio["DATA"] = envio["DATA"].apply(normalizar_data_brasil)
     envio["ENCARREGADO"] = envio["ENCARREGADO"].astype(str).str.strip().str.upper()
@@ -1973,57 +2071,25 @@ def salvar_f1_seguro(conn, df_f1, caminho_csv):
         existentes = st.session_state.get("df_historico_f1", pd.DataFrame())
         chaves = set()
         if isinstance(existentes, pd.DataFrame) and not existentes.empty and {"DATA", "ENCARREGADO"}.issubset(existentes.columns):
-            chaves = {
-                (normalizar_data_brasil(r["DATA"]), str(r["ENCARREGADO"]).strip().upper())
-                for _, r in existentes.iterrows()
-            }
+            chaves = {(normalizar_data_brasil(r["DATA"]), str(r["ENCARREGADO"]).strip().upper()) for _, r in existentes.iterrows()}
         st.session_state.f1_chaves_enviadas = chaves
 
-    novos = [
-        (r["DATA"], r["ENCARREGADO"])
-        for _, r in envio.iterrows()
-        if (r["DATA"], r["ENCARREGADO"]) not in st.session_state.f1_chaves_enviadas
-    ]
+    novos = [(r["DATA"], r["ENCARREGADO"]) for _, r in envio.iterrows()
+             if (r["DATA"], r["ENCARREGADO"]) not in st.session_state.f1_chaves_enviadas]
     if not novos:
         return True, "Registro já existente nesta sessão."
 
     try:
-        from google.oauth2 import service_account
-        from google.auth.transport.requests import AuthorizedSession
-        from urllib.parse import quote
-
-        info = dict(st.secrets["connections"]["gsheets"])
-        match_id = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", str(info.get("spreadsheet", "")))
-        if not match_id:
-            return False, "ID da planilha não encontrado."
-
-        credenciais = service_account.Credentials.from_service_account_info(
-            info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
-        )
-        sessao = AuthorizedSession(credenciais)
-        planilha_id = match_id.group(1)
-        agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
-        def adicionar_linhas(nome_aba, linhas):
-            intervalo = quote(f"{nome_aba}!A:Z", safe="")
-            url = f"https://sheets.googleapis.com/v4/spreadsheets/{planilha_id}/values/{intervalo}:append"
-            resposta = sessao.post(
-                url,
-                params={"valueInputOption": "USER_ENTERED", "insertDataOption": "INSERT_ROWS"},
-                json={"majorDimension": "ROWS", "values": linhas},
-                timeout=30,
-            )
-            resposta.raise_for_status()
-
-        adicionar_linhas("Historico_F1", [[d, e, "SISTEMA", agora, "inocencia"] for d, e in novos])
-        adicionar_linhas("Resumo_Diario", [[d, e, "ENTREGUE", "SISTEMA", agora, "inocencia"] for d, e in novos])
+        _append_sheets_sem_leitura(novos)
         st.session_state.f1_chaves_enviadas.update(novos)
-        return True, f"OK: {len(novos)} registro(s) gravado(s) sem leitura."
+        st.session_state.ultimo_status_sheets = "OK"
+        st.session_state.ultima_gravacao_sheets = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        return True, f"OK: {len(novos)} registro(s) confirmado(s) no Google Sheets."
     except Exception as erro:
-        texto = str(erro)
-        if "429" in texto or "RESOURCE_EXHAUSTED" in texto:
-            return False, "Limite do Google atingido. Aguarde 60 segundos."
-        return False, f"Erro ao gravar no Google Sheets: {erro}"
+        qtd_fila = _adicionar_fila_sheets(novos)
+        st.session_state.ultimo_status_sheets = "PENDENTE"
+        st.session_state.ultimo_erro_sheets = str(erro)[:300]
+        return False, f"Gravação não confirmada. {qtd_fila} registro(s) preservado(s) na fila para reenvio."
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -2181,82 +2247,31 @@ def preparar_dataframe(df):
     return df
 
 def preencher_caldeira_pelo_pde(df_rdc, df_pde):
-    """Preenche CALDEIRA com PB/RB/ESP usando a coluna CONTRATO do PDE.
-
-    Prioridade:
-    1. Linha do próprio encarregado no PDE, comparando ENCARREGADO com NOME.
-    2. Colaboradores cuja coluna ENCARREGADO aponta para o encarregado do RDC.
-    3. Em caso de várias linhas, usa o contrato mais frequente da equipe.
-    Não inventa valor quando o PDE não permite uma conclusão segura.
-    """
     import unicodedata
-
-    if df_rdc is None or not isinstance(df_rdc, pd.DataFrame) or df_rdc.empty:
+    if df_rdc is None or not isinstance(df_rdc, pd.DataFrame) or df_rdc.empty or df_pde is None or not isinstance(df_pde, pd.DataFrame) or df_pde.empty or "ENCARREGADO" not in df_rdc.columns:
         return df_rdc
-    if df_pde is None or not isinstance(df_pde, pd.DataFrame) or df_pde.empty:
-        return df_rdc
-    if "ENCARREGADO" not in df_rdc.columns:
-        return df_rdc
-
-    pde = df_pde.copy()
-    # Localiza a coluna CONTRATO mesmo se houver espacos ou variacoes no cabecalho.
-    col_contrato = next((c for c in pde.columns if "CONTRATO" in str(c).strip().upper()), None)
-    if not col_contrato:
-        return df_rdc
-
-    def norm_nome(valor):
-        texto = "" if valor is None or pd.isna(valor) else str(valor)
-        texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("ASCII")
-        texto = re.sub(r"[^A-Z0-9 ]+", " ", texto.upper())
-        return re.sub(r"\s+", " ", texto).strip()
-
-    def norm_contrato(valor):
-        texto = norm_nome(valor)
-        tokens = set(texto.split())
-        if "PB" in tokens or texto.startswith("PB") or "CALDEIRA DE FORCA" in texto:
-            return "PB"
-        if "RB" in tokens or texto.startswith("RB") or "CALDEIRA DE RECUPERACAO" in texto:
-            return "RB"
-        if "ESP" in tokens or "PRECIPITADOR" in texto:
-            return "ESP"
+    pde=df_pde.copy(); col_contrato=next((c for c in pde.columns if "CONTRATO" in str(c).strip().upper()),None)
+    if not col_contrato: return df_rdc
+    def nome(v):
+        x="" if v is None or pd.isna(v) else str(v); x=unicodedata.normalize("NFKD",x).encode("ASCII","ignore").decode("ASCII")
+        return re.sub(r"\s+"," ",re.sub(r"[^A-Z0-9 ]+"," ",x.upper())).strip()
+    def contrato(v):
+        x=nome(v); t=set(x.split())
+        if "PB" in t or x.startswith("PB") or "CALDEIRA DE FORCA" in x: return "PB"
+        if "RB" in t or x.startswith("RB") or "CALDEIRA DE RECUPERACAO" in x: return "RB"
+        if "ESP" in t or "PRECIPITADOR" in x: return "ESP"
         return ""
-
-    pde["_NOME_NORM"] = pde["NOME"].apply(norm_nome) if "NOME" in pde.columns else ""
-    pde["_ENC_NORM"] = pde["ENCARREGADO"].apply(norm_nome) if "ENCARREGADO" in pde.columns else ""
-    pde["_CONTRATO_NORM"] = pde[col_contrato].apply(norm_contrato)
-    pde = pde[pde["_CONTRATO_NORM"].isin(["PB", "RB", "ESP"])]
-    if pde.empty:
-        return df_rdc
-
-    mapa = {}
-    encarregados = df_rdc["ENCARREGADO"].dropna().astype(str).unique()
-    for encarregado in encarregados:
-        enc_norm = norm_nome(encarregado)
-        if not enc_norm:
-            continue
-
-        # O contrato na linha do próprio encarregado tem prioridade.
-        contratos_proprio = pde.loc[pde["_NOME_NORM"] == enc_norm, "_CONTRATO_NORM"]
-        if not contratos_proprio.empty:
-            contagem = contratos_proprio.value_counts()
-            mapa[enc_norm] = contagem.index[0]
-            continue
-
-        # Se a linha própria não existir, usa os colaboradores vinculados ao encarregado.
-        contratos_equipe = pde.loc[pde["_ENC_NORM"] == enc_norm, "_CONTRATO_NORM"]
-        if not contratos_equipe.empty:
-            contagem = contratos_equipe.value_counts()
-            # Só define quando existe maioria simples. Empate permanece sem identificação.
-            if len(contagem) == 1 or contagem.iloc[0] > contagem.iloc[1]:
-                mapa[enc_norm] = contagem.index[0]
-
-    resultado = df_rdc.copy()
-    if "CALDEIRA" not in resultado.columns:
-        resultado["CALDEIRA"] = ""
-    calculado = resultado["ENCARREGADO"].apply(lambda x: mapa.get(norm_nome(x), ""))
-    # PDE e a fonte oficial: quando houver correspondencia segura, substitui o valor da IA.
-    resultado["CALDEIRA"] = calculado.where(calculado != "", resultado["CALDEIRA"].fillna(""))
-    return resultado
+    pde["_N"]=pde["NOME"].apply(nome) if "NOME" in pde.columns else ""; pde["_E"]=pde["ENCARREGADO"].apply(nome) if "ENCARREGADO" in pde.columns else ""; pde["_C"]=pde[col_contrato].apply(contrato); pde=pde[pde["_C"]!=""]
+    mapa={}
+    for enc in df_rdc["ENCARREGADO"].dropna().astype(str).unique():
+        n=nome(enc); proprio=pde.loc[pde["_N"]==n,"_C"]
+        if not proprio.empty: mapa[n]=proprio.value_counts().index[0]; continue
+        equipe=pde.loc[pde["_E"]==n,"_C"]
+        if not equipe.empty:
+            c=equipe.value_counts()
+            if len(c)==1 or c.iloc[0]>c.iloc[1]: mapa[n]=c.index[0]
+    r=df_rdc.copy(); r["CALDEIRA"]=r.get("CALDEIRA",pd.Series([""]*len(r),index=r.index)).fillna("")
+    calc=r["ENCARREGADO"].apply(lambda x: mapa.get(nome(x),"")); r["CALDEIRA"]=calc.where(calc!="",r["CALDEIRA"]); return r
 
 def obter_mapa_encarregado_coordenador(df):
     """
@@ -2821,6 +2836,32 @@ arquivo_pde = None
 arquivo_modelo = None
 
 with st.sidebar:
+    st.markdown("#### 🛡️ Integridade dos Dados")
+    fila_atual = _carregar_fila_sheets()
+    st.session_state.fila_sheets_pendente = fila_atual
+    status_sheets = st.session_state.get("ultimo_status_sheets", "PRONTO")
+    ultima_gravacao = st.session_state.get("ultima_gravacao_sheets", "Nenhuma nesta sessão")
+    if fila_atual:
+        st.warning(f"{len(fila_atual)} registro(s) aguardando sincronização.")
+    elif status_sheets == "OK":
+        st.success("Google Sheets sincronizado.")
+    else:
+        st.info("Nenhuma pendência de sincronização.")
+    st.caption(f"Última gravação confirmada: {ultima_gravacao}")
+    if st.button("🔄 Reenviar registros pendentes", use_container_width=True, disabled=not bool(fila_atual), key="btn_reenviar_fila_sheets"):
+        ok_fila, msg_fila = processar_fila_sheets()
+        (st.success if ok_fila else st.error)(msg_fila)
+        if ok_fila:
+            time.sleep(1)
+            st.rerun()
+    if fila_atual:
+        st.download_button(
+            "📥 Baixar fila de segurança",
+            data=json.dumps(fila_atual, ensure_ascii=False, indent=2),
+            file_name=f"fila_sheets_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json", use_container_width=True,
+        )
+    st.markdown("---")
     if os.path.exists(caminho_logo):
         col1, col2, col3 = st.columns([1.5, 2, 1.5]) 
         with col2:
@@ -4620,39 +4661,76 @@ Retorne apenas o JSON sem crases ou markdown."""
         
         st.stop()  # Impede o resto da página de renderizar
 
-    # === NAVEGACAO OPERACIONAL SIMPLIFICADA ===
+    # === CSS DE AGRUPAMENTO VISUAL DAS ABAS ===
     st.markdown("""
     <style>
+        /* --- AGRUPAMENTO DAS ABAS POR BLOCOS COLORIDOS --- */
         div[data-baseweb="tab-list"] {
-            gap: 4px !important;
+            gap: 0px !important;
             flex-wrap: wrap !important;
-            padding-bottom: 4px !important;
+            padding-bottom: 2px !important;
         }
         div[data-baseweb="tab-list"] button {
             font-size: 13px !important;
-            padding: 9px 14px !important;
+            padding: 8px 14px !important;
             border-radius: 8px 8px 0 0 !important;
-            margin: 0 !important;
+            margin: 0 1px !important;
             transition: all 0.2s ease !important;
         }
-        div[data-baseweb="tab-list"] button:nth-child(-n+3) {
+        /* 🔵 GESTÃO & BRIEFING (abas 1-3) */
+        div[data-baseweb="tab-list"] button:nth-child(1),
+        div[data-baseweb="tab-list"] button:nth-child(2),
+        div[data-baseweb="tab-list"] button:nth-child(3) {
             border-top: 3px solid #3b82f6 !important;
         }
-        div[data-baseweb="tab-list"] button:nth-child(n+4):nth-child(-n+5) {
+        /* Separador visual após bloco GESTÃO */
+        div[data-baseweb="tab-list"] button:nth-child(3) {
+            margin-right: 12px !important;
+            border-right: 2px solid rgba(59, 130, 246, 0.4) !important;
+            padding-right: 18px !important;
+        }
+        /* 🟢 CAMPO & OPERAÇÃO (abas 4-6) */
+        div[data-baseweb="tab-list"] button:nth-child(4),
+        div[data-baseweb="tab-list"] button:nth-child(5),
+        div[data-baseweb="tab-list"] button:nth-child(6) {
             border-top: 3px solid #22c55e !important;
         }
-        div[data-baseweb="tab-list"] button:nth-child(n+6) {
+        /* Separador visual após bloco CAMPO */
+        div[data-baseweb="tab-list"] button:nth-child(6) {
+            margin-right: 12px !important;
+            border-right: 2px solid rgba(34, 197, 94, 0.4) !important;
+            padding-right: 18px !important;
+        }
+        /* 🟣 IA & PROCESSAMENTO (abas 7-10) */
+        div[data-baseweb="tab-list"] button:nth-child(7),
+        div[data-baseweb="tab-list"] button:nth-child(8),
+        div[data-baseweb="tab-list"] button:nth-child(9),
+        div[data-baseweb="tab-list"] button:nth-child(10) {
             border-top: 3px solid #a855f7 !important;
+        }
+        /* Separador visual após bloco IA */
+        div[data-baseweb="tab-list"] button:nth-child(10) {
+            margin-right: 12px !important;
+            border-right: 2px solid rgba(168, 85, 247, 0.4) !important;
+            padding-right: 18px !important;
+        }
+        /* ⚙️ CONFIGURAÇÃO & DADOS (abas 11-14) */
+        div[data-baseweb="tab-list"] button:nth-child(11),
+        div[data-baseweb="tab-list"] button:nth-child(12),
+        div[data-baseweb="tab-list"] button:nth-child(13),
+        div[data-baseweb="tab-list"] button:nth-child(14) {
+            border-top: 3px solid #64748b !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
     # === LEGENDA DOS BLOCOS ACIMA DAS ABAS ===
     st.markdown("""
-    <div style="display:flex; gap:24px; margin-bottom:6px; padding:6px 8px; font-size:11px; font-weight:600; letter-spacing:.5px; text-transform:uppercase;">
-        <span style="color:#3b82f6; border-bottom:2px solid #3b82f6; padding-bottom:2px;">🔵 Gestão</span>
-        <span style="color:#22c55e; border-bottom:2px solid #22c55e; padding-bottom:2px;">🟢 Campo</span>
-        <span style="color:#a855f7; border-bottom:2px solid #a855f7; padding-bottom:2px;">🟣 IA & Dados</span>
+    <div style="display: flex; gap: 24px; margin-bottom: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">
+        <span style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 2px;">🔵 Gestão</span>
+        <span style="color: #22c55e; border-bottom: 2px solid #22c55e; padding-bottom: 2px;">🟢 Campo</span>
+        <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 IA & Dados</span>
+        
     </div>
     """, unsafe_allow_html=True)
 
@@ -4662,18 +4740,12 @@ Retorne apenas o JSON sem crases ou markdown."""
     # BLOCO 3 - IA:     Leitor IA, IA C.C, Banco RDCs, Gargalos
     # BLOCO 4 - CONFIG:  C.C, PDE, Banco Dados, Admin
     tab_dashboard, tab_resumo, tab_f1, tab_emissao, tab_escala, tab_ia, tab_gargalos, tab_cc, tab_banco_dados = st.tabs([
-        f"📊 {t('Dashboard')}",
-        f"📅 {t('Resumo Diário')}",
-        f"🏎️ {t('Competição F1')}",
-        f"📝 {t('Emissão de RDC')}",
-        f"📋 {t('Escala')}",
-        f"🤖 {t('Leitor de RDC (IA)')}",
-        f"🔍 {t('Análise de Gargalos')}",
-        f"💰 {t('Controle de C.C')}",
-        f"📊 {t('Banco de Dados')}"
+        f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"🏎️ {t('Competição F1')}",
+        f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"🤖 {t('Leitor de RDC (IA)')}",
+        f"🔍 {t('Análise de Gargalos')}", f"💰 {t('Controle de C.C')}", f"📊 {t('Banco de Dados')}"
     ])
 
-    # Navegacao unica para os acessos autorizados.
+    # Navegacao operacional unica.
 
     with tab_dashboard:
         # === RELÓGIO DIGITAL ===
@@ -6976,10 +7048,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                                     dados['ITEM'] = int(ultimo_item) + 1
                                     st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
-                                    st.session_state.df_ia = preencher_caldeira_pelo_pde(
-                                        st.session_state.df_ia,
-                                        st.session_state.get("df", pd.DataFrame())
-                                    )
+                                    st.session_state.df_ia = preencher_caldeira_pelo_pde(st.session_state.df_ia, st.session_state.get("df", pd.DataFrame()))
 
                                 
                                 st.toast(f"✅ {nome_atual} processado com sucesso!")
@@ -7005,12 +7074,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.session_state.force_use_local = True
                 
             if not st.session_state.df_ia.empty:
-                st.session_state.df_ia = preencher_caldeira_pelo_pde(
-                    st.session_state.df_ia,
-                    st.session_state.get("df", pd.DataFrame())
-                )
+                st.session_state.df_ia = preencher_caldeira_pelo_pde(st.session_state.df_ia, st.session_state.get("df", pd.DataFrame()))
                 st.markdown("#### Dados Extraídos")
-                st.caption("CALDEIRA preenchida automaticamente pela coluna CONTRATO do PDE: linha do encarregado ou maioria dos colaboradores da equipe.")
                 
                 lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
                 df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
@@ -7190,7 +7255,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         caldeira_count = caldeira_count.replace('', 'Não Identificada').value_counts()
                         st.bar_chart(caldeira_count, color="#f59e0b")
 
-    # Modulo removido da versao final.
+    # Modulo removido.
     with tab_cc:
         st.markdown("### 💰 Controle de Centro de Custo (C.C)")
         
@@ -7516,9 +7581,9 @@ Retorne apenas o JSON sem crases ou markdown."""
             else:
                 st.info("Nenhum colaborador encontrado para este Centro de Custo.")
 
-    # Modulo removido da versao final.
-    # Modulo removido da versao final.
-    # Modulo removido da versao final.
+    # Modulo removido.
+    # Modulo removido.
+    # Modulo removido.
     with tab_gargalos:
         st.markdown("### 🔍 Análise de Gargalos — Inteligência dos RDCs")
         st.markdown("Dashboard analítico gerado automaticamente a partir dos RDCs processados pela IA. Identifique os maiores gargalos da obra em segundos.")
@@ -8281,7 +8346,7 @@ Retorne apenas o JSON sem crases ou markdown."""
     # ==============================================================
     # ABA 13: ADMIN
     # ==============================================================
-    # Modulo removido da versao final.
+    # Modulo removido.
 
 else:
     st.markdown(f"""
