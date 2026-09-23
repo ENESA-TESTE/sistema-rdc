@@ -1563,6 +1563,25 @@ hr { background: var(--sgo-border) !important; margin: 12px 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
+# ================================================================
+# DASHBOARD EXECUTIVO FIEL AO MOCKUP
+# ================================================================
+st.markdown("""
+<style>
+.sgo-hero {display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin:4px 0 16px;padding:0 2px}
+.sgo-hero h2{font-size:1.65rem!important;margin:0!important;color:#f8fafc!important;font-weight:800!important}
+.sgo-hero p{margin:4px 0 0;color:#91a4bd;font-size:.91rem}
+.sgo-card{background:linear-gradient(145deg,#13253c,#0d1b2d);border:1px solid rgba(148,163,184,.16);border-radius:13px;padding:16px 17px;min-height:120px;box-shadow:0 9px 24px rgba(0,0,0,.22);position:relative;overflow:hidden}
+.sgo-card:after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--accent)}
+.sgo-card-label{color:#b9c7d8;font-size:.78rem;font-weight:650}.sgo-card-value{color:#fff;font-size:2rem;font-weight:850;line-height:1;margin-top:10px}.sgo-card-sub{color:#8fa3bd;font-size:.7rem;margin-top:10px}
+.sgo-panel{background:linear-gradient(145deg,#101f33,#0b1728);border:1px solid rgba(148,163,184,.15);border-radius:13px;padding:14px 15px;box-shadow:0 8px 22px rgba(0,0,0,.18);height:100%}
+.sgo-panel-title{color:#f8fafc;font-size:.92rem;font-weight:760;margin:0 0 10px}.sgo-status-line{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(148,163,184,.10);font-size:.76rem;color:#b9c7d8}.sgo-status-line b{color:#f8fafc}
+.sgo-chip{display:inline-flex;align-items:center;border-radius:15px;padding:3px 9px;font-size:.66rem;font-weight:700}.chip-red{background:rgba(239,68,68,.18);color:#f87171}.chip-amber{background:rgba(245,158,11,.18);color:#fbbf24}.chip-blue{background:rgba(56,189,248,.16);color:#7dd3fc}.chip-green{background:rgba(34,197,94,.16);color:#4ade80}
+[data-testid="stDataFrame"]{border-radius:10px!important}
+@media(max-width:768px){.sgo-card{min-height:104px;padding:13px}.sgo-card-value{font-size:1.65rem}.sgo-hero h2{font-size:1.35rem!important}}
+</style>
+""", unsafe_allow_html=True)
+
 # --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
 try:
     if "pwd" in st.query_params and st.query_params["pwd"] == "Campo@2026":
@@ -4875,168 +4894,211 @@ Retorne apenas o JSON sem crases ou markdown."""
     # Navegacao operacional unica.
 
     with tab_dashboard:
-        st.markdown(f"""
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:6px 0 18px 0;">
-          <div>
-            <div style="font-size:1.65rem;font-weight:800;color:#f8fafc;line-height:1.15;">Visão geral da operação</div>
-            <div style="font-size:.88rem;color:#8fa3bd;margin-top:5px;">Indicadores, entregas, pendências e decisões do dia em um só lugar.</div>
-          </div>
-          <div style="font-size:.76rem;color:#8fa3bd;padding:8px 12px;border:1px solid rgba(148,163,184,.14);background:#0f1d30;border-radius:9px;">Atualizado em {hora_agora}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        # === RELÓGIO DIGITAL ===
-        import streamlit.components.v1 as components
-        html_relogio = """
-        <div id="clock_container" style="font-family: 'Courier New', Courier, monospace; font-size: 28px; color: #0ea5e9; font-weight: bold; text-shadow: 0 0 10px rgba(14, 165, 233, 0.8); text-align: center; background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9)); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(14, 165, 233, 0.4); width: fit-content; margin: 0 auto 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(14,165,233,0.1);">
-            <div id="time" style="letter-spacing: 2px;">--:--:--</div>
-            <div id="date" style="font-size: 14px; color: #94a3b8; font-weight: normal; text-shadow: none; font-family: 'Inter', sans-serif; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Carregando...</div>
-        </div>
-        <script>
-            function updateClock() {
-                const now = new Date();
-                const timeStr = now.toLocaleTimeString('pt-BR');
-                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                let dateStr = now.toLocaleDateString('pt-BR', dateOptions);
-                document.getElementById('time').innerText = timeStr;
-                document.getElementById('date').innerText = dateStr;
-            }
-            setInterval(updateClock, 1000);
-            updateClock();
-        </script>
-        """
-        components.html(html_relogio, height=110)
-        
-        col_dash_tit, col_dash_qr, col_dash_btn_pdf, col_dash_btn_pptx = st.columns([2, 1.2, 1, 1])
-        with col_dash_tit:
-            st.markdown("### 🎛️ Centro de Comando (Overview)")
-        with col_dash_qr:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_dash_open_qr", type="secondary"):
-                modal_qr_code_mobile()
-        with col_dash_btn_pdf:
-            st.markdown("<br>", unsafe_allow_html=True)
-            pdf_bytes = gerar_relatorio_pdf(df_atual)
-            st.download_button(
-                label="📥 Baixar PDF",
-                data=pdf_bytes,
-                file_name=f"Relatorio_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="secondary"
-            )
-        with col_dash_btn_pptx:
-            st.markdown("<br>", unsafe_allow_html=True)
+        import plotly.graph_objects as go
+        from collections import Counter
+
+        # Filtro único do painel. Todos os indicadores abaixo usam esta mesma data.
+        col_hero, col_data, col_update = st.columns([5.2, 1.7, 1.5])
+        with col_hero:
+            st.markdown(f"""
+            <div class="sgo-hero"><div><h2>Bom dia, {nome_user_logado}!</h2>
+            <p>Aqui está o panorama real da operação. Os números usam somente PDE, F1, RDCs e Briefings carregados.</p></div></div>
+            """, unsafe_allow_html=True)
+        with col_data:
+            data_painel = st.date_input("Data", value=datetime.date.today(), key="data_dashboard_executivo")
+        with col_update:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            if st.button("🔄 Atualizar dados", use_container_width=True, key="btn_dash_atualizar_real"):
+                try:
+                    st.cache_data.clear()
+                except Exception:
+                    pass
+                st.rerun()
+
+        data_iso_painel = data_painel.strftime("%Y-%m-%d")
+        df_hist_dash = st.session_state.get("df_historico_f1", pd.DataFrame()).copy()
+        if not df_hist_dash.empty and {"DATA", "ENCARREGADO"}.issubset(df_hist_dash.columns):
+            df_hist_dash["DATA_ISO"] = df_hist_dash["DATA"].apply(normalizar_data_brasil)
+            df_hist_dash["ENCARREGADO"] = df_hist_dash["ENCARREGADO"].astype(str).str.strip().str.upper()
+        else:
+            df_hist_dash = pd.DataFrame(columns=["DATA", "ENCARREGADO", "DATA_ISO"])
+
+        # Mapa de contrato por encarregado a partir do próprio encarregado ou da equipe no PDE.
+        def _normaliza_nome_dash(v):
+            import unicodedata
+            x = "" if v is None or pd.isna(v) else str(v)
+            x = unicodedata.normalize("NFKD", x).encode("ASCII", "ignore").decode("ASCII")
+            return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 ]+", " ", x.upper())).strip()
+
+        def _contrato_dash(v, cc=""):
+            x = _normaliza_nome_dash(v); tokens = set(x.split())
+            if "PB" in tokens or x.startswith("PB") or "CALDEIRA DE FORCA" in x: return "PB"
+            if "RB" in tokens or x.startswith("RB") or "CALDEIRA DE RECUPERACAO" in x: return "RB"
+            if "ESP" in tokens or "PRECIPITADOR" in x: return "ESP"
+            ccx = str(cc)
+            if ".005" in ccx: return "ESP"
+            if "125.02" in ccx: return "PB"
+            if "125.01" in ccx: return "RB"
+            return "N/I"
+
+        mapa_contrato_dash = {}
+        mapa_disc_dash = {}
+        if df_atual is not None and not df_atual.empty:
+            col_contrato_dash = next((c for c in df_atual.columns if "CONTRATO" in str(c).upper()), None)
+            temp_pde = df_atual.copy()
+            temp_pde["_ENC_N"] = temp_pde["ENCARREGADO"].apply(_normaliza_nome_dash)
+            temp_pde["_NOME_N"] = temp_pde["NOME"].apply(_normaliza_nome_dash) if "NOME" in temp_pde.columns else ""
+            temp_pde["_CONT"] = temp_pde.apply(lambda r: _contrato_dash(r.get(col_contrato_dash, "") if col_contrato_dash else "", r.get("C.C", "")), axis=1)
+            for enc in lista_completa_encarregados:
+                n = _normaliza_nome_dash(enc)
+                proprio = temp_pde.loc[temp_pde["_NOME_N"] == n, "_CONT"]
+                equipe = temp_pde.loc[temp_pde["_ENC_N"] == n, "_CONT"]
+                valores = proprio[proprio != "N/I"] if not proprio[proprio != "N/I"].empty else equipe[equipe != "N/I"]
+                mapa_contrato_dash[n] = valores.value_counts().index[0] if not valores.empty else "N/I"
+                if "DISCIPLINA" in temp_pde.columns:
+                    disc = temp_pde.loc[temp_pde["_ENC_N"] == n, "DISCIPLINA"].dropna().astype(str)
+                    mapa_disc_dash[n] = disc.value_counts().index[0] if not disc.empty else "N/I"
+
+        entregues_dia = sorted(df_hist_dash.loc[df_hist_dash["DATA_ISO"] == data_iso_painel, "ENCARREGADO"].dropna().unique().tolist())
+        esperados = sorted({_normaliza_nome_dash(x) for x in lista_completa_encarregados if eh_encarregado_valido(x)})
+        entregues_norm = {_normaliza_nome_dash(x) for x in entregues_dia}
+        pendentes = [x for x in esperados if x not in entregues_norm]
+        total_esperado = len(esperados)
+        total_entregue = len(entregues_norm & set(esperados))
+        total_pendente = len(pendentes)
+        taxa_entrega = round(total_entregue / total_esperado * 100, 1) if total_esperado else 0.0
+
+        # Base de RDCs da data para bloqueios e gargalos reais.
+        df_rdc_dash = pd.DataFrame()
+        if os.path.exists(caminho_rdc_registros_csv):
             try:
-                pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo, lista_completa_encarregados)
-                st.download_button(
-                    label="📑 PowerPoint (.pptx)",
-                    data=pptx_dash_bytes,
-                    file_name=f"Dashboard_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pptx",
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    use_container_width=True,
-                    type="primary"
-                )
-            except Exception as e_pptx_dash:
-                st.error(f"Erro ao gerar PPTX: {e_pptx_dash}")
-        
-        # Filtro de MOI / MOD, Local, Turno e Status com chaves explícitas
-        col_filtros1, col_filtros2, col_filtros3, col_filtros4 = st.columns(4)
-        with col_filtros1:
-            filtro_dash_mo = st.segmented_control(
-                "Filtrar Visão por Tipo de Mão de Obra:", 
-                ["Ambas", "MOD", "MOI"], 
-                default="Ambas",
-                key="filtro_dash_mo_ctrl_v8"
-            )
-            if not filtro_dash_mo:
-                filtro_dash_mo = "Ambas"
-                
-        with col_filtros2:
-            filtro_dash_local = st.segmented_control(
-                "Filtrar Dados por Local:", 
-                ["Ambas", "PB", "RB", "ESP"], 
-                default="Ambas",
-                key="filtro_dash_local_ctrl_v8"
-            )
-            if not filtro_dash_local:
-                filtro_dash_local = "Ambas"
-                
-        with col_filtros3:
-            turnos_disponiveis = ["Todos"]
-            if "TURNO" in df_atual.columns:
-                turnos_reais = [str(t).strip() for t in df_atual["TURNO"].dropna().unique() if str(t).strip() and str(t).upper() != "NAN"]
-                turnos_disponiveis.extend(sorted(list(set(turnos_reais))))
-            
-            filtro_dash_turno = st.selectbox(
-                "Filtrar por Turno:", 
-                turnos_disponiveis,
-                index=0,
-                key="filtro_dash_turno_ctrl_v8"
-            )
-            
-        with col_filtros4:
-            status_disponiveis = ["Todos"]
-            if "STATUS" in df_atual.columns:
-                status_reais = [str(s).strip() for s in df_atual["STATUS"].dropna().unique() if str(s).strip() and str(s).upper() != "NAN"]
-                status_disponiveis.extend(sorted(list(set(status_reais))))
-                
-            idx_st = status_disponiveis.index("ATIVO") if "ATIVO" in status_disponiveis else 0
-            filtro_dash_status = st.selectbox(
-                "Filtrar por Status:", 
-                status_disponiveis,
-                index=idx_st,
-                key="filtro_dash_status_ctrl_v8"
-            )
-            
-        df_dash = df_atual.copy()
-        
-        # 1. Aplicar filtro Status
-        if filtro_dash_status != "Todos" and "STATUS" in df_dash.columns:
-            df_dash = df_dash[df_dash["STATUS"].astype(str).str.strip().str.upper() == filtro_dash_status.strip().upper()]
-            
-        # 2. Aplicar filtro Turno
-        if filtro_dash_turno != "Todos" and "TURNO" in df_dash.columns:
-            df_dash = df_dash[df_dash["TURNO"].astype(str).str.strip().str.upper() == filtro_dash_turno.strip().upper()]
-            
-        # 3. Aplicar filtro MOI/MOD
-        if filtro_dash_mo == "MOD":
-            df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]
-        elif filtro_dash_mo == "MOI":
-            df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]
-            
-        # 4. Aplicar filtro Local (apenas quando não for 'Ambas')
-        if filtro_dash_local == "PB":
-            df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
-        elif filtro_dash_local == "RB":
-            df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
-        elif filtro_dash_local == "ESP":
-            df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
-        
-        # Linha 1: Cartões de KPI Customizados (Premium e Dinâmicos)
-        total_efetivo_dash = len(df_dash)
-        
-        encs_unicos_dash = [e for e in df_dash["ENCARREGADO"].dropna().unique() if str(e).strip() != "" and str(e).upper() != "AJUSTAR NOME" and str(e).upper() != "NAN"]
-        qtd_encarregados_dash = len(encs_unicos_dash)
-        
-        qtd_mod_dash = len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"])
-        qtd_moi_dash = len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"])
-        total_mo_dash = qtd_mod_dash + qtd_moi_dash
-        pct_mod_dash = round((qtd_mod_dash / total_mo_dash * 100), 1) if total_mo_dash > 0 else 0.0
-        
-        qtd_funcoes_dash = len([f for f in df_dash["FUNÇÃO"].dropna().unique() if str(f).strip() != "" and str(f).upper() != "NAN"])
-        span_control = round(total_efetivo_dash / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0.0
-        
-        def card_kpi(titulo, valor, icone, cor):
-            return f"""<div style="background:linear-gradient(145deg,#132238,#0d1a2c);border-radius:13px;border:1px solid rgba(148,163,184,.15);padding:17px 18px;box-shadow:0 8px 24px rgba(0,0,0,.20);position:relative;overflow:hidden;min-height:112px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><p style="margin:0;font-size:11px;color:#8fa3bd;font-weight:700;text-transform:uppercase;letter-spacing:.55px;">{titulo}</p><span class="material-symbols-rounded" style="font-size:19px;color:{cor};">{icone}</span></div><h2 style="margin:11px 0 0 0;font-size:31px;font-weight:800;color:#f8fafc;line-height:1;">{valor}</h2><div style="position:absolute;bottom:0;left:0;width:100%;height:3px;background:{cor};opacity:.75;"></div></div>"""
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        m1, m2, m3, m4, m5 = st.columns(5)
-        with m1: st.markdown(card_kpi(f"{t('Efetivo')} ({filtro_dash_mo})", total_efetivo_dash, "engineering", "#3b82f6"), unsafe_allow_html=True)
-        with m2: st.markdown(card_kpi(t("Encarregados"), qtd_encarregados_dash, "shield_person", "#10b981"), unsafe_allow_html=True)
-        with m3: st.markdown(card_kpi(t("% MOD"), f"{pct_mod_dash}%", "pie_chart", "#0ea5e9"), unsafe_allow_html=True)
-        with m4: st.markdown(card_kpi(t("Funções"), qtd_funcoes_dash, "build", "#f59e0b"), unsafe_allow_html=True)
-        with m5: st.markdown(card_kpi(t("Span of Control"), span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
-        
+                df_rdc_dash = pd.read_csv(caminho_rdc_registros_csv)
+                if not df_rdc_dash.empty and "DATA" in df_rdc_dash.columns:
+                    df_rdc_dash["DATA_ISO"] = df_rdc_dash["DATA"].apply(normalizar_data_brasil)
+                    df_rdc_dash = df_rdc_dash[df_rdc_dash["DATA_ISO"] == data_iso_painel]
+            except Exception:
+                df_rdc_dash = pd.DataFrame()
+        problemas_validos = []
+        if not df_rdc_dash.empty and "PROBLEMAS" in df_rdc_dash.columns:
+            for valor in df_rdc_dash["PROBLEMAS"].dropna().astype(str):
+                texto = valor.strip()
+                if texto and texto.upper() not in {"NAN", "NONE", "NENHUM", "NÃO INFORMADO", "NAO INFORMADO", "-"}:
+                    problemas_validos.append(texto)
+        bloqueios_qtd = len(problemas_validos)
+
+        # Linha de KPIs exatamente separada em quatro cartões.
+        k1, k2, k3, k4 = st.columns(4)
+        cards = [
+            (k1, "#38bdf8", "Efetivo total", len(df_atual), "Colaboradores presentes na base PDE"),
+            (k2, "#22c55e", "RDCs entregues", total_entregue, f"{taxa_entrega}% dos {total_esperado} esperados"),
+            (k3, "#f59e0b", "RDCs pendentes", total_pendente, "Encarregados sem entrega na data"),
+            (k4, "#ef4444", "Bloqueios críticos", bloqueios_qtd, "Ocorrências reais informadas nos RDCs"),
+        ]
+        for coluna, cor, titulo, valor, subtitulo in cards:
+            with coluna:
+                st.markdown(f"""<div class="sgo-card" style="--accent:{cor}">
+                <div class="sgo-card-label">{titulo}</div><div class="sgo-card-value">{valor}</div>
+                <div class="sgo-card-sub">{subtitulo}</div></div>""", unsafe_allow_html=True)
+
+        # Linha: entregas por contrato, evolução real e situação geral.
+        c_area, c_evol, c_situacao = st.columns([1.15, 1.65, 1.0])
+        contagem_contrato = Counter(mapa_contrato_dash.get(_normaliza_nome_dash(e), "N/I") for e in entregues_dia)
+        with c_area:
+            st.markdown('<div class="sgo-panel-title">Entregas por caldeira</div>', unsafe_allow_html=True)
+            labels = [x for x in ["PB", "RB", "ESP"] if contagem_contrato.get(x, 0) > 0]
+            values = [contagem_contrato[x] for x in labels]
+            if values:
+                fig_area = go.Figure(go.Pie(labels=labels, values=values, hole=.57, marker_colors=[{"PB":"#38bdf8","RB":"#f59e0b","ESP":"#22c55e"}[x] for x in labels], textinfo="none"))
+                fig_area.update_layout(height=245, margin=dict(l=5,r=5,t=5,b=5), paper_bgcolor="rgba(0,0,0,0)", font_color="#cbd5e1", legend=dict(orientation="v",x=.72,y=.75), annotations=[dict(text=f"<b>{total_entregue}</b><br>RDCs",x=.5,y=.5,showarrow=False,font=dict(size=16,color="white"))])
+                st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar":False})
+            else:
+                st.info("Sem entregas classificadas em PB, RB ou ESP nesta data.")
+
+        with c_evol:
+            st.markdown('<div class="sgo-panel-title">Evolução das entregas</div>', unsafe_allow_html=True)
+            inicio = data_painel - datetime.timedelta(days=6)
+            dias = [inicio + datetime.timedelta(days=i) for i in range(7)]
+            valores_dias = [int((df_hist_dash["DATA_ISO"] == d.strftime("%Y-%m-%d")).sum()) for d in dias]
+            fig_evol = go.Figure(go.Scatter(x=[d.strftime("%d/%m") for d in dias], y=valores_dias, mode="lines+markers", line=dict(color="#38bdf8",width=3), marker=dict(size=7,color="#38bdf8"), fill="tozeroy", fillcolor="rgba(56,189,248,.07)"))
+            fig_evol.update_layout(height=245, margin=dict(l=35,r=15,t=8,b=30), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#94a3b8", xaxis=dict(showgrid=True,gridcolor="rgba(148,163,184,.10)"), yaxis=dict(showgrid=True,gridcolor="rgba(148,163,184,.10)",rangemode="tozero"))
+            st.plotly_chart(fig_evol, use_container_width=True, config={"displayModeBar":False})
+
+        with c_situacao:
+            st.markdown('<div class="sgo-panel"><div class="sgo-panel-title">Situação geral</div>', unsafe_allow_html=True)
+            situacoes = [
+                ("Encarregados ativos", total_esperado),
+                ("Equipes com entrega", total_entregue),
+                ("Colaboradores PDE", len(df_atual)),
+                ("RDCs processados", len(df_rdc_dash)),
+                ("RDCs não iniciados", total_pendente),
+            ]
+            for rotulo, valor in situacoes:
+                st.markdown(f'<div class="sgo-status-line"><span>{rotulo}</span><b>{valor}</b></div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # Linha: pendências e gargalos reais.
+        c_pend, c_garg = st.columns([1.55, 1.0])
+        with c_pend:
+            st.markdown(f'<div class="sgo-panel-title">📅 Pendências de RDC &nbsp; <span class="sgo-chip chip-red">{total_pendente}</span></div>', unsafe_allow_html=True)
+            linhas_pend = []
+            for enc in pendentes[:8]:
+                hist_enc = df_hist_dash[df_hist_dash["ENCARREGADO"].apply(_normaliza_nome_dash) == enc]
+                ultima = hist_enc["DATA_ISO"].max() if not hist_enc.empty else "Sem entrega"
+                dias_atraso = (data_painel - pd.to_datetime(ultima).date()).days if ultima != "Sem entrega" and pd.notna(pd.to_datetime(ultima, errors="coerce")) else "-"
+                linhas_pend.append({"Encarregado": enc.title(), "Contrato": mapa_contrato_dash.get(enc,"N/I"), "Disciplina": mapa_disc_dash.get(enc,"N/I"), "Última entrega": ultima, "Dias": dias_atraso, "Status": "Atrasado" if isinstance(dias_atraso,int) and dias_atraso >= 3 else "Pendente"})
+            if linhas_pend:
+                st.dataframe(pd.DataFrame(linhas_pend), hide_index=True, use_container_width=True, height=245)
+            else:
+                st.success("Todos os encarregados esperados entregaram o RDC desta data.")
+
+        with c_garg:
+            st.markdown('<div class="sgo-panel-title">▥ Principais gargalos</div>', unsafe_allow_html=True)
+            categorias = Counter()
+            for texto in problemas_validos:
+                t = texto.upper()
+                if "MATERIAL" in t: cat="Falta de material"
+                elif "ANDAIME" in t: cat="Andaime"
+                elif "EQUIP" in t or "GUINDASTE" in t: cat="Equipamento indisponível"
+                elif "PROJETO" in t or "DESENHO" in t: cat="Projeto"
+                elif "LIBERA" in t or "ACESSO" in t: cat="Liberação de área"
+                elif "CHUVA" in t or "CLIMA" in t: cat="Clima"
+                else: cat="Outros"
+                categorias[cat] += 1
+            df_garg_dash = pd.DataFrame([{"Ocorrência":k,"Qtd.":v} for k,v in categorias.most_common(6)])
+            if not df_garg_dash.empty:
+                st.dataframe(df_garg_dash, hide_index=True, use_container_width=True, height=245)
+            else:
+                st.info("Nenhum gargalo registrado nos RDCs desta data.")
+
+        # Rodapé executivo: briefings existentes e integridade real.
+        c_brief, c_sync, c_ok = st.columns([1.35, 1.35, .9])
+        with c_brief:
+            st.markdown('<div class="sgo-panel"><div class="sgo-panel-title">▤ Últimos briefings</div>', unsafe_allow_html=True)
+            briefs_dash = carregar_briefings_salvos()
+            if briefs_dash:
+                for chave in sorted(briefs_dash.keys(), reverse=True)[:2]:
+                    item = briefs_dash[chave]
+                    resumo = (item.get("avancos") or ["Briefing salvo"])[0]
+                    st.markdown(f'<div class="sgo-status-line"><span>{item.get("data_formatada",chave)}</span><b style="font-size:.67rem;max-width:68%;text-align:right">{str(resumo)[:75]}</b></div>', unsafe_allow_html=True)
+            else:
+                st.caption("Nenhum briefing salvo.")
+            st.markdown('</div>', unsafe_allow_html=True)
+        with c_sync:
+            fila_dash = _carregar_fila_sheets()
+            ultima_sync_dash = st.session_state.get("ultima_gravacao_sheets", "Nenhuma nesta sessão")
+            st.markdown(f"""<div class="sgo-panel"><div class="sgo-panel-title">☁ Sincronização e armazenamento</div>
+            <div class="sgo-status-line"><span>Google Sheets</span><b>{"Pendente" if fila_dash else "Conectado"}</b></div>
+            <div class="sgo-status-line"><span>Salvamento automático</span><b>Ativo</b></div>
+            <div class="sgo-status-line"><span>Registros na fila</span><b>{len(fila_dash)}</b></div>
+            <div class="sgo-status-line"><span>Última confirmação</span><b>{ultima_sync_dash}</b></div></div>""", unsafe_allow_html=True)
+        with c_ok:
+            fila_dash = _carregar_fila_sheets()
+            cor_ok = "#22c55e" if not fila_dash else "#f59e0b"
+            titulo_ok = "Tudo certo!" if not fila_dash else "Atenção"
+            texto_ok = "Dados sem pendências de envio." if not fila_dash else f"{len(fila_dash)} registro(s) aguardando envio."
+            st.markdown(f"""<div class="sgo-panel" style="border-color:{cor_ok}55;background:linear-gradient(145deg,{cor_ok}20,#0b1728);display:flex;flex-direction:column;justify-content:center;min-height:166px;text-align:center">
+            <div style="font-size:2rem;color:{cor_ok}">✓</div><div style="font-size:1.15rem;font-weight:800;color:{cor_ok}">{titulo_ok}</div><div style="font-size:.72rem;color:#b9c7d8;margin-top:6px">{texto_ok}</div></div>""", unsafe_allow_html=True)
+
         # ==============================================================
         # BRIEFING MATINAL COM IA (PERSISTENTE POR DIA & EDITÁVEL)
         # ==============================================================
