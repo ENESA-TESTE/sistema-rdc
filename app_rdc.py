@@ -15,6 +15,19 @@ import plotly.express as px
 import logging
 from logging.handlers import RotatingFileHandler
 
+try:
+    from persistencia_supabase import (
+        configurado as banco_persistente_configurado,
+        salvar_estado as banco_salvar_estado,
+        carregar_estado as banco_carregar_estado,
+        apagar_estado as banco_apagar_estado,
+    )
+except Exception:
+    banco_persistente_configurado = lambda: False
+    banco_salvar_estado = lambda chave, valor: (False, "Banco persistente indisponível.")
+    banco_carregar_estado = lambda chave, padrao=None: padrao
+    banco_apagar_estado = lambda chave: (False, "Banco persistente indisponível.")
+
 # ==========================================
 # CONFIGURACAO CENTRAL DO AMBIENTE
 # ==========================================
@@ -24,7 +37,7 @@ def _env_bool(nome, padrao=False):
 MODO_DEMONSTRACAO = _env_bool("SGO_DEMO_MODE", False)
 ACESSO_DIRETO = _env_bool("SGO_DIRECT_ACCESS", True)
 PERMITIR_ACOES_DESTRUTIVAS = _env_bool("SGO_ALLOW_DESTRUCTIVE_ACTIONS", False)
-VERSAO_APP = os.getenv("SGO_APP_VERSION", "8.4")
+VERSAO_APP = os.getenv("SGO_APP_VERSION", "8.5")
 AMBIENTE_APP = "DEMONSTRACAO" if MODO_DEMONSTRACAO else "OPERACAO CONTROLADA"
 CACHE_NUVEM_SEGUNDOS = int(os.getenv("SGO_CLOUD_CACHE_SECONDS", "600"))
 
@@ -2008,14 +2021,19 @@ def salvar_f1_seguro(conn, df_f1, caminho_csv):
         return False, "Bloqueado: todos os registros são inválidos."
     
     df_f1 = df_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
+
+    # 1. Banco persistente principal
+    ok_banco, msg_banco = banco_salvar_estado("historico_f1", df_f1.to_dict(orient="records"))
+    if not ok_banco and banco_persistente_configurado():
+        registrar_erro("Persistencia do Historico F1", RuntimeError(msg_banco))
     
-    # 1. Backup Local CSV
+    # 2. Backup Local CSV
     try:
         df_f1.to_csv(caminho_csv, index=False)
     except Exception:
         pass
 
-    # 2. Persistência na Nuvem (Google Sheets via gspread)
+    # 3. Espelho na Nuvem (Google Sheets via gspread)
     try:
         sh = obter_planilha_google()
         if sh:
@@ -2349,8 +2367,22 @@ if 'df_ia' not in st.session_state:
     st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
 if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1.empty:
     _f1_carregado = False
-    # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
+    # PRIORIDADE 1: banco persistente
     try:
+        _registros_f1_banco = banco_carregar_estado("historico_f1", [])
+        if _registros_f1_banco:
+            _df_f1_banco = pd.DataFrame(_registros_f1_banco)
+            if not _df_f1_banco.empty and "DATA" in _df_f1_banco.columns and "ENCARREGADO" in _df_f1_banco.columns:
+                st.session_state.df_historico_f1 = _df_f1_banco.drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                _f1_carregado = True
+    except Exception as e:
+        registrar_erro("Carga inicial do Historico F1 no banco persistente", e)
+
+    # PRIORIDADE 2: Google Sheets, usado como espelho/contingencia
+    try:
+        if _f1_carregado:
+            raise RuntimeError("F1 já carregado do banco persistente")
         _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
         _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=CACHE_NUVEM_SEGUNDOS)
         if _df_f1_nuvem is not None:
@@ -2366,7 +2398,7 @@ if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1
     except Exception as e:
         registrar_erro("Leitura inicial do Historico_F1", e)
         st.sidebar.warning(mensagem_nuvem_amigavel(e, "base F1"))
-    # PRIORIDADE 2: Se a nuvem falhou, tentar o CSV local
+    # PRIORIDADE 3: Se banco e nuvem falharam, tentar o CSV local
     if not _f1_carregado:
         if os.path.exists(caminho_historico_f1_csv):
             try:
@@ -2460,10 +2492,18 @@ def normalizar_data_brasil(val):
 # PERSISTÊNCIA E GESTÃO DE BRIEFINGS DIÁRIOS (LOCAL + NUVEM)
 # =================================================================
 def carregar_briefings_salvos():
-    """Carrega todos os briefings matinais salvos (mescla cache local com a nuvem permanente)."""
+    """Carrega briefings do banco persistente e usa arquivos/Sheets apenas como contingência."""
     dados = {}
+
+    # 1. Banco persistente principal
+    try:
+        dados_banco = banco_carregar_estado("briefings", {})
+        if isinstance(dados_banco, dict):
+            dados.update(dados_banco)
+    except Exception as e:
+        registrar_erro("Carga dos briefings no banco persistente", e)
     
-    # 1. Carregar do cache local
+    # 2. Cache local de contingência
     if os.path.exists(caminho_briefings_json):
         try:
             with open(caminho_briefings_json, "r", encoding="utf-8") as f:
@@ -2473,7 +2513,7 @@ def carregar_briefings_salvos():
         except Exception:
             dados = {}
             
-    # 2. Sincronizar com a Nuvem (Google Sheets -> Worksheet 'Briefings')
+    # 3. Espelho Google Sheets de contingência
     try:
         sh = obter_planilha_google()
         if sh:
@@ -2518,8 +2558,14 @@ def salvar_briefing_dia(data_str, briefing_dict):
         # 1. Salvar no arquivo local
         with open(caminho_briefings_json, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
+
+        # 2. Banco persistente principal
+        ok_banco, msg_banco = banco_salvar_estado("briefings", dados)
+        if not ok_banco and banco_persistente_configurado():
+            registrar_erro("Persistencia dos briefings", RuntimeError(msg_banco))
+            st.warning("O briefing foi salvo localmente, mas o banco persistente não confirmou a gravação.")
             
-        # 2. Salvar na Nuvem (Google Sheets -> Worksheet 'Briefings')
+        # 3. Espelho Google Sheets de contingência
         try:
             sh = obter_planilha_google()
             if sh:
@@ -2691,7 +2737,22 @@ def sincronizar_dados_globais():
                 st.session_state.df = preparar_dataframe(_df)
 
 sincronizar_dados_globais()
-_logger.info("Aplicacao iniciada | ambiente=%s | versao=%s | cache=%ss", AMBIENTE_APP, VERSAO_APP, CACHE_NUVEM_SEGUNDOS)
+
+# Migração automática e não destrutiva das cópias locais existentes.
+if banco_persistente_configurado() and not st.session_state.get("migracao_banco_v85_concluida", False):
+    try:
+        if banco_carregar_estado("historico_f1", None) is None and not st.session_state.get("df_historico_f1", pd.DataFrame()).empty:
+            banco_salvar_estado("historico_f1", st.session_state.df_historico_f1.to_dict(orient="records"))
+        if banco_carregar_estado("briefings", None) is None and os.path.exists(caminho_briefings_json):
+            with open(caminho_briefings_json, "r", encoding="utf-8") as _arquivo_brief:
+                _briefings_locais = json.load(_arquivo_brief)
+            if isinstance(_briefings_locais, dict) and _briefings_locais:
+                banco_salvar_estado("briefings", _briefings_locais)
+        st.session_state.migracao_banco_v85_concluida = True
+    except Exception as e:
+        registrar_erro("Migracao inicial para banco persistente", e)
+
+_logger.info("Aplicacao iniciada | ambiente=%s | versao=%s | cache=%ss | banco=%s", AMBIENTE_APP, VERSAO_APP, CACHE_NUVEM_SEGUNDOS, banco_persistente_configurado())
 
 # IDENTIDADE DA SESSAO EM ACESSO DIRETO
 st.session_state.setdefault("usuario_logado", "operacao_local")
@@ -2740,8 +2801,12 @@ st.markdown(f"""
 # =================================================================
 # BARRA LATERAL
 # =================================================================
-with st.expander("☁️ Sincronização da nuvem", expanded=False):
+with st.expander("☁️ Sincronização e armazenamento", expanded=False):
     st.caption("Operação com dados reais. O sistema não gera indicadores fictícios.")
+    if banco_persistente_configurado():
+        st.success("🟢 Banco persistente conectado. Briefings e histórico F1 permanecem salvos após reinicializações.")
+    else:
+        st.error("🔴 Banco persistente ainda não configurado. Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY nos Secrets.")
     st.caption(f"Cache configurado para {CACHE_NUVEM_SEGUNDOS // 60} minuto(s). Evite atualizar repetidamente.")
     if st.button("🔄 Atualizar dados da nuvem", use_container_width=True, key="btn_atualizar_nuvem_seguro"):
         st.session_state.ultima_sync_f1 = 0
