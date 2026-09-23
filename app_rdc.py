@@ -2765,13 +2765,39 @@ arquivo_pde = None
 arquivo_modelo = None
 
 with st.sidebar:
+    # Logo oficial do sistema no topo da navegacao lateral.
+    st.markdown("""
+    <style>
+      .sgo-sidebar-logo-wrap {
+        display:flex; align-items:center; justify-content:center;
+        width:100%; padding:10px 8px 13px; margin:0 0 8px;
+        border-bottom:1px solid rgba(125,158,196,.16);
+      }
+      .sgo-sidebar-logo-wrap img {
+        width:238px; max-width:100%; height:auto; object-fit:contain;
+        border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.24);
+      }
+      @media(max-width:768px){.sgo-sidebar-logo-wrap img{width:225px;}}
+    </style>
+    """, unsafe_allow_html=True)
+    if os.path.exists(caminho_logo):
+        try:
+            with open(caminho_logo, "rb") as _logo_file:
+                _logo_b64_sidebar = base64.b64encode(_logo_file.read()).decode("utf-8")
+            st.markdown(
+                f'<div class="sgo-sidebar-logo-wrap"><img src="data:image/png;base64,{_logo_b64_sidebar}" alt="Logo SGO RDC e PDE"></div>',
+                unsafe_allow_html=True
+            )
+        except Exception:
+            st.image(caminho_logo, width=238)
+
     # Menu principal fixo, inspirado no layout executivo aprovado.
     if "pagina_sgo" not in st.session_state:
         st.session_state.pagina_sgo = "Dashboard"
 
     st.markdown("""
     <style>
-      [data-testid="stSidebar"] {min-width:240px!important;max-width:240px!important;width:240px!important;}
+      [data-testid="stSidebar"] {min-width:292px!important;max-width:292px!important;width:292px!important;}
       [data-testid="stSidebar"] .block-container {padding:14px 12px 18px!important;}
       [data-testid="stSidebar"] div.stButton > button {
         min-height:42px!important;width:100%!important;text-align:left!important;
@@ -2792,7 +2818,7 @@ with st.sidebar:
       .sgo-nav-group {font-size:10px;color:#607a9e;font-weight:750;letter-spacing:1.1px;
         text-transform:uppercase;margin:15px 5px 6px;}
       .sgo-nav-footer {font-size:10px;color:#60748f;padding:12px 4px 0;border-top:1px solid rgba(148,163,184,.12);margin-top:16px;}
-      @media(max-width:768px){[data-testid="stSidebar"]{min-width:260px!important;max-width:260px!important;width:260px!important;}}
+      @media(max-width:768px){[data-testid="stSidebar"]{min-width:286px!important;max-width:286px!important;width:286px!important;}}
     </style>
     """, unsafe_allow_html=True)
 
@@ -3492,7 +3518,8 @@ if st.session_state.df is not None:
         buffer_pptx.seek(0)
         return buffer_pptx.getvalue()
 
-    def gerar_pdf_briefing_matinal(avancos_l, atencao_l, bloqueios_l, pendentes_list, data_str, nome_site, total_rdcs, lista_enc, df_dia_rdcs=None):
+    def gerar_pdf_briefing_matinal(avancos_l, atencao_l, bloqueios_l, pendentes_list, data_str, nome_site, total_rdcs, lista_enc, df_dia_rdcs=None, logo_path=""):
+
         """Gera um PDF executivo do Briefing Matinal com grafico de barras de entrega no final."""
         from fpdf import FPDF
         import tempfile
@@ -3552,9 +3579,9 @@ if st.session_state.df is not None:
             def header(self):
                 # Logo a esquerda (sem sobrepor o texto)
                 logo_w_h = 22
-                if os.path.exists(caminho_logo):
+                if os.path.exists(logo_path):
                     try:
-                        self.image(caminho_logo, 10, 8, logo_w_h, logo_w_h)
+                        self.image(logo_path, 10, 8, logo_w_h, logo_w_h)
                     except:
                         logo_w_h = 0
                 else:
@@ -4989,7 +5016,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                         avancos_l, atencao_l, bloqueios_l, 
                         _pendentes_briefing, data_brief_sel, nome_site, 
                         len(df_dia_br), lista_completa_encarregados,
-                        df_dia_rdcs=df_dia_br
+                        df_dia_rdcs=df_dia_br,
+                        logo_path=caminho_logo_enesa
                     )
                     st.download_button(
                         label="📄 Briefing PDF",
