@@ -1424,6 +1424,32 @@ st.markdown(f"""
     <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
 """, unsafe_allow_html=True)
 
+# ================================================================
+# PALETA CORPORATIVA SGO v8.8
+# ================================================================
+st.markdown("""
+<style>
+:root{
+  --sgo-bg:#07111f;--sgo-surface:#0d1b2d;--sgo-surface-2:#12243a;
+  --sgo-border:rgba(125,158,196,.18);--sgo-primary:#2f81f7;
+  --sgo-accent:#38bdf8;--sgo-text:#f1f5f9;--sgo-muted:#86a0bf;
+}
+.stApp{background:radial-gradient(circle at 45% -10%,#142945 0%,#091525 42%,#050b14 100%)!important;}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#081423 0%,#07111e 100%)!important;border-right:1px solid var(--sgo-border)!important;}
+[data-testid="stSidebar"] div.stButton>button[kind="primary"]{background:linear-gradient(90deg,#1f5ba8,#1c4d8e)!important;border-color:#347ed2!important;color:white!important;}
+[data-testid="stSidebar"] div.stButton>button[kind="secondary"]{color:#c3d1e3!important;}
+[data-testid="stSidebar"] div.stButton>button[kind="secondary"]:hover{background:rgba(47,129,247,.11)!important;border-color:rgba(56,189,248,.24)!important;}
+.sgo-nav-group{color:#5f7fa7!important;}
+.sgo-team-footer{margin-top:18px;padding:15px 10px 4px;border-top:1px solid rgba(125,158,196,.16);text-align:center;}
+.sgo-team-title{font-size:9px;letter-spacing:1.45px;color:#506987;font-weight:800;margin-bottom:8px;}
+.sgo-team-names{font-size:11px;line-height:1.65;color:#a9bdd3;font-weight:600;}
+.sgo-team-version{margin-top:12px;padding-top:10px;border-top:1px solid rgba(125,158,196,.10);font-size:9px;color:#526a87;letter-spacing:.45px;}
+.sgo-team-version span{color:#38bdf8;font-weight:800;margin-left:5px;}
+.enesa-header{background:rgba(9,22,38,.94)!important;border-color:var(--sgo-border)!important;border-left-color:var(--sgo-accent)!important;}
+[data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"]{background:rgba(13,27,45,.76)!important;border-color:var(--sgo-border)!important;}
+</style>
+""", unsafe_allow_html=True)
+
 # --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
 try:
     if "pwd" in st.query_params and st.query_params["pwd"] == "Campo@2026":
@@ -2699,7 +2725,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.7</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.8</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2786,13 +2812,21 @@ with st.sidebar:
         st.session_state.modo_tv = True
         st.session_state.tv_slide = 0
         st.rerun()
-    st.markdown('<div class="sgo-nav-footer">SGO RDC & PDE &nbsp;&nbsp; v8.7</div>', unsafe_allow_html=True)
     st.markdown("---")
-    # Configuracoes tecnicas ficam internas e nao ocupam a navegacao.
+    # Configuracoes tecnicas internas.
     if "idioma" not in st.session_state:
         st.session_state.idioma = "Português"
     if "modelo_gemini" not in st.session_state:
         st.session_state.modelo_gemini = "gemini-2.5-flash"
+
+    # Rodape institucional do menu.
+    st.markdown("""
+    <div class="sgo-team-footer">
+      <div class="sgo-team-title">EQUIPE DO PROJETO</div>
+      <div class="sgo-team-names">Edson Garcia<br>Kevin<br>Pedro</div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v8.8</span></div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # =================================================================
 # LÓGICA DE CARREGAMENTO DA NUVEM (GOOGLE SHEETS)
@@ -3957,7 +3991,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v8.7)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v8.8)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4085,7 +4119,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v8.7 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v8.8 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -4517,6 +4551,15 @@ Retorne apenas o JSON sem crases ou markdown."""
     </style>
     """, unsafe_allow_html=True)
 
+    # === LEGENDA DOS BLOCOS ACIMA DAS ABAS ===
+    st.markdown("""
+    <div style="display: flex; gap: 24px; margin-bottom: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">
+        <span style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 2px;">🔵 Gestão</span>
+        <span style="color: #22c55e; border-bottom: 2px solid #22c55e; padding-bottom: 2px;">🟢 Campo</span>
+        <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 IA & Dados</span>
+        <span style="color: #64748b; border-bottom: 2px solid #64748b; padding-bottom: 2px;">⚙️ Config</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     # === ABAS REORDENADAS POR BLOCOS ===
     # BLOCO 1 - GESTÃO: Dashboard, Resumo, F1
