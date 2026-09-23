@@ -24,8 +24,9 @@ def _env_bool(nome, padrao=False):
 MODO_DEMONSTRACAO = _env_bool("SGO_DEMO_MODE", True)
 ACESSO_DIRETO = _env_bool("SGO_DIRECT_ACCESS", True)
 PERMITIR_ACOES_DESTRUTIVAS = _env_bool("SGO_ALLOW_DESTRUCTIVE_ACTIONS", False)
-VERSAO_APP = os.getenv("SGO_APP_VERSION", "8.1")
+VERSAO_APP = os.getenv("SGO_APP_VERSION", "8.2")
 AMBIENTE_APP = "DEMONSTRACAO" if MODO_DEMONSTRACAO else "OPERACAO CONTROLADA"
+CACHE_NUVEM_SEGUNDOS = int(os.getenv("SGO_CLOUD_CACHE_SECONDS", "300"))
 
 _logger = logging.getLogger("sgo_rdc_pde")
 if not _logger.handlers:
@@ -39,6 +40,15 @@ if not _logger.handlers:
 
 def registrar_erro(contexto, erro):
     _logger.exception("%s: %s", contexto, erro)
+
+def erro_de_cota(erro):
+    texto = str(erro).upper()
+    return any(chave in texto for chave in ("429", "RESOURCE_EXHAUSTED", "RATE_LIMIT_EXCEEDED", "QUOTA EXCEEDED"))
+
+def mensagem_nuvem_amigavel(erro, contexto="base na nuvem"):
+    if erro_de_cota(erro):
+        return f"☁️ A {contexto} atingiu temporariamente o limite de consultas. O sistema usará a última cópia disponível. Aguarde cerca de 1 minuto antes de atualizar novamente."
+    return f"☁️ Não foi possível atualizar a {contexto}. O sistema continuará com a última cópia disponível."
 
 def obter_secret(nome, padrao=""):
     try:
@@ -1462,7 +1472,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- ACESSO DIRETO CONTROLADO ---
-# Sem tela de login interna e sem senha em URL. A publicacao deve ser protegida pela infraestrutura da TI.
+# Sem tela de login interna e sem senha em URL. A publicacao deve ser protegida pela infraestrutura aprovada pela TI.
 if ACESSO_DIRETO:
     st.session_state.logged_in = True
     st.session_state.role = "admin"
@@ -2342,7 +2352,7 @@ if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1
     # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
     try:
         _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
-        _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=0)
+        _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=CACHE_NUVEM_SEGUNDOS)
         if _df_f1_nuvem is not None:
             _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
             # SÓ aceitar se tiver dados reais (pelo menos 1 linha com DATA e ENCARREGADO)
@@ -2354,7 +2364,8 @@ if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1
                     _df_f1_nuvem.to_csv(caminho_historico_f1_csv, index=False)
                     _f1_carregado = True
     except Exception as e:
-        st.sidebar.caption(f"⚠️ F1 nuvem: {e}")
+        registrar_erro("Leitura inicial do Historico_F1", e)
+        st.sidebar.warning(mensagem_nuvem_amigavel(e, "base F1"))
     # PRIORIDADE 2: Se a nuvem falhou, tentar o CSV local
     if not _f1_carregado:
         if os.path.exists(caminho_historico_f1_csv):
@@ -2680,7 +2691,7 @@ def sincronizar_dados_globais():
                 st.session_state.df = preparar_dataframe(_df)
 
 sincronizar_dados_globais()
-_logger.info("Aplicacao iniciada | ambiente=%s | versao=%s | acesso_direto=%s", AMBIENTE_APP, VERSAO_APP, ACESSO_DIRETO)
+_logger.info("Aplicacao iniciada | ambiente=%s | versao=%s | cache=%ss", AMBIENTE_APP, VERSAO_APP, CACHE_NUVEM_SEGUNDOS)
 
 # IDENTIDADE DA SESSAO EM ACESSO DIRETO
 st.session_state.setdefault("usuario_logado", "operacao_local")
@@ -2733,6 +2744,16 @@ if MODO_DEMONSTRACAO:
     st.warning("🧪 AMBIENTE DEMONSTRATIVO — Dados fictícios ou controlados. Ações destrutivas estão bloqueadas.")
 else:
     st.info("🔒 OPERAÇÃO CONTROLADA — Acesso direto protegido pela infraestrutura definida pela TI.")
+
+with st.expander("☁️ Sincronização da nuvem", expanded=False):
+    st.caption(f"Cache configurado para {CACHE_NUVEM_SEGUNDOS // 60} minuto(s). Evite atualizar repetidamente.")
+    if st.button("🔄 Atualizar dados da nuvem", use_container_width=True, key="btn_atualizar_nuvem_seguro"):
+        st.session_state.ultima_sync_f1 = 0
+        try:
+            st.cache_data.clear()
+        except Exception:
+            pass
+        st.rerun()
 
 arquivo_pde = None
 arquivo_modelo = None
@@ -2934,7 +2955,7 @@ elif st.session_state.df is None:
     if not st.session_state.get('force_use_local', False):
         if conn:
             try:
-                df_gsheets = conn.read(worksheet="PDE", ttl=300)
+                df_gsheets = conn.read(worksheet="PDE", ttl=CACHE_NUVEM_SEGUNDOS)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
@@ -2965,9 +2986,13 @@ elif st.session_state.df is None:
 # =================================================================
 # SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
 # =================================================================
-if conn and not st.session_state.get('force_use_local', False):
+_agora_sync = time.time()
+_ultima_sync_f1 = st.session_state.get("ultima_sync_f1", 0)
+_deve_sync_f1 = (_agora_sync - _ultima_sync_f1) >= CACHE_NUVEM_SEGUNDOS
+if conn and not st.session_state.get('force_use_local', False) and _deve_sync_f1:
     try:
-        df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
+        df_f1 = conn.read(worksheet="Historico_F1", ttl=CACHE_NUVEM_SEGUNDOS)
+        st.session_state.ultima_sync_f1 = _agora_sync
         if df_f1 is not None:
             df_f1 = df_f1.dropna(how='all')
             # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
@@ -2987,8 +3012,11 @@ if conn and not st.session_state.get('force_use_local', False):
                 ok, msg = salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                 if ok:
                     st.sidebar.caption(f"☁️ F1: {qtd_local} registros reenviados à nuvem (estava vazia).")
-    except Exception:
-        pass
+    except Exception as e:
+        registrar_erro("Sincronizacao periodica do Historico_F1", e)
+        if erro_de_cota(e):
+            st.sidebar.info("☁️ Sincronização F1 em pausa por 1 minuto. Última cópia mantida.")
+
 
 # =================================================================
 # CONTEUDO PRINCIPAL
@@ -5298,7 +5326,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=CACHE_NUVEM_SEGUNDOS)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -5971,7 +5999,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=CACHE_NUVEM_SEGUNDOS)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -6286,7 +6314,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 if st.button("☁️ Puxar Histórico F1 da Nuvem", key="btn_puxar_f1_nuvem", use_container_width=True):
                     try:
                         if conn:
-                            df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
+                            df_nuvem = conn.read(worksheet="Historico_F1", ttl=CACHE_NUVEM_SEGUNDOS)
                             df_nuvem = df_nuvem.dropna(how='all')
                             if not df_nuvem.empty:
                                 st.session_state.df_historico_f1 = df_nuvem
@@ -7116,7 +7144,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=CACHE_NUVEM_SEGUNDOS)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -8247,7 +8275,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             if st.button("🔄 Puxar do Google Sheets", key="btn_sync_pde", use_container_width=True):
                 try:
                     if conn:
-                        df_gs = conn.read(worksheet="PDE", ttl=0)
+                        df_gs = conn.read(worksheet="PDE", ttl=CACHE_NUVEM_SEGUNDOS)
                         df_gs = df_gs.dropna(how='all')
                         df_gs.to_csv(caminho_base_salva_csv, index=False)
                         st.success("✅ Dados sincronizados do Google Sheets!")
