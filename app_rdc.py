@@ -21,12 +21,12 @@ from logging.handlers import RotatingFileHandler
 def _env_bool(nome, padrao=False):
     return str(os.getenv(nome, str(padrao))).strip().lower() in {"1", "true", "sim", "yes", "on"}
 
-MODO_DEMONSTRACAO = _env_bool("SGO_DEMO_MODE", True)
+MODO_DEMONSTRACAO = _env_bool("SGO_DEMO_MODE", False)
 ACESSO_DIRETO = _env_bool("SGO_DIRECT_ACCESS", True)
 PERMITIR_ACOES_DESTRUTIVAS = _env_bool("SGO_ALLOW_DESTRUCTIVE_ACTIONS", False)
-VERSAO_APP = os.getenv("SGO_APP_VERSION", "8.2")
+VERSAO_APP = os.getenv("SGO_APP_VERSION", "8.3")
 AMBIENTE_APP = "DEMONSTRACAO" if MODO_DEMONSTRACAO else "OPERACAO CONTROLADA"
-CACHE_NUVEM_SEGUNDOS = int(os.getenv("SGO_CLOUD_CACHE_SECONDS", "300"))
+CACHE_NUVEM_SEGUNDOS = int(os.getenv("SGO_CLOUD_CACHE_SECONDS", "600"))
 
 _logger = logging.getLogger("sgo_rdc_pde")
 if not _logger.handlers:
@@ -2740,12 +2740,8 @@ st.markdown(f"""
 # =================================================================
 # BARRA LATERAL
 # =================================================================
-if MODO_DEMONSTRACAO:
-    st.warning("🧪 AMBIENTE DEMONSTRATIVO — Dados fictícios ou controlados. Ações destrutivas estão bloqueadas.")
-else:
-    st.info("🔒 OPERAÇÃO CONTROLADA — Acesso direto protegido pela infraestrutura definida pela TI.")
-
 with st.expander("☁️ Sincronização da nuvem", expanded=False):
+    st.caption("Operação com dados reais. O sistema não gera indicadores fictícios.")
     st.caption(f"Cache configurado para {CACHE_NUVEM_SEGUNDOS // 60} minuto(s). Evite atualizar repetidamente.")
     if st.button("🔄 Atualizar dados da nuvem", use_container_width=True, key="btn_atualizar_nuvem_seguro"):
         st.session_state.ultima_sync_f1 = 0
@@ -4016,9 +4012,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     esp_count += 1
                 else:
                     rb_count += 1
-        if total_rdcs_num == 0 and MODO_DEMONSTRACAO:
-            rb_count, pb_count, esp_count = 54, 31, 12
-            total_rdcs_num = 97
+        # Sem dados fictícios: quando não houver base, os indicadores permanecem zerados.
             
         # Síntese de Avanços, Atenção e Bloqueios
         avancos = briefing_data.get("avancos", []) if briefing_data else []
@@ -4077,8 +4071,8 @@ Retorne apenas o JSON sem crases ou markdown."""
         w_card = 45
         h_card = 15.5
         cards_kpi = [
-            ('EFETIVO TOTAL', f"{total_efetivo_num} Colab." if total_efetivo_num > 0 else ("847 Colab." if MODO_DEMONSTRACAO else "0 Colab."), "Efetivo em Campo", (14, 165, 233)),
-            ('PRODUTIVIDADE MOD', f"{pct_mod}%" if pct_mod > 0 else ("84.2%" if MODO_DEMONSTRACAO else "0.0%"), "Mão de Obra Direta", (34, 197, 94)),
+            ('EFETIVO TOTAL', f"{total_efetivo_num} Colab." if total_efetivo_num > 0 else "0 Colab.", "Efetivo em Campo", (14, 165, 233)),
+            ('PRODUTIVIDADE MOD', f"{pct_mod}%" if pct_mod > 0 else "0.0%", "Mão de Obra Direta", (34, 197, 94)),
             ('RDCS PROCESSADOS', f"{total_rdcs_num} RDCs", "Extraídos c/ IA Gemini", (168, 85, 247)),
             ('FRENTES DE SERVIÇO', f"{rb_count + pb_count + esp_count} Frentes", "Operação em Campo", (245, 158, 11))
         ]
@@ -4625,6 +4619,13 @@ Retorne apenas o JSON sem crases ou markdown."""
         div[data-baseweb="tab-list"] button:nth-child(14) {
             border-top: 3px solid #64748b !important;
         }
+        /* Navegação operacional simplificada. */
+        div[data-baseweb="tab-list"] button:nth-child(8),
+        div[data-baseweb="tab-list"] button:nth-child(11),
+        div[data-baseweb="tab-list"] button:nth-child(13),
+        div[data-baseweb="tab-list"] button:nth-child(14) {
+            display: none !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -4633,8 +4634,7 @@ Retorne apenas o JSON sem crases ou markdown."""
     <div style="display: flex; gap: 24px; margin-bottom: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">
         <span style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 2px;">🔵 Gestão</span>
         <span style="color: #22c55e; border-bottom: 2px solid #22c55e; padding-bottom: 2px;">🟢 Campo</span>
-        <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 IA & Dados</span>
-        <span style="color: #64748b; border-bottom: 2px solid #64748b; padding-bottom: 2px;">⚙️ Config</span>
+        <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 Dados e Inteligência</span>
     </div>
     """, unsafe_allow_html=True)
 
