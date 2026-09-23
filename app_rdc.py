@@ -1950,40 +1950,40 @@ def obter_planilha_google():
     return None
 
 def salvar_f1_seguro(conn, df_f1, caminho_csv):
-    """Grava somente linhas novas no Historico_F1 e Resumo_Diario, sem ler o Sheets."""
-    if df_f1 is None or df_f1.empty:
-        return False, "Nenhum registro para salvar."
-    df_envio = df_f1.copy()
-    if not {"DATA", "ENCARREGADO"}.issubset(df_envio.columns):
-        return False, "Colunas DATA e ENCARREGADO são obrigatórias."
-    df_envio["DATA"] = df_envio["DATA"].apply(normalizar_data_brasil)
-    df_envio["ENCARREGADO"] = df_envio["ENCARREGADO"].astype(str).str.strip().str.upper()
-    df_envio = df_envio[df_envio["ENCARREGADO"].apply(eh_encarregado_valido)]
-    df_envio = df_envio.drop_duplicates(subset=["DATA", "ENCARREGADO"])
-    if df_envio.empty:
+    """Grava somente linhas novas no Historico_F1 e Resumo_Diario, sem ler o Google Sheets."""
+    if df_f1 is None or df_f1.empty or not {"DATA", "ENCARREGADO"}.issubset(df_f1.columns):
+        return False, "Nenhum registro válido para salvar."
+
+    envio = df_f1[["DATA", "ENCARREGADO"]].copy()
+    envio["DATA"] = envio["DATA"].apply(normalizar_data_brasil)
+    envio["ENCARREGADO"] = envio["ENCARREGADO"].astype(str).str.strip().str.upper()
+    envio = envio[envio["ENCARREGADO"].apply(eh_encarregado_valido)].drop_duplicates()
+    if envio.empty:
         return False, "Nenhum registro válido para salvar."
 
     try:
-        base_local = st.session_state.get("df_historico_f1", pd.DataFrame()).copy()
-        pd.concat([base_local, df_envio], ignore_index=True).drop_duplicates(
+        local = st.session_state.get("df_historico_f1", pd.DataFrame()).copy()
+        pd.concat([local, envio], ignore_index=True).drop_duplicates(
             subset=["DATA", "ENCARREGADO"]
         ).to_csv(caminho_csv, index=False)
     except Exception:
         pass
 
     if "f1_chaves_enviadas" not in st.session_state:
-        chaves = set()
         existentes = st.session_state.get("df_historico_f1", pd.DataFrame())
+        chaves = set()
         if isinstance(existentes, pd.DataFrame) and not existentes.empty and {"DATA", "ENCARREGADO"}.issubset(existentes.columns):
-            for _, r in existentes.iterrows():
-                chaves.add((normalizar_data_brasil(r["DATA"]), str(r["ENCARREGADO"]).strip().upper()))
+            chaves = {
+                (normalizar_data_brasil(r["DATA"]), str(r["ENCARREGADO"]).strip().upper())
+                for _, r in existentes.iterrows()
+            }
         st.session_state.f1_chaves_enviadas = chaves
 
-    novos = []
-    for _, r in df_envio.iterrows():
-        chave = (str(r["DATA"]), str(r["ENCARREGADO"]))
-        if chave not in st.session_state.f1_chaves_enviadas:
-            novos.append(chave)
+    novos = [
+        (r["DATA"], r["ENCARREGADO"])
+        for _, r in envio.iterrows()
+        if (r["DATA"], r["ENCARREGADO"]) not in st.session_state.f1_chaves_enviadas
+    ]
     if not novos:
         return True, "Registro já existente nesta sessão."
 
@@ -1991,33 +1991,39 @@ def salvar_f1_seguro(conn, df_f1, caminho_csv):
         from google.oauth2 import service_account
         from google.auth.transport.requests import AuthorizedSession
         from urllib.parse import quote
-        if "connections" not in st.secrets or "gsheets" not in st.secrets["connections"]:
-            return False, "Credenciais gsheets não encontradas nos Secrets."
-        creds_info = dict(st.secrets["connections"]["gsheets"])
-        spreadsheet_url = str(creds_info.get("spreadsheet", ""))
-        match_id = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", spreadsheet_url)
+
+        info = dict(st.secrets["connections"]["gsheets"])
+        match_id = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", str(info.get("spreadsheet", "")))
         if not match_id:
             return False, "ID da planilha não encontrado."
-        creds = service_account.Credentials.from_service_account_info(
-            creds_info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
+
+        credenciais = service_account.Credentials.from_service_account_info(
+            info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
         )
-        sessao = AuthorizedSession(creds)
-        sid = match_id.group(1)
+        sessao = AuthorizedSession(credenciais)
+        planilha_id = match_id.group(1)
         agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        def append(nome_aba, linhas):
+
+        def adicionar_linhas(nome_aba, linhas):
             intervalo = quote(f"{nome_aba}!A:Z", safe="")
-            url = f"https://sheets.googleapis.com/v4/spreadsheets/{sid}/values/{intervalo}:append"
-            resposta = sessao.post(url, params={"valueInputOption":"USER_ENTERED","insertDataOption":"INSERT_ROWS"}, json={"majorDimension":"ROWS","values":linhas}, timeout=30)
+            url = f"https://sheets.googleapis.com/v4/spreadsheets/{planilha_id}/values/{intervalo}:append"
+            resposta = sessao.post(
+                url,
+                params={"valueInputOption": "USER_ENTERED", "insertDataOption": "INSERT_ROWS"},
+                json={"majorDimension": "ROWS", "values": linhas},
+                timeout=30,
+            )
             resposta.raise_for_status()
-        append("Historico_F1", [[d,e,"SISTEMA",agora,"inocencia"] for d,e in novos])
-        append("Resumo_Diario", [[d,e,"ENTREGUE","SISTEMA",agora,"inocencia"] for d,e in novos])
+
+        adicionar_linhas("Historico_F1", [[d, e, "SISTEMA", agora, "inocencia"] for d, e in novos])
+        adicionar_linhas("Resumo_Diario", [[d, e, "ENTREGUE", "SISTEMA", agora, "inocencia"] for d, e in novos])
         st.session_state.f1_chaves_enviadas.update(novos)
         return True, f"OK: {len(novos)} registro(s) gravado(s) sem leitura."
-    except Exception as e:
-        texto = str(e)
+    except Exception as erro:
+        texto = str(erro)
         if "429" in texto or "RESOURCE_EXHAUSTED" in texto:
             return False, "Limite do Google atingido. Aguarde 60 segundos."
-        return False, f"Erro ao gravar no Google Sheets: {e}"
+        return False, f"Erro ao gravar no Google Sheets: {erro}"
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -2173,6 +2179,84 @@ def preparar_dataframe(df):
     df = df[df["NOME"].str.strip() != ""]
     
     return df
+
+def preencher_caldeira_pelo_pde(df_rdc, df_pde):
+    """Preenche CALDEIRA com PB/RB/ESP usando a coluna CONTRATO do PDE.
+
+    Prioridade:
+    1. Linha do próprio encarregado no PDE, comparando ENCARREGADO com NOME.
+    2. Colaboradores cuja coluna ENCARREGADO aponta para o encarregado do RDC.
+    3. Em caso de várias linhas, usa o contrato mais frequente da equipe.
+    Não inventa valor quando o PDE não permite uma conclusão segura.
+    """
+    import unicodedata
+
+    if df_rdc is None or not isinstance(df_rdc, pd.DataFrame) or df_rdc.empty:
+        return df_rdc
+    if df_pde is None or not isinstance(df_pde, pd.DataFrame) or df_pde.empty:
+        return df_rdc
+    if "ENCARREGADO" not in df_rdc.columns:
+        return df_rdc
+
+    pde = df_pde.copy()
+    # Localiza a coluna CONTRATO mesmo se houver espacos ou variacoes no cabecalho.
+    col_contrato = next((c for c in pde.columns if "CONTRATO" in str(c).strip().upper()), None)
+    if not col_contrato:
+        return df_rdc
+
+    def norm_nome(valor):
+        texto = "" if valor is None or pd.isna(valor) else str(valor)
+        texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("ASCII")
+        texto = re.sub(r"[^A-Z0-9 ]+", " ", texto.upper())
+        return re.sub(r"\s+", " ", texto).strip()
+
+    def norm_contrato(valor):
+        texto = norm_nome(valor)
+        tokens = set(texto.split())
+        if "PB" in tokens or texto.startswith("PB") or "CALDEIRA DE FORCA" in texto:
+            return "PB"
+        if "RB" in tokens or texto.startswith("RB") or "CALDEIRA DE RECUPERACAO" in texto:
+            return "RB"
+        if "ESP" in tokens or "PRECIPITADOR" in texto:
+            return "ESP"
+        return ""
+
+    pde["_NOME_NORM"] = pde["NOME"].apply(norm_nome) if "NOME" in pde.columns else ""
+    pde["_ENC_NORM"] = pde["ENCARREGADO"].apply(norm_nome) if "ENCARREGADO" in pde.columns else ""
+    pde["_CONTRATO_NORM"] = pde[col_contrato].apply(norm_contrato)
+    pde = pde[pde["_CONTRATO_NORM"].isin(["PB", "RB", "ESP"])]
+    if pde.empty:
+        return df_rdc
+
+    mapa = {}
+    encarregados = df_rdc["ENCARREGADO"].dropna().astype(str).unique()
+    for encarregado in encarregados:
+        enc_norm = norm_nome(encarregado)
+        if not enc_norm:
+            continue
+
+        # O contrato na linha do próprio encarregado tem prioridade.
+        contratos_proprio = pde.loc[pde["_NOME_NORM"] == enc_norm, "_CONTRATO_NORM"]
+        if not contratos_proprio.empty:
+            contagem = contratos_proprio.value_counts()
+            mapa[enc_norm] = contagem.index[0]
+            continue
+
+        # Se a linha própria não existir, usa os colaboradores vinculados ao encarregado.
+        contratos_equipe = pde.loc[pde["_ENC_NORM"] == enc_norm, "_CONTRATO_NORM"]
+        if not contratos_equipe.empty:
+            contagem = contratos_equipe.value_counts()
+            # Só define quando existe maioria simples. Empate permanece sem identificação.
+            if len(contagem) == 1 or contagem.iloc[0] > contagem.iloc[1]:
+                mapa[enc_norm] = contagem.index[0]
+
+    resultado = df_rdc.copy()
+    if "CALDEIRA" not in resultado.columns:
+        resultado["CALDEIRA"] = ""
+    calculado = resultado["ENCARREGADO"].apply(lambda x: mapa.get(norm_nome(x), ""))
+    # PDE e a fonte oficial: quando houver correspondencia segura, substitui o valor da IA.
+    resultado["CALDEIRA"] = calculado.where(calculado != "", resultado["CALDEIRA"].fillna(""))
+    return resultado
 
 def obter_mapa_encarregado_coordenador(df):
     """
@@ -6892,6 +6976,10 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                                     dados['ITEM'] = int(ultimo_item) + 1
                                     st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
+                                    st.session_state.df_ia = preencher_caldeira_pelo_pde(
+                                        st.session_state.df_ia,
+                                        st.session_state.get("df", pd.DataFrame())
+                                    )
 
                                 
                                 st.toast(f"✅ {nome_atual} processado com sucesso!")
@@ -6917,7 +7005,12 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.session_state.force_use_local = True
                 
             if not st.session_state.df_ia.empty:
+                st.session_state.df_ia = preencher_caldeira_pelo_pde(
+                    st.session_state.df_ia,
+                    st.session_state.get("df", pd.DataFrame())
+                )
                 st.markdown("#### Dados Extraídos")
+                st.caption("CALDEIRA preenchida automaticamente pela coluna CONTRATO do PDE: linha do encarregado ou maioria dos colaboradores da equipe.")
                 
                 lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
                 df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
