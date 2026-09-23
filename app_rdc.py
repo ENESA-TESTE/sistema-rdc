@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.1
+# PALETA CORPORATIVA SGO v9.1.1
 # ================================================================
 st.markdown("""
 <style>
@@ -1458,7 +1458,7 @@ st.markdown("""
 @media(max-width:768px){
   header[data-testid="stHeader"]{display:block!important;visibility:visible!important;background:rgba(7,17,31,.96)!important;height:48px!important;}
   [data-testid="stSidebarCollapseButton"]{display:flex!important;visibility:visible!important;position:fixed!important;top:7px!important;left:8px!important;z-index:1000000!important;}
-  [data-testid="stSidebar"]{width:286px!important;min-width:286px!important;max-width:286px!important;transform:none!important;z-index:999999!important;}
+  [data-testid="stSidebar"]{width:286px!important;min-width:286px!important;max-width:286px!important;z-index:999999!important;}
   [data-testid="stSidebar"] .block-container{padding:10px 10px 22px!important;}
   .block-container{padding:3.3rem .65rem 5.5rem!important;max-width:100%!important;}
   .enesa-header{padding:11px 12px!important;margin:0 0 12px!important;border-radius:10px!important;}
@@ -1480,6 +1480,56 @@ st.markdown("""
   [data-testid="column"]{min-width:100%!important;flex:1 1 100%!important;}
   .block-container{padding-left:.5rem!important;padding-right:.5rem!important;}
   h1{font-size:1.25rem!important}h2{font-size:1.1rem!important}h3{font-size:1rem!important}
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ================================================================
+# MENU MOBILE NATIVO - CORRECAO v9.1.1.1
+# ================================================================
+st.markdown("""
+<style>
+@media screen and (max-width: 768px) {
+  header[data-testid="stHeader"] {
+    display:block!important; visibility:visible!important; opacity:1!important;
+    height:52px!important; min-height:52px!important;
+    background:rgba(7,17,31,.98)!important;
+    border-bottom:1px solid rgba(56,189,248,.16)!important;
+    z-index:999990!important;
+  }
+  [data-testid="stSidebarCollapsedControl"],
+  [data-testid="collapsedControl"] {
+    display:flex!important; visibility:visible!important; opacity:1!important;
+    pointer-events:auto!important; position:fixed!important;
+    top:7px!important; left:8px!important; z-index:1000002!important;
+  }
+  [data-testid="stSidebarCollapsedControl"] button,
+  [data-testid="collapsedControl"] button {
+    display:flex!important; visibility:visible!important;
+    width:44px!important; height:40px!important; min-width:44px!important;
+    align-items:center!important; justify-content:center!important;
+    padding:8px!important; border-radius:9px!important;
+    background:#15436f!important; color:#fff!important;
+    border:1px solid rgba(56,189,248,.38)!important;
+    box-shadow:0 6px 18px rgba(0,0,0,.35)!important;
+  }
+  [data-testid="stSidebarCollapsedControl"] svg,
+  [data-testid="collapsedControl"] svg {
+    display:block!important; visibility:visible!important;
+    width:23px!important; height:23px!important; color:#fff!important; fill:#fff!important;
+  }
+  section[data-testid="stSidebar"] {
+    display:block!important; visibility:visible!important;
+    width:286px!important; min-width:286px!important; max-width:286px!important;
+    z-index:1000001!important; box-shadow:12px 0 35px rgba(0,0,0,.45)!important;
+  }
+  section[data-testid="stSidebar"][aria-expanded="true"] {transform:translateX(0)!important;}
+  section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
+    display:flex!important; visibility:visible!important; opacity:1!important;
+    position:absolute!important; top:8px!important; right:8px!important; left:auto!important;
+    z-index:1000003!important;
+  }
+  .block-container {padding-top:3.8rem!important;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -2769,7 +2819,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.1</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.1.1</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2894,7 +2944,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.1</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.1.1</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4053,7 +4103,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.1)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.1.1)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4181,7 +4231,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.1 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.1.1 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
