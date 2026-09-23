@@ -1470,6 +1470,7 @@ if "logged_in" not in st.session_state:
 # =================================================================
 pasta_base = os.path.dirname(os.path.abspath(__file__))
 caminho_logo = os.path.join(pasta_base, "logo.png")
+caminho_logo_enesa = os.path.join(pasta_base, "logo_enesa.png")
 caminho_pde_padrao = os.path.join(pasta_base, "PDE.csv")
 caminho_modelo_padrao = os.path.join(pasta_base, "MODELO.xlsx")
 caminho_modelo_salvo = os.path.join(pasta_base, "MODELO_SALVO.xlsx")
@@ -1538,6 +1539,15 @@ def preencher_excel(equipe, encarregado_selecionado, data_rdc=""):
             
         from copy import copy
         ws = wb.active
+        if os.path.exists(caminho_logo_enesa):
+            try:
+                from openpyxl.drawing.image import Image as OpenpyxlImage
+                _logo_enesa_xlsx = OpenpyxlImage(caminho_logo_enesa)
+                _logo_enesa_xlsx.width = 82
+                _logo_enesa_xlsx.height = 108
+                ws.add_image(_logo_enesa_xlsx, "A1")
+            except Exception:
+                pass
         celula_enc = ws[celula_encarregado]
         celula_enc.value = encarregado_selecionado
         
@@ -2755,39 +2765,13 @@ arquivo_pde = None
 arquivo_modelo = None
 
 with st.sidebar:
-    # Logo oficial do sistema no topo da navegacao lateral.
-    st.markdown("""
-    <style>
-      .sgo-sidebar-logo-wrap {
-        display:flex; align-items:center; justify-content:center;
-        width:100%; padding:10px 8px 13px; margin:0 0 8px;
-        border-bottom:1px solid rgba(125,158,196,.16);
-      }
-      .sgo-sidebar-logo-wrap img {
-        width:238px; max-width:100%; height:auto; object-fit:contain;
-        border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.24);
-      }
-      @media(max-width:768px){.sgo-sidebar-logo-wrap img{width:225px;}}
-    </style>
-    """, unsafe_allow_html=True)
-    if os.path.exists(caminho_logo):
-        try:
-            with open(caminho_logo, "rb") as _logo_file:
-                _logo_b64_sidebar = base64.b64encode(_logo_file.read()).decode("utf-8")
-            st.markdown(
-                f'<div class="sgo-sidebar-logo-wrap"><img src="data:image/png;base64,{_logo_b64_sidebar}" alt="Logo SGO RDC e PDE"></div>',
-                unsafe_allow_html=True
-            )
-        except Exception:
-            st.image(caminho_logo, width=238)
-
     # Menu principal fixo, inspirado no layout executivo aprovado.
     if "pagina_sgo" not in st.session_state:
         st.session_state.pagina_sgo = "Dashboard"
 
     st.markdown("""
     <style>
-      [data-testid="stSidebar"] {min-width:292px!important;max-width:292px!important;width:292px!important;}
+      [data-testid="stSidebar"] {min-width:240px!important;max-width:240px!important;width:240px!important;}
       [data-testid="stSidebar"] .block-container {padding:14px 12px 18px!important;}
       [data-testid="stSidebar"] div.stButton > button {
         min-height:42px!important;width:100%!important;text-align:left!important;
@@ -2808,7 +2792,7 @@ with st.sidebar:
       .sgo-nav-group {font-size:10px;color:#607a9e;font-weight:750;letter-spacing:1.1px;
         text-transform:uppercase;margin:15px 5px 6px;}
       .sgo-nav-footer {font-size:10px;color:#60748f;padding:12px 4px 0;border-top:1px solid rgba(148,163,184,.12);margin-top:16px;}
-      @media(max-width:768px){[data-testid="stSidebar"]{min-width:286px!important;max-width:286px!important;width:286px!important;}}
+      @media(max-width:768px){[data-testid="stSidebar"]{min-width:260px!important;max-width:260px!important;width:260px!important;}}
     </style>
     """, unsafe_allow_html=True)
 
@@ -4495,7 +4479,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         data_str=data_tv_brief_str,
                         nome_site=nome_site_display,
                         briefing_data=briefing_tv,
-                        logo_path=caminho_logo
+                        logo_path=caminho_logo_enesa
                     )
                     st.download_button(
                         label="📑 Baixar Relatório Executivo One-Pager (PDF A4)",
@@ -4641,7 +4625,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         with col_dash_btn_pptx:
             st.markdown("<br>", unsafe_allow_html=True)
             try:
-                pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo, lista_completa_encarregados)
+                pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo_enesa, lista_completa_encarregados)
                 st.download_button(
                     label="📑 PowerPoint (.pptx)",
                     data=pptx_dash_bytes,
@@ -5023,7 +5007,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             data_str=data_brief_sel,
                             nome_site=nome_site,
                             briefing_data=briefing_atual,
-                            logo_path=caminho_logo
+                            logo_path=caminho_logo_enesa
                         )
                         st.download_button(
                             label="📑 One-Pager A4 (Impressão)",
@@ -5440,7 +5424,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     if len(lista_alvo) == 1:
                         enc = lista_alvo[0]
                         eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                        pdf_bytes = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                        pdf_bytes = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
                         if pdf_bytes:
                             nome_limpo = enc.replace(" ", "_")
                             nome_pdf = f"RDC_{nome_limpo}.pdf"
@@ -5456,7 +5440,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 for enc in lista_alvo:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
-                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
                                         if pdf_b:
                                             zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
                                             qtd += 1
@@ -5494,7 +5478,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             except Exception:
                                                 pass
                                         
-                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
                                         if pdf_b:
                                             zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
                                         
@@ -5531,7 +5515,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             for enc in lista_alvo:
                                 eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                 if len(eq) > 0:
-                                    pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo)
+                                    pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
                                     if pdf_b:
                                         pdf_individual = fitz.open(stream=pdf_b, filetype="pdf")
                                         pdf_final.insert_pdf(pdf_individual)
