@@ -2788,146 +2788,11 @@ with st.sidebar:
         st.rerun()
     st.markdown('<div class="sgo-nav-footer">SGO RDC & PDE &nbsp;&nbsp; v8.7</div>', unsafe_allow_html=True)
     st.markdown("---")
-    if os.path.exists(caminho_logo):
-        col1, col2, col3 = st.columns([1.5, 2, 1.5]) 
-        with col2:
-            st.image(caminho_logo, use_container_width=True)
-        st.markdown("<br>", unsafe_allow_html=True)
-
-    # === MODO TV (Apresentação) ===
-    if st.button("📺 Modo TV (Apresentação)", use_container_width=True, type="secondary"):
-        st.session_state.modo_tv = True
-        st.session_state.tv_slide = 0
-        st.rerun()
-
-    st.markdown("---")
-
-    if st.session_state.role_usuario == "admin":
-        st.markdown("#### ⚙️ Painel de Configurações")
-        
-        # --- Seletor de Idioma ---
-        idioma_opcoes = ["Português", "English"]
-        idioma_atual = st.session_state.get("idioma", "Português")
-        idx_idioma = idioma_opcoes.index(idioma_atual) if idioma_atual in idioma_opcoes else 0
-        idioma_sel = st.selectbox("🌐 Idioma / Language", idioma_opcoes, index=idx_idioma, key="sel_idioma")
-        if idioma_sel != st.session_state.get("idioma", "Português"):
-            st.session_state.idioma = idioma_sel
-            st.rerun()
-        
-        # --- Seletor de Modelo Gemini (Versões Mais Recentes) ---
-        modelos_gemini = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-pro-latest"]
-        modelo_atual = st.session_state.get("modelo_gemini", "gemini-2.5-flash")
-        idx_modelo = modelos_gemini.index(modelo_atual) if modelo_atual in modelos_gemini else 0
-        modelo_sel = st.selectbox("🤖 Modelo de IA (Gemini)", modelos_gemini, index=idx_modelo, key="sel_modelo_gemini")
-        if modelo_sel != st.session_state.get("modelo_gemini", "gemini-2.5-flash"):
-            st.session_state.modelo_gemini = modelo_sel
-            st.rerun()
-        
-        st.markdown("---")
-
-        st.markdown("**💾 Backup Seguro**")
-        
-        # Função para gerar backup ZIP
-        buffer_zip = io.BytesIO()
-        with zipfile.ZipFile(buffer_zip, "w") as z:
-            # Backup da Base de Efetivo
-            if st.session_state.df is not None:
-                buffer_pde = io.BytesIO()
-                st.session_state.df.to_excel(buffer_pde, index=False, engine='openpyxl')
-                z.writestr("BASE_EFETIVO.xlsx", buffer_pde.getvalue())
-            
-            # Backup do Histórico F1
-            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
-                buffer_f1 = io.BytesIO()
-                st.session_state.df_historico_f1.to_excel(buffer_f1, index=False, engine='openpyxl')
-                z.writestr("HISTORICO_F1.xlsx", buffer_f1.getvalue())
-                
-            # Backup do Histórico de Briefings
-            if os.path.exists(caminho_briefings_json):
-                try:
-                    with open(caminho_briefings_json, "rb") as fb:
-                        z.writestr("briefings_historico.json", fb.read())
-                except Exception:
-                    pass
-
-            # Backup do Banco de RDCs
-            if os.path.exists(caminho_rdc_registros_csv):
-                try:
-                    with open(caminho_rdc_registros_csv, "rb") as fr:
-                        z.writestr("rdc_registros.csv", fr.read())
-                except Exception:
-                    pass
-        
-        st.download_button(
-            label="📥 Baixar Backup (.zip)",
-            data=buffer_zip.getvalue(),
-            file_name=f"Backup_RDC_{datetime.datetime.now().strftime('%Y%m%d')}.zip",
-            mime="application/zip",
-            use_container_width=True
-        )
-
-
-
-        st.markdown("---")
-        if st.toggle("🏎️ Gerenciar Lista F1", key="toggle_f1_config"):
-            import json as json_mod
-            caminho_f1 = "encarregados_f1.json"
-            try:
-                with open(caminho_f1, "r", encoding="utf-8") as f_f1:
-                    lista_f1 = json_mod.load(f_f1)
-            except:
-                lista_f1 = []
-            
-            col_add_f1, col_rem_f1 = st.columns(2)
-            with col_add_f1:
-                novo_enc = st.text_input("➕ Adicionar Encarregado ao F1:", key="add_enc_f1_config")
-                if st.button("Adicionar", key="btn_add_f1_config", use_container_width=True):
-                    if novo_enc.strip():
-                        nome_up = novo_enc.strip().upper()
-                        if nome_up not in [e.upper() for e in lista_f1]:
-                            lista_f1.append(nome_up)
-                            with open(caminho_f1, "w", encoding="utf-8") as f_f1:
-                                json_mod.dump(lista_f1, f_f1, ensure_ascii=False, indent=2)
-                            st.success(f"'{nome_up}' adicionado!")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.warning("Já existe na lista.")
-            with col_rem_f1:
-                enc_rem = st.multiselect("🗑️ Remover do F1:", sorted([e.upper() for e in lista_f1]), key="rem_enc_f1_config")
-                if st.button("Remover", key="btn_rem_f1_config", use_container_width=True):
-                    if enc_rem:
-                        lista_f1 = [e for e in lista_f1 if e.upper() not in enc_rem]
-                        with open(caminho_f1, "w", encoding="utf-8") as f_f1:
-                            json_mod.dump(lista_f1, f_f1, ensure_ascii=False, indent=2)
-                        st.success(f"{len(enc_rem)} removido(s)!")
-                        time.sleep(1)
-                        st.rerun()
-
-    st.markdown("---")
-    st.markdown(
-        f"""
-        <div style='text-align: center; margin-top: 30px; padding: 24px 16px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(30, 41, 59, 0.4)); border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(8px);'>
-            <div style='display: flex; justify-content: center; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 12px;'>
-                <div style='display: flex; align-items: center; gap: 6px;'>
-                    <span style='width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981;'></span>
-                    <span style='font-size: 11px; color: #94a3b8; font-weight: 500;'>Sistema Operacional</span>
-                </div>
-                <span style='font-size: 10px; color: #334155;'>|</span>
-                <span style='font-size: 11px; color: #64748b;'>📅 Última att: 12/09/2026</span>
-                <span style='font-size: 10px; color: #334155;'>|</span>
-                <div style='display: inline-block; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 20px; padding: 2px 12px;'>
-                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v8.7</span>
-                </div>
-            </div>
-            <div style='border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;'>
-                <p style='font-size: 10px; color: #475569; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 4px 0;'>Desenvolvido por</p>
-                <p style='font-size: 14px; font-weight: 700; margin: 0; background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Edson Garcia</p>
-            </div>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+    # Configuracoes tecnicas ficam internas e nao ocupam a navegacao.
+    if "idioma" not in st.session_state:
+        st.session_state.idioma = "Português"
+    if "modelo_gemini" not in st.session_state:
+        st.session_state.modelo_gemini = "gemini-2.5-flash"
 
 # =================================================================
 # LÓGICA DE CARREGAMENTO DA NUVEM (GOOGLE SHEETS)
@@ -4652,15 +4517,6 @@ Retorne apenas o JSON sem crases ou markdown."""
     </style>
     """, unsafe_allow_html=True)
 
-    # === LEGENDA DOS BLOCOS ACIMA DAS ABAS ===
-    st.markdown("""
-    <div style="display: flex; gap: 24px; margin-bottom: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">
-        <span style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 2px;">🔵 Gestão</span>
-        <span style="color: #22c55e; border-bottom: 2px solid #22c55e; padding-bottom: 2px;">🟢 Campo</span>
-        <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 IA & Dados</span>
-        <span style="color: #64748b; border-bottom: 2px solid #64748b; padding-bottom: 2px;">⚙️ Config</span>
-    </div>
-    """, unsafe_allow_html=True)
 
     # === ABAS REORDENADAS POR BLOCOS ===
     # BLOCO 1 - GESTÃO: Dashboard, Resumo, F1
