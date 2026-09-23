@@ -1424,6 +1424,84 @@ st.markdown(f"""
     <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
 """, unsafe_allow_html=True)
 
+# ================================================================
+# TEMA CLARO CORPORATIVO SGO v9.0
+# ================================================================
+st.markdown("""
+<style>
+:root{
+  --light-bg:#edf4fb;--light-surface:#ffffff;--light-surface-2:#f7faff;
+  --light-border:#d6e2ef;--light-text:#10233f;--light-muted:#5f738c;
+  --light-blue:#1769aa;--light-cyan:#0296c7;--light-shadow:0 8px 24px rgba(15,45,80,.09);
+}
+html,body,[class*="css"],.stApp{color:var(--light-text)!important;}
+.stApp{background:linear-gradient(180deg,#f7fbff 0%,#edf4fb 48%,#e7f0f9 100%)!important;}
+.block-container{max-width:1500px!important;padding-top:1rem!important;}
+
+/* Sidebar clara, com alto contraste */
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#e9f2fb 0%,#dce9f6 100%)!important;border-right:1px solid #c9d9e9!important;box-shadow:8px 0 24px rgba(28,67,105,.08)!important;}
+[data-testid="stSidebar"] *{color:#17314f!important;}
+[data-testid="stSidebar"] div.stButton>button{background:transparent!important;border:1px solid transparent!important;color:#254665!important;box-shadow:none!important;}
+[data-testid="stSidebar"] div.stButton>button:hover{background:#d2e5f7!important;border-color:#b6d1e9!important;color:#0f4f85!important;}
+[data-testid="stSidebar"] div.stButton>button[kind="primary"]{background:linear-gradient(90deg,#1c6dab,#2589c0)!important;border-color:#17639d!important;color:#fff!important;box-shadow:0 5px 14px rgba(23,105,170,.18)!important;}
+[data-testid="stSidebar"] div.stButton>button[kind="primary"] *{color:#fff!important;}
+.sgo-nav-group{color:#55789a!important;}
+.sgo-team-footer{border-top-color:#bfd1e3!important;}.sgo-team-title{color:#55789a!important}.sgo-team-names{color:#254665!important}.sgo-team-version{color:#607c99!important;border-top-color:#cbdbea!important}.sgo-team-version span{color:#1769aa!important}
+
+/* Header */
+.enesa-header{background:linear-gradient(110deg,#ffffff,#eef7ff)!important;border:1px solid #cdddec!important;border-left:5px solid #1b78b6!important;box-shadow:var(--light-shadow)!important;}
+.enesa-header h1,.enesa-header h2,.enesa-header h3,.enesa-header p,.enesa-header span{color:#17314f!important;-webkit-text-fill-color:initial!important;text-shadow:none!important;}
+
+/* Cards e paineis */
+[data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"],[data-testid="stVerticalBlockBorderWrapper"],.sgo-card,.sgo-panel{
+  background:linear-gradient(145deg,#ffffff,#f7faff)!important;border:1px solid var(--light-border)!important;border-radius:13px!important;box-shadow:var(--light-shadow)!important;backdrop-filter:none!important;
+}
+[data-testid="stMetricLabel"],.sgo-card-label,.sgo-card-sub,.sgo-status-line,.sgo-panel p{color:var(--light-muted)!important;}
+[data-testid="stMetricValue"],.sgo-card-value,.sgo-panel-title,.sgo-status-line b{color:var(--light-text)!important;-webkit-text-fill-color:var(--light-text)!important;text-shadow:none!important;}
+
+/* Titulos e textos */
+h1,h2,h3,h4,h5,h6,.stMarkdown p,.stMarkdown li,label,[data-testid="stCaptionContainer"]{color:var(--light-text)!important;text-shadow:none!important;}
+small,.stCaption,.stMarkdown em{color:var(--light-muted)!important;}
+hr{border-color:#d6e2ef!important;background:#d6e2ef!important;}
+
+/* Entradas */
+.stTextInput input,.stTextArea textarea,.stDateInput input,.stNumberInput input,
+.stSelectbox [data-baseweb="select"]>div,.stMultiSelect [data-baseweb="select"]>div{
+  background:#fff!important;border:1px solid #cbdbea!important;color:#17314f!important;border-radius:9px!important;box-shadow:0 2px 8px rgba(15,45,80,.05)!important;
+}
+.stTextInput input:focus,.stTextArea textarea:focus,.stDateInput input:focus{border-color:#2589c0!important;box-shadow:0 0 0 3px rgba(37,137,192,.12)!important;}
+[data-baseweb="popover"],[role="listbox"]{background:#fff!important;color:#17314f!important;}
+[role="option"]{color:#17314f!important;}[role="option"]:hover{background:#e7f2fb!important;}
+
+/* Botoes */
+.stButton button,.stDownloadButton button,.stLinkButton a{border-radius:9px!important;box-shadow:none!important;font-weight:650!important;}
+.stButton button[kind="primary"],.stDownloadButton button[kind="primary"]{background:linear-gradient(135deg,#1769aa,#258fc4)!important;color:#fff!important;border-color:#1769aa!important;}
+.stButton button[kind="secondary"],.stDownloadButton button{background:#fff!important;color:#1d5d8d!important;border:1px solid #bcd2e5!important;}
+.stButton button:hover,.stDownloadButton button:hover{border-color:#2589c0!important;box-shadow:0 5px 14px rgba(23,105,170,.12)!important;}
+
+/* Abas, caso algum componente interno use tabs */
+.stTabs [data-baseweb="tab-list"]{background:#e5f0fa!important;border:1px solid #cadbeb!important;border-radius:10px!important;}
+.stTabs [data-baseweb="tab"]{color:#4f6e8d!important;}.stTabs [aria-selected="true"]{background:#fff!important;color:#1769aa!important;box-shadow:0 3px 10px rgba(15,45,80,.09)!important;}
+
+/* Tabelas */
+.stDataFrame,[data-testid="stDataFrame"],.stTable{background:#fff!important;border:1px solid #cdddec!important;border-radius:11px!important;box-shadow:var(--light-shadow)!important;}
+[data-testid="stDataFrame"] table thead tr,.stTable thead tr{background:#dcebf8!important;color:#17314f!important;}
+[data-testid="stDataFrame"] table tbody tr:nth-child(odd),.stTable tbody tr:nth-child(odd){background:#fff!important;}
+[data-testid="stDataFrame"] table tbody tr:nth-child(even),.stTable tbody tr:nth-child(even){background:#f2f7fc!important;}
+[data-testid="stDataFrame"] table td,[data-testid="stDataFrame"] table th,.stTable td,.stTable th{color:#17314f!important;border-color:#e0eaf3!important;}
+
+/* Alertas */
+[data-testid="stAlert"]{border-radius:10px!important;box-shadow:none!important;border-width:1px!important;}
+
+/* Graficos Plotly sobre painel branco */
+.js-plotly-plot,.plot-container,.plotly{background:#fff!important;border-radius:12px!important;}
+
+/* Rodape e detalhes */
+.sgo-chip{border:1px solid rgba(23,105,170,.14)!important;}
+@media(max-width:768px){.block-container{padding:.65rem .65rem 5rem!important}.sgo-card{min-height:100px!important}}
+</style>
+""", unsafe_allow_html=True)
+
 # --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
 try:
     if "pwd" in st.query_params and st.query_params["pwd"] == "Campo@2026":
@@ -2699,7 +2777,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.9</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.0</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2858,7 +2936,7 @@ with st.sidebar:
                 <span style='font-size: 11px; color: #64748b;'>📅 Última att: 12/09/2026</span>
                 <span style='font-size: 10px; color: #334155;'>|</span>
                 <div style='display: inline-block; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 20px; padding: 2px 12px;'>
-                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v8.9</span>
+                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v9.0</span>
                 </div>
             </div>
             <div style='border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;'>
@@ -4033,7 +4111,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v8.9)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.0)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -5096,7 +5174,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             if total_mo_dash > 0:
                 df_mo_pie = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_dash, qtd_moi_dash]})
                 fig_mo_g = px.pie(df_mo_pie, values="Quantidade", names="Tipo", hole=0.6, color="Tipo", color_discrete_map={"MOD": "#10b981", "MOI": "#ef4444"})
-                fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                 st.plotly_chart(fig_mo_g, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Sem dados de Mão de Obra para os filtros selecionados.")
@@ -5110,7 +5188,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             if not df_area_count.empty and df_area_count['Quantidade'].sum() > 0:
                 cores_areas = {'PB': '#3498db', 'RB': '#e67e22', 'ESP': '#9b59b6'}
                 fig_area = px.pie(df_area_count, values="Quantidade", names="ÁREA_RESUMO", hole=0.6, color="ÁREA_RESUMO", color_discrete_map=cores_areas)
-                fig_area.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig_area.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                 st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Áreas não identificadas.")
@@ -5122,7 +5200,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
                 top_enc.columns = ["Encarregado", "Efetivo"]
                 fig_top_enc = px.bar(top_enc, x="Efetivo", y="Encarregado", orientation="h", color="Efetivo", color_continuous_scale=[(0, "#0f172a"), (1, "#0ea5e9")], text="Efetivo")
-                fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280)
+                fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=280)
                 fig_top_enc.update_yaxes(categoryorder="total ascending")
                 fig_top_enc.update_xaxes(visible=False)
                 fig_top_enc.update_coloraxes(showscale=False)
@@ -5152,7 +5230,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         yaxis=dict(dtick=1),
                         margin=dict(l=0, r=20, t=10, b=0),
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#e0e4ea"), height=250
+                        font=dict(color="#17314f"), height=250
                     )
                     fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=8))
                     st.plotly_chart(fig_evolucao, use_container_width=True, config={"displayModeBar": False, "responsive": True})
@@ -5193,7 +5271,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             'value': pct_engajamento}
                     }
                 ))
-                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
+                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"))
                 st.plotly_chart(fig_gauge, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Sem dados suficientes.")
@@ -5207,7 +5285,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 moi_count = df_moi.groupby("DISCIPLINA").size().reset_index(name="Quantidade")
                 moi_count = moi_count.sort_values(by="Quantidade", ascending=False).head(8)
                 fig_moi = px.pie(moi_count, values="Quantidade", names="DISCIPLINA", hole=0.5, color_discrete_sequence=px.colors.sequential.YlOrRd[::-1])
-                fig_moi.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280)
+                fig_moi.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=280)
                 st.plotly_chart(fig_moi, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Nenhuma MOI na base atual.")
@@ -6389,7 +6467,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             if not df_evolucao.empty:
                 fig_ev = px.line(df_evolucao, x="MES_ANO", y="RDCs Entregues", text="RDCs Entregues", markers=True)
                 fig_ev.update_traces(textposition="top center", line_color="#0ea5e9", marker=dict(size=8))
-                fig_ev.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), xaxis_title="Mês", yaxis_title="Total de RDCs")
+                fig_ev.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), xaxis_title="Mês", yaxis_title="Total de RDCs")
                 st.plotly_chart(fig_ev, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 
             st.markdown("---")
@@ -7626,7 +7704,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
                 if len(cc_contagem) > 0:
                     fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale=[(0, "#0f172a"), (1, "#8b5cf6")], text="Quantidade")
-                    fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
+                    fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=max(300, len(cc_contagem) * 35))
                     fig_cc.update_yaxes(categoryorder="total ascending")
                     fig_cc.update_xaxes(visible=False)
                     fig_cc.update_coloraxes(showscale=False)
@@ -7644,7 +7722,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     mo_contagem = df_mod["MÃO DE OBRA"].value_counts().reset_index()
                     mo_contagem.columns = ["Tipo", "Quantidade"]
                     fig_mo = px.pie(mo_contagem, values="Quantidade", names="Tipo", hole=0.65, color_discrete_sequence=["#4a9eed", "#f39c12", "#e74c3c"])
-                    fig_mo.update_layout(margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=350, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                    fig_mo.update_layout(margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=350, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                     
                     st.plotly_chart(fig_mo, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 else:
@@ -7683,7 +7761,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             df_plot = df_plot.sort_values("DATA_DT")
                             
                             fig_hist = px.line(df_plot, x="DATA", y="Efetivo", markers=True, title=titulo_graf, line_shape="spline")
-                            fig_hist.update_layout(xaxis_title="", yaxis_title="Quantidade de Colaboradores", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=300)
+                            fig_hist.update_layout(xaxis_title="", yaxis_title="Quantidade de Colaboradores", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=300)
                             fig_hist.update_xaxes(type='category')
                             fig_hist.update_yaxes(tickformat="d")
                             fig_hist.update_traces(line=dict(width=3, color="#0ea5e9"), marker=dict(size=8, color="#10b981"))
@@ -7739,7 +7817,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 func_cc.columns = ["Função", "Quantidade"]
                 
                 fig_func = px.bar(func_cc, x="Quantidade", y="Função", orientation="h", color="Quantidade", color_continuous_scale="Oranges", text="Quantidade")
-                fig_func.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(200, len(func_cc) * 35))
+                fig_func.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#17314f"), height=max(200, len(func_cc) * 35))
                 fig_func.update_yaxes(categoryorder="total ascending")
                 fig_func.update_xaxes(visible=False)
                 fig_func.update_coloraxes(showscale=False)
