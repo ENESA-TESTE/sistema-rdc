@@ -2823,7 +2823,7 @@ with st.sidebar:
     st.markdown("""
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
-      <div class="sgo-team-names">Edson Garcia<br>Kevin<br>Pedro</div>
+      <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
       <div class="sgo-team-version">SGO RDC &amp; PDE <span>v8.8</span></div>
     </div>
     """, unsafe_allow_html=True)
