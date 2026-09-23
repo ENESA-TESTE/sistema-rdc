@@ -1424,6 +1424,145 @@ st.markdown(f"""
     <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
 """, unsafe_allow_html=True)
 
+# ================================================================
+# LAYOUT PREMIUM SGO - override visual global
+# ================================================================
+st.markdown("""
+<style>
+:root {
+  --sgo-bg: #08111f;
+  --sgo-panel: #0f1b2d;
+  --sgo-panel-2: #132238;
+  --sgo-border: rgba(148,163,184,.16);
+  --sgo-text: #f8fafc;
+  --sgo-muted: #8fa3bd;
+  --sgo-blue: #38bdf8;
+  --sgo-green: #22c55e;
+  --sgo-amber: #f59e0b;
+  --sgo-red: #ef4444;
+}
+html, body, [class*="css"] { font-family: Inter, system-ui, sans-serif !important; }
+.stApp {
+  background: radial-gradient(circle at 42% -10%, #14243b 0, var(--sgo-bg) 42%, #060c16 100%) !important;
+  animation: none !important;
+  margin-top: 0 !important;
+}
+.block-container { max-width: 1500px !important; padding: 1rem 1.35rem 3rem !important; animation: none !important; }
+header[data-testid="stHeader"] { display: none !important; }
+.watermark-edson { display: none !important; }
+
+/* Compact top header */
+.enesa-header {
+  margin: 0 0 18px 0 !important; padding: 15px 20px !important;
+  min-height: 68px !important; border-radius: 14px !important;
+  background: rgba(11, 23, 40, .92) !important;
+  border: 1px solid var(--sgo-border) !important;
+  border-left: 4px solid var(--sgo-blue) !important;
+  box-shadow: 0 12px 35px rgba(0,0,0,.24) !important;
+  backdrop-filter: blur(14px) !important; animation: none !important;
+}
+.enesa-header::after { display: none !important; }
+.enesa-header:hover { transform: none !important; }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, rgba(8,17,31,.98), rgba(7,14,26,.98)) !important;
+  border-right: 1px solid var(--sgo-border) !important;
+  box-shadow: 10px 0 35px rgba(0,0,0,.22) !important;
+  backdrop-filter: none !important;
+}
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: .55rem !important; }
+[data-testid="stSidebar"] h4 { color: var(--sgo-text) !important; font-size: .92rem !important; letter-spacing: .2px; }
+[data-testid="stSidebar"] .stButton button,
+[data-testid="stSidebar"] .stDownloadButton button {
+  min-height: 42px !important; border-radius: 9px !important;
+  background: #132238 !important; border: 1px solid var(--sgo-border) !important;
+  box-shadow: none !important; animation: none !important;
+}
+[data-testid="stSidebar"] .stButton button:hover,
+[data-testid="stSidebar"] .stDownloadButton button:hover {
+  transform: translateY(-1px) !important; background: #18304d !important;
+  border-color: rgba(56,189,248,.45) !important;
+}
+
+/* Navigation */
+.stTabs [data-baseweb="tab-list"] {
+  background: rgba(11,23,40,.90) !important; border: 1px solid var(--sgo-border) !important;
+  border-radius: 12px !important; padding: 5px !important; gap: 4px !important;
+  box-shadow: none !important; backdrop-filter: blur(10px) !important;
+  overflow-x: auto !important; flex-wrap: nowrap !important;
+}
+.stTabs [data-baseweb="tab"] {
+  min-height: 42px !important; padding: 8px 13px !important; border-radius: 8px !important;
+  color: var(--sgo-muted) !important; font-size: .82rem !important; white-space: nowrap !important;
+  border: 1px solid transparent !important; transition: .18s ease !important;
+}
+.stTabs [data-baseweb="tab"]:hover { background: rgba(56,189,248,.08) !important; color: var(--sgo-text) !important; }
+.stTabs [aria-selected="true"] {
+  background: linear-gradient(135deg, #173b68, #135a8c) !important;
+  color: white !important; border-color: rgba(56,189,248,.35) !important;
+  box-shadow: inset 3px 0 0 var(--sgo-blue) !important;
+}
+
+/* Cards and containers */
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"],
+[data-testid="stVerticalBlockBorderWrapper"] {
+  background: linear-gradient(145deg, rgba(17,32,53,.92), rgba(11,23,40,.94)) !important;
+  border: 1px solid var(--sgo-border) !important; border-radius: 13px !important;
+  box-shadow: 0 8px 26px rgba(0,0,0,.20) !important; backdrop-filter: none !important;
+  animation: none !important;
+}
+[data-testid="stMetric"] { padding: 17px 19px !important; min-height: 118px; }
+[data-testid="stMetric"]:hover, [data-testid="stExpander"]:hover, .stDataFrame:hover {
+  transform: none !important; border-color: rgba(56,189,248,.32) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.26) !important;
+}
+[data-testid="stMetricLabel"] { color: var(--sgo-muted) !important; font-size: .78rem !important; text-transform: uppercase; letter-spacing: .5px; }
+[data-testid="stMetricValue"] { color: var(--sgo-text) !important; -webkit-text-fill-color: var(--sgo-text) !important; background: none !important; font-size: 2rem !important; }
+
+/* Buttons */
+.stButton button, .stDownloadButton button, .stLinkButton a {
+  border-radius: 9px !important; min-height: 42px !important; font-weight: 650 !important;
+  box-shadow: none !important; animation: none !important; transition: .18s ease !important;
+}
+.stButton button[kind="primary"] { background: linear-gradient(135deg,#0e72b8,#0ea5e9) !important; }
+.stButton button:hover, .stDownloadButton button:hover { transform: translateY(-1px) !important; animation: none !important; }
+
+/* Inputs */
+.stTextInput input, .stTextArea textarea, .stDateInput input, .stNumberInput input,
+.stSelectbox [data-baseweb="select"] > div, .stMultiSelect [data-baseweb="select"] > div {
+  background: #0d1a2c !important; border: 1px solid var(--sgo-border) !important;
+  border-radius: 9px !important; box-shadow: none !important;
+}
+
+/* Tables */
+.stDataFrame { border: 1px solid var(--sgo-border) !important; border-radius: 12px !important; box-shadow: none !important; background: #0d192a !important; }
+[data-testid="stDataFrame"] table thead tr { background: #17263b !important; }
+[data-testid="stDataFrame"] table tbody tr:nth-child(even) { background: rgba(19,34,56,.55) !important; }
+[data-testid="stDataFrame"] table tbody tr:nth-child(odd) { background: rgba(10,22,38,.62) !important; }
+
+/* Typography */
+h1 { font-size: 1.65rem !important; }
+h2 { font-size: 1.35rem !important; }
+h3 { font-size: 1.12rem !important; }
+h1,h2,h3,h4 { letter-spacing: -.2px !important; }
+hr { background: var(--sgo-border) !important; margin: 12px 0 !important; }
+
+/* Alerts */
+[data-testid="stAlert"] { border-radius: 10px !important; box-shadow: none !important; animation: none !important; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .block-container { padding: .65rem .7rem 5.5rem !important; }
+  .enesa-header { padding: 12px 14px !important; min-height: 58px !important; }
+  [data-testid="stMetric"] { min-height: 96px !important; padding: 13px !important; }
+  [data-testid="stMetricValue"] { font-size: 1.55rem !important; }
+  .stTabs [data-baseweb="tab-list"] { position: static !important; border-radius: 10px !important; padding: 4px !important; }
+  .stTabs [data-baseweb="tab"] { min-width: max-content !important; min-height: 40px !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
 try:
     if "pwd" in st.query_params and st.query_params["pwd"] == "Campo@2026":
@@ -2799,34 +2938,22 @@ data_agora = dt_mod.datetime.now().strftime("%d/%m/%Y")
 nome_user_logado = st.session_state.get('nome_completo', 'Admin')
 
 st.markdown(f"""
-    <div class="enesa-header">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-                    <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
-                        <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
-                    </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.0</span>
-                </div>
-                <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
-            </div>
-            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 20px; padding: 5px 14px; font-size: 11px; color: #10b981; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
-                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 6px #10b981; animation: pulse 2s infinite;"></span>
-                    ONLINE
-                </div>
-                <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.15); border-radius: 10px; padding: 6px 14px; font-size: 12px; color: #94a3b8;">
-                    <span style="color: #0ea5e9; font-weight: 600;">{nome_user_logado}</span> · {data_agora}
-                </div>
-            </div>
-        </div>
+<div class="enesa-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div style="width:42px;height:42px;border-radius:11px;background:linear-gradient(145deg,#0ea5e9,#1d4ed8);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:17px;box-shadow:0 8px 20px rgba(14,165,233,.22);">SGO</div>
+      <div>
+        <div style="font-size:1.15rem;font-weight:800;color:#f8fafc;line-height:1.1;">RDC & PDE</div>
+        <div style="font-size:.73rem;color:#8fa3bd;margin-top:4px;">Sistema de Gestão Operacional</div>
+      </div>
     </div>
-    <style>
-        @keyframes pulse {{
-            0%, 100% {{ opacity: 1; }}
-            50% {{ opacity: 0.4; }}
-        }}
-    </style>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div style="padding:7px 11px;border-radius:9px;background:#101f33;border:1px solid rgba(148,163,184,.14);font-size:.75rem;color:#cbd5e1;">📅 {data_agora} &nbsp;•&nbsp; {hora_agora}</div>
+      <div style="padding:7px 11px;border-radius:9px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.25);font-size:.75rem;color:#34d399;">● Sistema online</div>
+      <div style="padding:7px 11px;border-radius:9px;background:#101f33;border:1px solid rgba(148,163,184,.14);font-size:.75rem;color:#cbd5e1;">{nome_user_logado}</div>
+    </div>
+  </div>
+</div>
 """, unsafe_allow_html=True)
 
 # =================================================================
@@ -4748,6 +4875,15 @@ Retorne apenas o JSON sem crases ou markdown."""
     # Navegacao operacional unica.
 
     with tab_dashboard:
+        st.markdown(f"""
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:6px 0 18px 0;">
+          <div>
+            <div style="font-size:1.65rem;font-weight:800;color:#f8fafc;line-height:1.15;">Visão geral da operação</div>
+            <div style="font-size:.88rem;color:#8fa3bd;margin-top:5px;">Indicadores, entregas, pendências e decisões do dia em um só lugar.</div>
+          </div>
+          <div style="font-size:.76rem;color:#8fa3bd;padding:8px 12px;border:1px solid rgba(148,163,184,.14);background:#0f1d30;border-radius:9px;">Atualizado em {hora_agora}</div>
+        </div>
+        """, unsafe_allow_html=True)
         # === RELÓGIO DIGITAL ===
         import streamlit.components.v1 as components
         html_relogio = """
@@ -4891,7 +5027,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         span_control = round(total_efetivo_dash / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0.0
         
         def card_kpi(titulo, valor, icone, cor):
-            return f"""<div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;"><p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p><h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2><div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div></div>"""
+            return f"""<div style="background:linear-gradient(145deg,#132238,#0d1a2c);border-radius:13px;border:1px solid rgba(148,163,184,.15);padding:17px 18px;box-shadow:0 8px 24px rgba(0,0,0,.20);position:relative;overflow:hidden;min-height:112px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><p style="margin:0;font-size:11px;color:#8fa3bd;font-weight:700;text-transform:uppercase;letter-spacing:.55px;">{titulo}</p><span class="material-symbols-rounded" style="font-size:19px;color:{cor};">{icone}</span></div><h2 style="margin:11px 0 0 0;font-size:31px;font-weight:800;color:#f8fafc;line-height:1;">{valor}</h2><div style="position:absolute;bottom:0;left:0;width:100%;height:3px;background:{cor};opacity:.75;"></div></div>"""
             
         st.markdown("<br>", unsafe_allow_html=True)
         m1, m2, m3, m4, m5 = st.columns(5)
