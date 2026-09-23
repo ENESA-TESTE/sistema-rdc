@@ -1424,164 +1424,6 @@ st.markdown(f"""
     <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
 """, unsafe_allow_html=True)
 
-# ================================================================
-# LAYOUT PREMIUM SGO - override visual global
-# ================================================================
-st.markdown("""
-<style>
-:root {
-  --sgo-bg: #08111f;
-  --sgo-panel: #0f1b2d;
-  --sgo-panel-2: #132238;
-  --sgo-border: rgba(148,163,184,.16);
-  --sgo-text: #f8fafc;
-  --sgo-muted: #8fa3bd;
-  --sgo-blue: #38bdf8;
-  --sgo-green: #22c55e;
-  --sgo-amber: #f59e0b;
-  --sgo-red: #ef4444;
-}
-html, body, [class*="css"] { font-family: Inter, system-ui, sans-serif !important; }
-.stApp {
-  background: radial-gradient(circle at 42% -10%, #14243b 0, var(--sgo-bg) 42%, #060c16 100%) !important;
-  animation: none !important;
-  margin-top: 0 !important;
-}
-.block-container { max-width: 1500px !important; padding: 1rem 1.35rem 3rem !important; animation: none !important; }
-header[data-testid="stHeader"] { display: none !important; }
-.watermark-edson { display: none !important; }
-
-/* Compact top header */
-.enesa-header {
-  margin: 0 0 18px 0 !important; padding: 15px 20px !important;
-  min-height: 68px !important; border-radius: 14px !important;
-  background: rgba(11, 23, 40, .92) !important;
-  border: 1px solid var(--sgo-border) !important;
-  border-left: 4px solid var(--sgo-blue) !important;
-  box-shadow: 0 12px 35px rgba(0,0,0,.24) !important;
-  backdrop-filter: blur(14px) !important; animation: none !important;
-}
-.enesa-header::after { display: none !important; }
-.enesa-header:hover { transform: none !important; }
-
-/* Sidebar */
-[data-testid="stSidebar"] {
-  background: linear-gradient(180deg, rgba(8,17,31,.98), rgba(7,14,26,.98)) !important;
-  border-right: 1px solid var(--sgo-border) !important;
-  box-shadow: 10px 0 35px rgba(0,0,0,.22) !important;
-  backdrop-filter: none !important;
-}
-[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: .55rem !important; }
-[data-testid="stSidebar"] h4 { color: var(--sgo-text) !important; font-size: .92rem !important; letter-spacing: .2px; }
-[data-testid="stSidebar"] .stButton button,
-[data-testid="stSidebar"] .stDownloadButton button {
-  min-height: 42px !important; border-radius: 9px !important;
-  background: #132238 !important; border: 1px solid var(--sgo-border) !important;
-  box-shadow: none !important; animation: none !important;
-}
-[data-testid="stSidebar"] .stButton button:hover,
-[data-testid="stSidebar"] .stDownloadButton button:hover {
-  transform: translateY(-1px) !important; background: #18304d !important;
-  border-color: rgba(56,189,248,.45) !important;
-}
-
-/* Navigation */
-.stTabs [data-baseweb="tab-list"] {
-  background: rgba(11,23,40,.90) !important; border: 1px solid var(--sgo-border) !important;
-  border-radius: 12px !important; padding: 5px !important; gap: 4px !important;
-  box-shadow: none !important; backdrop-filter: blur(10px) !important;
-  overflow-x: auto !important; flex-wrap: nowrap !important;
-}
-.stTabs [data-baseweb="tab"] {
-  min-height: 42px !important; padding: 8px 13px !important; border-radius: 8px !important;
-  color: var(--sgo-muted) !important; font-size: .82rem !important; white-space: nowrap !important;
-  border: 1px solid transparent !important; transition: .18s ease !important;
-}
-.stTabs [data-baseweb="tab"]:hover { background: rgba(56,189,248,.08) !important; color: var(--sgo-text) !important; }
-.stTabs [aria-selected="true"] {
-  background: linear-gradient(135deg, #173b68, #135a8c) !important;
-  color: white !important; border-color: rgba(56,189,248,.35) !important;
-  box-shadow: inset 3px 0 0 var(--sgo-blue) !important;
-}
-
-/* Cards and containers */
-[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"],
-[data-testid="stVerticalBlockBorderWrapper"] {
-  background: linear-gradient(145deg, rgba(17,32,53,.92), rgba(11,23,40,.94)) !important;
-  border: 1px solid var(--sgo-border) !important; border-radius: 13px !important;
-  box-shadow: 0 8px 26px rgba(0,0,0,.20) !important; backdrop-filter: none !important;
-  animation: none !important;
-}
-[data-testid="stMetric"] { padding: 17px 19px !important; min-height: 118px; }
-[data-testid="stMetric"]:hover, [data-testid="stExpander"]:hover, .stDataFrame:hover {
-  transform: none !important; border-color: rgba(56,189,248,.32) !important;
-  box-shadow: 0 10px 28px rgba(0,0,0,.26) !important;
-}
-[data-testid="stMetricLabel"] { color: var(--sgo-muted) !important; font-size: .78rem !important; text-transform: uppercase; letter-spacing: .5px; }
-[data-testid="stMetricValue"] { color: var(--sgo-text) !important; -webkit-text-fill-color: var(--sgo-text) !important; background: none !important; font-size: 2rem !important; }
-
-/* Buttons */
-.stButton button, .stDownloadButton button, .stLinkButton a {
-  border-radius: 9px !important; min-height: 42px !important; font-weight: 650 !important;
-  box-shadow: none !important; animation: none !important; transition: .18s ease !important;
-}
-.stButton button[kind="primary"] { background: linear-gradient(135deg,#0e72b8,#0ea5e9) !important; }
-.stButton button:hover, .stDownloadButton button:hover { transform: translateY(-1px) !important; animation: none !important; }
-
-/* Inputs */
-.stTextInput input, .stTextArea textarea, .stDateInput input, .stNumberInput input,
-.stSelectbox [data-baseweb="select"] > div, .stMultiSelect [data-baseweb="select"] > div {
-  background: #0d1a2c !important; border: 1px solid var(--sgo-border) !important;
-  border-radius: 9px !important; box-shadow: none !important;
-}
-
-/* Tables */
-.stDataFrame { border: 1px solid var(--sgo-border) !important; border-radius: 12px !important; box-shadow: none !important; background: #0d192a !important; }
-[data-testid="stDataFrame"] table thead tr { background: #17263b !important; }
-[data-testid="stDataFrame"] table tbody tr:nth-child(even) { background: rgba(19,34,56,.55) !important; }
-[data-testid="stDataFrame"] table tbody tr:nth-child(odd) { background: rgba(10,22,38,.62) !important; }
-
-/* Typography */
-h1 { font-size: 1.65rem !important; }
-h2 { font-size: 1.35rem !important; }
-h3 { font-size: 1.12rem !important; }
-h1,h2,h3,h4 { letter-spacing: -.2px !important; }
-hr { background: var(--sgo-border) !important; margin: 12px 0 !important; }
-
-/* Alerts */
-[data-testid="stAlert"] { border-radius: 10px !important; box-shadow: none !important; animation: none !important; }
-
-/* Mobile */
-@media (max-width: 768px) {
-  .block-container { padding: .65rem .7rem 5.5rem !important; }
-  .enesa-header { padding: 12px 14px !important; min-height: 58px !important; }
-  [data-testid="stMetric"] { min-height: 96px !important; padding: 13px !important; }
-  [data-testid="stMetricValue"] { font-size: 1.55rem !important; }
-  .stTabs [data-baseweb="tab-list"] { position: static !important; border-radius: 10px !important; padding: 4px !important; }
-  .stTabs [data-baseweb="tab"] { min-width: max-content !important; min-height: 40px !important; }
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ================================================================
-# DASHBOARD EXECUTIVO FIEL AO MOCKUP
-# ================================================================
-st.markdown("""
-<style>
-.sgo-hero {display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin:4px 0 16px;padding:0 2px}
-.sgo-hero h2{font-size:1.65rem!important;margin:0!important;color:#f8fafc!important;font-weight:800!important}
-.sgo-hero p{margin:4px 0 0;color:#91a4bd;font-size:.91rem}
-.sgo-card{background:linear-gradient(145deg,#13253c,#0d1b2d);border:1px solid rgba(148,163,184,.16);border-radius:13px;padding:16px 17px;min-height:120px;box-shadow:0 9px 24px rgba(0,0,0,.22);position:relative;overflow:hidden}
-.sgo-card:after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--accent)}
-.sgo-card-label{color:#b9c7d8;font-size:.78rem;font-weight:650}.sgo-card-value{color:#fff;font-size:2rem;font-weight:850;line-height:1;margin-top:10px}.sgo-card-sub{color:#8fa3bd;font-size:.7rem;margin-top:10px}
-.sgo-panel{background:linear-gradient(145deg,#101f33,#0b1728);border:1px solid rgba(148,163,184,.15);border-radius:13px;padding:14px 15px;box-shadow:0 8px 22px rgba(0,0,0,.18);height:100%}
-.sgo-panel-title{color:#f8fafc;font-size:.92rem;font-weight:760;margin:0 0 10px}.sgo-status-line{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(148,163,184,.10);font-size:.76rem;color:#b9c7d8}.sgo-status-line b{color:#f8fafc}
-.sgo-chip{display:inline-flex;align-items:center;border-radius:15px;padding:3px 9px;font-size:.66rem;font-weight:700}.chip-red{background:rgba(239,68,68,.18);color:#f87171}.chip-amber{background:rgba(245,158,11,.18);color:#fbbf24}.chip-blue{background:rgba(56,189,248,.16);color:#7dd3fc}.chip-green{background:rgba(34,197,94,.16);color:#4ade80}
-[data-testid="stDataFrame"]{border-radius:10px!important}
-@media(max-width:768px){.sgo-card{min-height:104px;padding:13px}.sgo-card-value{font-size:1.65rem}.sgo-hero h2{font-size:1.35rem!important}}
-</style>
-""", unsafe_allow_html=True)
-
 # --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
 try:
     if "pwd" in st.query_params and st.query_params["pwd"] == "Campo@2026":
@@ -1614,7 +1456,6 @@ caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
 caminho_escala_csv = os.path.join(pasta_base, "escala_diaria.csv")
 caminho_rdc_registros_csv = os.path.join(pasta_base, "rdc_registros.csv")
 caminho_briefings_json = os.path.join(pasta_base, "briefings_historico.json")
-caminho_fila_sheets_json = os.path.join(pasta_base, "fila_sheets_pendente.json")
 
 celula_encarregado = "I4"
 celula_matricula = "B9"
@@ -2108,146 +1949,67 @@ def obter_planilha_google():
         pass
     return None
 
-def _carregar_fila_sheets():
-    try:
-        if os.path.exists(caminho_fila_sheets_json):
-            with open(caminho_fila_sheets_json, "r", encoding="utf-8") as arquivo:
-                dados = json.load(arquivo)
-                return dados if isinstance(dados, list) else []
-    except Exception:
-        pass
-    return []
-
-
-def _salvar_fila_sheets(fila):
-    """Gravacao atomica da fila para reduzir risco de arquivo parcial."""
-    try:
-        temporario = caminho_fila_sheets_json + ".tmp"
-        with open(temporario, "w", encoding="utf-8") as arquivo:
-            json.dump(fila, arquivo, ensure_ascii=False, indent=2)
-            arquivo.flush()
-            os.fsync(arquivo.fileno())
-        os.replace(temporario, caminho_fila_sheets_json)
-        return True
-    except Exception:
-        return False
-
-
-def _adicionar_fila_sheets(registros):
-    fila = _carregar_fila_sheets()
-    chaves = {(str(x.get("DATA", "")), str(x.get("ENCARREGADO", "")).upper()) for x in fila}
-    agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    for data, encarregado in registros:
-        chave = (str(data), str(encarregado).upper())
-        if chave not in chaves:
-            fila.append({
-                "DATA": str(data), "ENCARREGADO": str(encarregado).upper(),
-                "CRIADO_EM": agora, "TENTATIVAS": 0, "ULTIMO_ERRO": ""
-            })
-            chaves.add(chave)
-    _salvar_fila_sheets(fila)
-    st.session_state.fila_sheets_pendente = fila
-    return len(fila)
-
-
-def _append_sheets_sem_leitura(registros):
-    """Adiciona linhas nas duas abas usando apenas requests de escrita."""
-    from google.oauth2 import service_account
-    from google.auth.transport.requests import AuthorizedSession
-    from urllib.parse import quote
-
-    info = dict(st.secrets["connections"]["gsheets"])
-    match_id = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", str(info.get("spreadsheet", "")))
-    if not match_id:
-        raise RuntimeError("ID da planilha não encontrado nos Secrets.")
-    credenciais = service_account.Credentials.from_service_account_info(
-        info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-    sessao = AuthorizedSession(credenciais)
-    planilha_id = match_id.group(1)
-    agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
-    def append(nome_aba, linhas):
-        intervalo = quote(f"{nome_aba}!A:Z", safe="")
-        url = f"https://sheets.googleapis.com/v4/spreadsheets/{planilha_id}/values/{intervalo}:append"
-        resposta = sessao.post(
-            url,
-            params={"valueInputOption": "USER_ENTERED", "insertDataOption": "INSERT_ROWS"},
-            json={"majorDimension": "ROWS", "values": linhas}, timeout=30,
-        )
-        resposta.raise_for_status()
-
-    append("Historico_F1", [[d, e, "SISTEMA", agora, "inocencia"] for d, e in registros])
-    append("Resumo_Diario", [[d, e, "ENTREGUE", "SISTEMA", agora, "inocencia"] for d, e in registros])
-
-
-def processar_fila_sheets():
-    """Reenvia a fila em um unico lote. Nao le o Google Sheets."""
-    fila = _carregar_fila_sheets()
-    if not fila:
-        st.session_state.fila_sheets_pendente = []
-        return True, "Nenhum registro aguardando envio."
-    registros = [(x.get("DATA", ""), x.get("ENCARREGADO", "")) for x in fila]
-    try:
-        _append_sheets_sem_leitura(registros)
-        _salvar_fila_sheets([])
-        st.session_state.fila_sheets_pendente = []
-        st.session_state.ultimo_status_sheets = "OK"
-        st.session_state.ultima_gravacao_sheets = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        return True, f"{len(registros)} registro(s) pendente(s) enviado(s)."
-    except Exception as erro:
-        texto = str(erro)
-        for item in fila:
-            item["TENTATIVAS"] = int(item.get("TENTATIVAS", 0)) + 1
-            item["ULTIMO_ERRO"] = texto[:300]
-        _salvar_fila_sheets(fila)
-        st.session_state.fila_sheets_pendente = fila
-        st.session_state.ultimo_status_sheets = "FALHA"
-        return False, ("Google temporariamente indisponível. A fila foi preservada." if "429" in texto or "RESOURCE_EXHAUSTED" in texto else f"Falha no reenvio: {erro}")
-
-
 def salvar_f1_seguro(conn, df_f1, caminho_csv):
-    """Grava linhas novas sem leitura; em falha, preserva tudo na fila local."""
-    if df_f1 is None or df_f1.empty or not {"DATA", "ENCARREGADO"}.issubset(df_f1.columns):
-        return False, "Nenhum registro válido para salvar."
-    envio = df_f1[["DATA", "ENCARREGADO"]].copy()
-    envio["DATA"] = envio["DATA"].apply(normalizar_data_brasil)
-    envio["ENCARREGADO"] = envio["ENCARREGADO"].astype(str).str.strip().str.upper()
-    envio = envio[envio["ENCARREGADO"].apply(eh_encarregado_valido)].drop_duplicates()
-    if envio.empty:
-        return False, "Nenhum registro válido para salvar."
-
+    """Salva o Histórico F1 no Google Sheets e localmente COM PROTEÇÃO ANTI-PERDA.
+    Garante persistência total entre todos os usuários da nuvem.
+    """
+    if df_f1 is None or df_f1.empty:
+        return False, "Bloqueado: tentativa de salvar dados vazios."
+    
+    # Filtrar linhas válidas antes de salvar
+    if 'ENCARREGADO' in df_f1.columns:
+        df_f1 = df_f1[df_f1['ENCARREGADO'].notna() & (df_f1['ENCARREGADO'].astype(str).str.strip() != '') & (df_f1['ENCARREGADO'].astype(str).str.strip() != '-')]
+    if 'DATA' in df_f1.columns:
+        df_f1 = df_f1[df_f1['DATA'].notna() & (df_f1['DATA'].astype(str).str.strip() != '')]
+    
+    if df_f1.empty:
+        return False, "Bloqueado: todos os registros são inválidos."
+    
+    df_f1 = df_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
+    
+    # 1. Backup Local CSV
     try:
-        local = st.session_state.get("df_historico_f1", pd.DataFrame()).copy()
-        pd.concat([local, envio], ignore_index=True).drop_duplicates(
-            subset=["DATA", "ENCARREGADO"]
-        ).to_csv(caminho_csv, index=False)
+        df_f1.to_csv(caminho_csv, index=False)
     except Exception:
         pass
 
-    if "f1_chaves_enviadas" not in st.session_state:
-        existentes = st.session_state.get("df_historico_f1", pd.DataFrame())
-        chaves = set()
-        if isinstance(existentes, pd.DataFrame) and not existentes.empty and {"DATA", "ENCARREGADO"}.issubset(existentes.columns):
-            chaves = {(normalizar_data_brasil(r["DATA"]), str(r["ENCARREGADO"]).strip().upper()) for _, r in existentes.iterrows()}
-        st.session_state.f1_chaves_enviadas = chaves
-
-    novos = [(r["DATA"], r["ENCARREGADO"]) for _, r in envio.iterrows()
-             if (r["DATA"], r["ENCARREGADO"]) not in st.session_state.f1_chaves_enviadas]
-    if not novos:
-        return True, "Registro já existente nesta sessão."
-
+    # 2. Persistência na Nuvem (Google Sheets via gspread)
     try:
-        _append_sheets_sem_leitura(novos)
-        st.session_state.f1_chaves_enviadas.update(novos)
-        st.session_state.ultimo_status_sheets = "OK"
-        st.session_state.ultima_gravacao_sheets = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        return True, f"OK: {len(novos)} registro(s) confirmado(s) no Google Sheets."
-    except Exception as erro:
-        qtd_fila = _adicionar_fila_sheets(novos)
-        st.session_state.ultimo_status_sheets = "PENDENTE"
-        st.session_state.ultimo_erro_sheets = str(erro)[:300]
-        return False, f"Gravação não confirmada. {qtd_fila} registro(s) preservado(s) na fila para reenvio."
+        sh = obter_planilha_google()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            if "Historico_F1" not in ws_names:
+                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
+            else:
+                ws_f1 = sh.worksheet("Historico_F1")
+                
+            # Ler dados atuais da nuvem para mesclar se necessário (proteção anti-perda)
+            recs_nuvem = ws_f1.get_all_records()
+            if recs_nuvem:
+                df_nuvem_atual = pd.DataFrame(recs_nuvem)
+                if not df_nuvem_atual.empty and "DATA" in df_nuvem_atual.columns and "ENCARREGADO" in df_nuvem_atual.columns:
+                    # Se o df atual tiver muito menos que a nuvem, mesclar para não perder
+                    if len(df_f1) < len(df_nuvem_atual) * 0.5 and len(df_nuvem_atual) > 10:
+                        df_f1 = pd.concat([df_nuvem_atual, df_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+            
+            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
+            if ws_f1.row_count < len(valores) + 50:
+                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
+                
+            ws_f1.clear()
+            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
+            return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
+    except Exception as e:
+        # Fallback via st.connection se gspread direto falhar
+        if conn:
+            try:
+                conn.update(worksheet="Historico_F1", data=df_f1)
+                return True, f"OK (fallback conn): {len(df_f1)} registros salvos."
+            except Exception as e2:
+                return False, f"Erro ao salvar na nuvem: {e2}"
+        return False, f"Erro na nuvem: {e}"
+    
+    return True, f"OK: {len(df_f1)} registros salvos localmente."
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -2404,33 +2166,6 @@ def preparar_dataframe(df):
     
     return df
 
-def preencher_caldeira_pelo_pde(df_rdc, df_pde):
-    import unicodedata
-    if df_rdc is None or not isinstance(df_rdc, pd.DataFrame) or df_rdc.empty or df_pde is None or not isinstance(df_pde, pd.DataFrame) or df_pde.empty or "ENCARREGADO" not in df_rdc.columns:
-        return df_rdc
-    pde=df_pde.copy(); col_contrato=next((c for c in pde.columns if "CONTRATO" in str(c).strip().upper()),None)
-    if not col_contrato: return df_rdc
-    def nome(v):
-        x="" if v is None or pd.isna(v) else str(v); x=unicodedata.normalize("NFKD",x).encode("ASCII","ignore").decode("ASCII")
-        return re.sub(r"\s+"," ",re.sub(r"[^A-Z0-9 ]+"," ",x.upper())).strip()
-    def contrato(v):
-        x=nome(v); t=set(x.split())
-        if "PB" in t or x.startswith("PB") or "CALDEIRA DE FORCA" in x: return "PB"
-        if "RB" in t or x.startswith("RB") or "CALDEIRA DE RECUPERACAO" in x: return "RB"
-        if "ESP" in t or "PRECIPITADOR" in x: return "ESP"
-        return ""
-    pde["_N"]=pde["NOME"].apply(nome) if "NOME" in pde.columns else ""; pde["_E"]=pde["ENCARREGADO"].apply(nome) if "ENCARREGADO" in pde.columns else ""; pde["_C"]=pde[col_contrato].apply(contrato); pde=pde[pde["_C"]!=""]
-    mapa={}
-    for enc in df_rdc["ENCARREGADO"].dropna().astype(str).unique():
-        n=nome(enc); proprio=pde.loc[pde["_N"]==n,"_C"]
-        if not proprio.empty: mapa[n]=proprio.value_counts().index[0]; continue
-        equipe=pde.loc[pde["_E"]==n,"_C"]
-        if not equipe.empty:
-            c=equipe.value_counts()
-            if len(c)==1 or c.iloc[0]>c.iloc[1]: mapa[n]=c.index[0]
-    r=df_rdc.copy(); r["CALDEIRA"]=r.get("CALDEIRA",pd.Series([""]*len(r),index=r.index)).fillna("")
-    calc=r["ENCARREGADO"].apply(lambda x: mapa.get(nome(x),"")); r["CALDEIRA"]=calc.where(calc!="",r["CALDEIRA"]); return r
-
 def obter_mapa_encarregado_coordenador(df):
     """
     Mapeia cada encarregado para o seu Coordenador/Supervisor/Gerente a partir do PDE.
@@ -2575,7 +2310,7 @@ if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1
     # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
     try:
         _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
-        _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=600)
+        _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=0)
         if _df_f1_nuvem is not None:
             _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
             # SÓ aceitar se tiver dados reais (pelo menos 1 linha com DATA e ENCARREGADO)
@@ -2957,22 +2692,34 @@ data_agora = dt_mod.datetime.now().strftime("%d/%m/%Y")
 nome_user_logado = st.session_state.get('nome_completo', 'Admin')
 
 st.markdown(f"""
-<div class="enesa-header">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-    <div style="display:flex;align-items:center;gap:14px;">
-      <div style="width:42px;height:42px;border-radius:11px;background:linear-gradient(145deg,#0ea5e9,#1d4ed8);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:17px;box-shadow:0 8px 20px rgba(14,165,233,.22);">SGO</div>
-      <div>
-        <div style="font-size:1.15rem;font-weight:800;color:#f8fafc;line-height:1.1;">RDC & PDE</div>
-        <div style="font-size:.73rem;color:#8fa3bd;margin-top:4px;">Sistema de Gestão Operacional</div>
-      </div>
+    <div class="enesa-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                    <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
+                        <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
+                    </h1>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.0</span>
+                </div>
+                <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 20px; padding: 5px 14px; font-size: 11px; color: #10b981; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 6px #10b981; animation: pulse 2s infinite;"></span>
+                    ONLINE
+                </div>
+                <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.15); border-radius: 10px; padding: 6px 14px; font-size: 12px; color: #94a3b8;">
+                    <span style="color: #0ea5e9; font-weight: 600;">{nome_user_logado}</span> · {data_agora}
+                </div>
+            </div>
+        </div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <div style="padding:7px 11px;border-radius:9px;background:#101f33;border:1px solid rgba(148,163,184,.14);font-size:.75rem;color:#cbd5e1;">📅 {data_agora} &nbsp;•&nbsp; {hora_agora}</div>
-      <div style="padding:7px 11px;border-radius:9px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.25);font-size:.75rem;color:#34d399;">● Sistema online</div>
-      <div style="padding:7px 11px;border-radius:9px;background:#101f33;border:1px solid rgba(148,163,184,.14);font-size:.75rem;color:#cbd5e1;">{nome_user_logado}</div>
-    </div>
-  </div>
-</div>
+    <style>
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.4; }}
+        }}
+    </style>
 """, unsafe_allow_html=True)
 
 # =================================================================
@@ -2982,32 +2729,6 @@ arquivo_pde = None
 arquivo_modelo = None
 
 with st.sidebar:
-    st.markdown("#### 🛡️ Integridade dos Dados")
-    fila_atual = _carregar_fila_sheets()
-    st.session_state.fila_sheets_pendente = fila_atual
-    status_sheets = st.session_state.get("ultimo_status_sheets", "PRONTO")
-    ultima_gravacao = st.session_state.get("ultima_gravacao_sheets", "Nenhuma nesta sessão")
-    if fila_atual:
-        st.warning(f"{len(fila_atual)} registro(s) aguardando sincronização.")
-    elif status_sheets == "OK":
-        st.success("Google Sheets sincronizado.")
-    else:
-        st.info("Nenhuma pendência de sincronização.")
-    st.caption(f"Última gravação confirmada: {ultima_gravacao}")
-    if st.button("🔄 Reenviar registros pendentes", use_container_width=True, disabled=not bool(fila_atual), key="btn_reenviar_fila_sheets"):
-        ok_fila, msg_fila = processar_fila_sheets()
-        (st.success if ok_fila else st.error)(msg_fila)
-        if ok_fila:
-            time.sleep(1)
-            st.rerun()
-    if fila_atual:
-        st.download_button(
-            "📥 Baixar fila de segurança",
-            data=json.dumps(fila_atual, ensure_ascii=False, indent=2),
-            file_name=f"fila_sheets_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json", use_container_width=True,
-        )
-    st.markdown("---")
     if os.path.exists(caminho_logo):
         col1, col2, col3 = st.columns([1.5, 2, 1.5]) 
         with col2:
@@ -3204,7 +2925,7 @@ elif st.session_state.df is None:
     if not st.session_state.get('force_use_local', False):
         if conn:
             try:
-                df_gsheets = conn.read(worksheet="PDE", ttl=600)
+                df_gsheets = conn.read(worksheet="PDE", ttl=300)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
@@ -3237,7 +2958,7 @@ elif st.session_state.df is None:
 # =================================================================
 if conn and not st.session_state.get('force_use_local', False):
     try:
-        df_f1 = conn.read(worksheet="Historico_F1", ttl=600)
+        df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
         if df_f1 is not None:
             df_f1 = df_f1.dropna(how='all')
             # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
@@ -4876,7 +4597,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         <span style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 2px;">🔵 Gestão</span>
         <span style="color: #22c55e; border-bottom: 2px solid #22c55e; padding-bottom: 2px;">🟢 Campo</span>
         <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 IA & Dados</span>
-        
+        <span style="color: #64748b; border-bottom: 2px solid #64748b; padding-bottom: 2px;">⚙️ Config</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4885,220 +4606,197 @@ Retorne apenas o JSON sem crases ou markdown."""
     # BLOCO 2 - CAMPO:  Emissão, Digital, Escala
     # BLOCO 3 - IA:     Leitor IA, IA C.C, Banco RDCs, Gargalos
     # BLOCO 4 - CONFIG:  C.C, PDE, Banco Dados, Admin
-    tab_dashboard, tab_resumo, tab_f1, tab_emissao, tab_escala, tab_ia, tab_gargalos, tab_cc, tab_banco_dados = st.tabs([
-        f"📊 {t('Dashboard')}", f"📅 {t('Resumo Diário')}", f"🏎️ {t('Competição F1')}",
-        f"📝 {t('Emissão de RDC')}", f"📋 {t('Escala')}", f"🤖 {t('Leitor de RDC (IA)')}",
-        f"🔍 {t('Análise de Gargalos')}", f"💰 {t('Controle de C.C')}", f"📊 {t('Banco de Dados')}"
+    tab_dashboard, tab_resumo, tab_f1, tab_emissao, tab_rdc_digital, tab_escala, tab_ia, tab_ia_cc, tab_banco_rdc, tab_gargalos, tab_cc, tab_pde, tab_banco_dados, tab_admin = st.tabs([
+        f"📊 {t('Dashboard')}",
+        f"📅 {t('Resumo Diário')}",
+        f"🏎️ {t('Competição F1')}",
+        f"📝 {t('Emissão de RDC')}",
+        f"📱 {t('RDC Digital')}",
+        f"📋 {t('Escala')}",
+        f"🤖 {t('Leitor de RDC (IA)')}",
+        f"🤖 {t('IA - Atualizador C.C')}",
+        f"📑 {t('Banco de RDCs')}",
+        f"🔍 {t('Análise de Gargalos')}",
+        f"💰 {t('Controle de C.C')}",
+        f"👷 {t('Gerenciar PDE')}",
+        f"📊 {t('Banco de Dados')}",
+        f"⚙️ {t('Admin')}"
     ])
 
-    # Navegacao operacional unica.
+    # Apontador vê apenas CAMPO (abas 4, 5, 6 = Emissão, Digital, Escala)
+    if st.session_state.get("role_usuario") == "apontador":
+        st.markdown("""
+        <style>
+            div[data-baseweb="tab-list"] button:nth-child(1),
+            div[data-baseweb="tab-list"] button:nth-child(2),
+            div[data-baseweb="tab-list"] button:nth-child(3),
+            div[data-baseweb="tab-list"] button:nth-child(7),
+            div[data-baseweb="tab-list"] button:nth-child(8),
+            div[data-baseweb="tab-list"] button:nth-child(9),
+            div[data-baseweb="tab-list"] button:nth-child(10),
+            div[data-baseweb="tab-list"] button:nth-child(11),
+            div[data-baseweb="tab-list"] button:nth-child(12),
+            div[data-baseweb="tab-list"] button:nth-child(13),
+            div[data-baseweb="tab-list"] button:nth-child(14) {
+                display: none !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
 
     with tab_dashboard:
-        import plotly.graph_objects as go
-        from collections import Counter
-
-        # Filtro único do painel. Todos os indicadores abaixo usam esta mesma data.
-        col_hero, col_data, col_update = st.columns([5.2, 1.7, 1.5])
-        with col_hero:
-            st.markdown(f"""
-            <div class="sgo-hero"><div><h2>Bom dia, {nome_user_logado}!</h2>
-            <p>Aqui está o panorama real da operação. Os números usam somente PDE, F1, RDCs e Briefings carregados.</p></div></div>
-            """, unsafe_allow_html=True)
-        with col_data:
-            data_painel = st.date_input("Data", value=datetime.date.today(), key="data_dashboard_executivo")
-        with col_update:
-            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-            if st.button("🔄 Atualizar dados", use_container_width=True, key="btn_dash_atualizar_real"):
-                try:
-                    st.cache_data.clear()
-                except Exception:
-                    pass
-                st.rerun()
-
-        data_iso_painel = data_painel.strftime("%Y-%m-%d")
-        df_hist_dash = st.session_state.get("df_historico_f1", pd.DataFrame()).copy()
-        if not df_hist_dash.empty and {"DATA", "ENCARREGADO"}.issubset(df_hist_dash.columns):
-            df_hist_dash["DATA_ISO"] = df_hist_dash["DATA"].apply(normalizar_data_brasil)
-            df_hist_dash["ENCARREGADO"] = df_hist_dash["ENCARREGADO"].astype(str).str.strip().str.upper()
-        else:
-            df_hist_dash = pd.DataFrame(columns=["DATA", "ENCARREGADO", "DATA_ISO"])
-
-        # Mapa de contrato por encarregado a partir do próprio encarregado ou da equipe no PDE.
-        def _normaliza_nome_dash(v):
-            import unicodedata
-            x = "" if v is None or pd.isna(v) else str(v)
-            x = unicodedata.normalize("NFKD", x).encode("ASCII", "ignore").decode("ASCII")
-            return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 ]+", " ", x.upper())).strip()
-
-        def _contrato_dash(v, cc=""):
-            x = _normaliza_nome_dash(v); tokens = set(x.split())
-            if "PB" in tokens or x.startswith("PB") or "CALDEIRA DE FORCA" in x: return "PB"
-            if "RB" in tokens or x.startswith("RB") or "CALDEIRA DE RECUPERACAO" in x: return "RB"
-            if "ESP" in tokens or "PRECIPITADOR" in x: return "ESP"
-            ccx = str(cc)
-            if ".005" in ccx: return "ESP"
-            if "125.02" in ccx: return "PB"
-            if "125.01" in ccx: return "RB"
-            return "N/I"
-
-        mapa_contrato_dash = {}
-        mapa_disc_dash = {}
-        if df_atual is not None and not df_atual.empty:
-            col_contrato_dash = next((c for c in df_atual.columns if "CONTRATO" in str(c).upper()), None)
-            temp_pde = df_atual.copy()
-            temp_pde["_ENC_N"] = temp_pde["ENCARREGADO"].apply(_normaliza_nome_dash)
-            temp_pde["_NOME_N"] = temp_pde["NOME"].apply(_normaliza_nome_dash) if "NOME" in temp_pde.columns else ""
-            temp_pde["_CONT"] = temp_pde.apply(lambda r: _contrato_dash(r.get(col_contrato_dash, "") if col_contrato_dash else "", r.get("C.C", "")), axis=1)
-            for enc in lista_completa_encarregados:
-                n = _normaliza_nome_dash(enc)
-                proprio = temp_pde.loc[temp_pde["_NOME_N"] == n, "_CONT"]
-                equipe = temp_pde.loc[temp_pde["_ENC_N"] == n, "_CONT"]
-                valores = proprio[proprio != "N/I"] if not proprio[proprio != "N/I"].empty else equipe[equipe != "N/I"]
-                mapa_contrato_dash[n] = valores.value_counts().index[0] if not valores.empty else "N/I"
-                if "DISCIPLINA" in temp_pde.columns:
-                    disc = temp_pde.loc[temp_pde["_ENC_N"] == n, "DISCIPLINA"].dropna().astype(str)
-                    mapa_disc_dash[n] = disc.value_counts().index[0] if not disc.empty else "N/I"
-
-        entregues_dia = sorted(df_hist_dash.loc[df_hist_dash["DATA_ISO"] == data_iso_painel, "ENCARREGADO"].dropna().unique().tolist())
-        esperados = sorted({_normaliza_nome_dash(x) for x in lista_completa_encarregados if eh_encarregado_valido(x)})
-        entregues_norm = {_normaliza_nome_dash(x) for x in entregues_dia}
-        pendentes = [x for x in esperados if x not in entregues_norm]
-        total_esperado = len(esperados)
-        total_entregue = len(entregues_norm & set(esperados))
-        total_pendente = len(pendentes)
-        taxa_entrega = round(total_entregue / total_esperado * 100, 1) if total_esperado else 0.0
-
-        # Base de RDCs da data para bloqueios e gargalos reais.
-        df_rdc_dash = pd.DataFrame()
-        if os.path.exists(caminho_rdc_registros_csv):
+        # === RELÓGIO DIGITAL ===
+        import streamlit.components.v1 as components
+        html_relogio = """
+        <div id="clock_container" style="font-family: 'Courier New', Courier, monospace; font-size: 28px; color: #0ea5e9; font-weight: bold; text-shadow: 0 0 10px rgba(14, 165, 233, 0.8); text-align: center; background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9)); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(14, 165, 233, 0.4); width: fit-content; margin: 0 auto 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(14,165,233,0.1);">
+            <div id="time" style="letter-spacing: 2px;">--:--:--</div>
+            <div id="date" style="font-size: 14px; color: #94a3b8; font-weight: normal; text-shadow: none; font-family: 'Inter', sans-serif; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Carregando...</div>
+        </div>
+        <script>
+            function updateClock() {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('pt-BR');
+                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                let dateStr = now.toLocaleDateString('pt-BR', dateOptions);
+                document.getElementById('time').innerText = timeStr;
+                document.getElementById('date').innerText = dateStr;
+            }
+            setInterval(updateClock, 1000);
+            updateClock();
+        </script>
+        """
+        components.html(html_relogio, height=110)
+        
+        col_dash_tit, col_dash_qr, col_dash_btn_pdf, col_dash_btn_pptx = st.columns([2, 1.2, 1, 1])
+        with col_dash_tit:
+            st.markdown("### 🎛️ Centro de Comando (Overview)")
+        with col_dash_qr:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_dash_open_qr", type="secondary"):
+                modal_qr_code_mobile()
+        with col_dash_btn_pdf:
+            st.markdown("<br>", unsafe_allow_html=True)
+            pdf_bytes = gerar_relatorio_pdf(df_atual)
+            st.download_button(
+                label="📥 Baixar PDF",
+                data=pdf_bytes,
+                file_name=f"Relatorio_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="secondary"
+            )
+        with col_dash_btn_pptx:
+            st.markdown("<br>", unsafe_allow_html=True)
             try:
-                df_rdc_dash = pd.read_csv(caminho_rdc_registros_csv)
-                if not df_rdc_dash.empty and "DATA" in df_rdc_dash.columns:
-                    df_rdc_dash["DATA_ISO"] = df_rdc_dash["DATA"].apply(normalizar_data_brasil)
-                    df_rdc_dash = df_rdc_dash[df_rdc_dash["DATA_ISO"] == data_iso_painel]
-            except Exception:
-                df_rdc_dash = pd.DataFrame()
-        problemas_validos = []
-        if not df_rdc_dash.empty and "PROBLEMAS" in df_rdc_dash.columns:
-            for valor in df_rdc_dash["PROBLEMAS"].dropna().astype(str):
-                texto = valor.strip()
-                if texto and texto.upper() not in {"NAN", "NONE", "NENHUM", "NÃO INFORMADO", "NAO INFORMADO", "-"}:
-                    problemas_validos.append(texto)
-        bloqueios_qtd = len(problemas_validos)
-
-        # Linha de KPIs exatamente separada em quatro cartões.
-        k1, k2, k3, k4 = st.columns(4)
-        cards = [
-            (k1, "#38bdf8", "Efetivo total", len(df_atual), "Colaboradores presentes na base PDE"),
-            (k2, "#22c55e", "RDCs entregues", total_entregue, f"{taxa_entrega}% dos {total_esperado} esperados"),
-            (k3, "#f59e0b", "RDCs pendentes", total_pendente, "Encarregados sem entrega na data"),
-            (k4, "#ef4444", "Bloqueios críticos", bloqueios_qtd, "Ocorrências reais informadas nos RDCs"),
-        ]
-        for coluna, cor, titulo, valor, subtitulo in cards:
-            with coluna:
-                st.markdown(f"""<div class="sgo-card" style="--accent:{cor}">
-                <div class="sgo-card-label">{titulo}</div><div class="sgo-card-value">{valor}</div>
-                <div class="sgo-card-sub">{subtitulo}</div></div>""", unsafe_allow_html=True)
-
-        # Linha: entregas por contrato, evolução real e situação geral.
-        c_area, c_evol, c_situacao = st.columns([1.15, 1.65, 1.0])
-        contagem_contrato = Counter(mapa_contrato_dash.get(_normaliza_nome_dash(e), "N/I") for e in entregues_dia)
-        with c_area:
-            st.markdown('<div class="sgo-panel-title">Entregas por caldeira</div>', unsafe_allow_html=True)
-            labels = [x for x in ["PB", "RB", "ESP"] if contagem_contrato.get(x, 0) > 0]
-            values = [contagem_contrato[x] for x in labels]
-            if values:
-                fig_area = go.Figure(go.Pie(labels=labels, values=values, hole=.57, marker_colors=[{"PB":"#38bdf8","RB":"#f59e0b","ESP":"#22c55e"}[x] for x in labels], textinfo="none"))
-                fig_area.update_layout(height=245, margin=dict(l=5,r=5,t=5,b=5), paper_bgcolor="rgba(0,0,0,0)", font_color="#cbd5e1", legend=dict(orientation="v",x=.72,y=.75), annotations=[dict(text=f"<b>{total_entregue}</b><br>RDCs",x=.5,y=.5,showarrow=False,font=dict(size=16,color="white"))])
-                st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar":False})
-            else:
-                st.info("Sem entregas classificadas em PB, RB ou ESP nesta data.")
-
-        with c_evol:
-            st.markdown('<div class="sgo-panel-title">Evolução das entregas</div>', unsafe_allow_html=True)
-            inicio = data_painel - datetime.timedelta(days=6)
-            dias = [inicio + datetime.timedelta(days=i) for i in range(7)]
-            valores_dias = [int((df_hist_dash["DATA_ISO"] == d.strftime("%Y-%m-%d")).sum()) for d in dias]
-            fig_evol = go.Figure(go.Scatter(x=[d.strftime("%d/%m") for d in dias], y=valores_dias, mode="lines+markers", line=dict(color="#38bdf8",width=3), marker=dict(size=7,color="#38bdf8"), fill="tozeroy", fillcolor="rgba(56,189,248,.07)"))
-            fig_evol.update_layout(height=245, margin=dict(l=35,r=15,t=8,b=30), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#94a3b8", xaxis=dict(showgrid=True,gridcolor="rgba(148,163,184,.10)"), yaxis=dict(showgrid=True,gridcolor="rgba(148,163,184,.10)",rangemode="tozero"))
-            st.plotly_chart(fig_evol, use_container_width=True, config={"displayModeBar":False})
-
-        with c_situacao:
-            st.markdown('<div class="sgo-panel"><div class="sgo-panel-title">Situação geral</div>', unsafe_allow_html=True)
-            situacoes = [
-                ("Encarregados ativos", total_esperado),
-                ("Equipes com entrega", total_entregue),
-                ("Colaboradores PDE", len(df_atual)),
-                ("RDCs processados", len(df_rdc_dash)),
-                ("RDCs não iniciados", total_pendente),
-            ]
-            for rotulo, valor in situacoes:
-                st.markdown(f'<div class="sgo-status-line"><span>{rotulo}</span><b>{valor}</b></div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        # Linha: pendências e gargalos reais.
-        c_pend, c_garg = st.columns([1.55, 1.0])
-        with c_pend:
-            st.markdown(f'<div class="sgo-panel-title">📅 Pendências de RDC &nbsp; <span class="sgo-chip chip-red">{total_pendente}</span></div>', unsafe_allow_html=True)
-            linhas_pend = []
-            for enc in pendentes[:8]:
-                hist_enc = df_hist_dash[df_hist_dash["ENCARREGADO"].apply(_normaliza_nome_dash) == enc]
-                ultima = hist_enc["DATA_ISO"].max() if not hist_enc.empty else "Sem entrega"
-                dias_atraso = (data_painel - pd.to_datetime(ultima).date()).days if ultima != "Sem entrega" and pd.notna(pd.to_datetime(ultima, errors="coerce")) else "-"
-                linhas_pend.append({"Encarregado": enc.title(), "Contrato": mapa_contrato_dash.get(enc,"N/I"), "Disciplina": mapa_disc_dash.get(enc,"N/I"), "Última entrega": ultima, "Dias": dias_atraso, "Status": "Atrasado" if isinstance(dias_atraso,int) and dias_atraso >= 3 else "Pendente"})
-            if linhas_pend:
-                st.dataframe(pd.DataFrame(linhas_pend), hide_index=True, use_container_width=True, height=245)
-            else:
-                st.success("Todos os encarregados esperados entregaram o RDC desta data.")
-
-        with c_garg:
-            st.markdown('<div class="sgo-panel-title">▥ Principais gargalos</div>', unsafe_allow_html=True)
-            categorias = Counter()
-            for texto in problemas_validos:
-                t = texto.upper()
-                if "MATERIAL" in t: cat="Falta de material"
-                elif "ANDAIME" in t: cat="Andaime"
-                elif "EQUIP" in t or "GUINDASTE" in t: cat="Equipamento indisponível"
-                elif "PROJETO" in t or "DESENHO" in t: cat="Projeto"
-                elif "LIBERA" in t or "ACESSO" in t: cat="Liberação de área"
-                elif "CHUVA" in t or "CLIMA" in t: cat="Clima"
-                else: cat="Outros"
-                categorias[cat] += 1
-            df_garg_dash = pd.DataFrame([{"Ocorrência":k,"Qtd.":v} for k,v in categorias.most_common(6)])
-            if not df_garg_dash.empty:
-                st.dataframe(df_garg_dash, hide_index=True, use_container_width=True, height=245)
-            else:
-                st.info("Nenhum gargalo registrado nos RDCs desta data.")
-
-        # Rodapé executivo: briefings existentes e integridade real.
-        c_brief, c_sync, c_ok = st.columns([1.35, 1.35, .9])
-        with c_brief:
-            st.markdown('<div class="sgo-panel"><div class="sgo-panel-title">▤ Últimos briefings</div>', unsafe_allow_html=True)
-            briefs_dash = carregar_briefings_salvos()
-            if briefs_dash:
-                for chave in sorted(briefs_dash.keys(), reverse=True)[:2]:
-                    item = briefs_dash[chave]
-                    resumo = (item.get("avancos") or ["Briefing salvo"])[0]
-                    st.markdown(f'<div class="sgo-status-line"><span>{item.get("data_formatada",chave)}</span><b style="font-size:.67rem;max-width:68%;text-align:right">{str(resumo)[:75]}</b></div>', unsafe_allow_html=True)
-            else:
-                st.caption("Nenhum briefing salvo.")
-            st.markdown('</div>', unsafe_allow_html=True)
-        with c_sync:
-            fila_dash = _carregar_fila_sheets()
-            ultima_sync_dash = st.session_state.get("ultima_gravacao_sheets", "Nenhuma nesta sessão")
-            st.markdown(f"""<div class="sgo-panel"><div class="sgo-panel-title">☁ Sincronização e armazenamento</div>
-            <div class="sgo-status-line"><span>Google Sheets</span><b>{"Pendente" if fila_dash else "Conectado"}</b></div>
-            <div class="sgo-status-line"><span>Salvamento automático</span><b>Ativo</b></div>
-            <div class="sgo-status-line"><span>Registros na fila</span><b>{len(fila_dash)}</b></div>
-            <div class="sgo-status-line"><span>Última confirmação</span><b>{ultima_sync_dash}</b></div></div>""", unsafe_allow_html=True)
-        with c_ok:
-            fila_dash = _carregar_fila_sheets()
-            cor_ok = "#22c55e" if not fila_dash else "#f59e0b"
-            titulo_ok = "Tudo certo!" if not fila_dash else "Atenção"
-            texto_ok = "Dados sem pendências de envio." if not fila_dash else f"{len(fila_dash)} registro(s) aguardando envio."
-            st.markdown(f"""<div class="sgo-panel" style="border-color:{cor_ok}55;background:linear-gradient(145deg,{cor_ok}20,#0b1728);display:flex;flex-direction:column;justify-content:center;min-height:166px;text-align:center">
-            <div style="font-size:2rem;color:{cor_ok}">✓</div><div style="font-size:1.15rem;font-weight:800;color:{cor_ok}">{titulo_ok}</div><div style="font-size:.72rem;color:#b9c7d8;margin-top:6px">{texto_ok}</div></div>""", unsafe_allow_html=True)
-
+                pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo, lista_completa_encarregados)
+                st.download_button(
+                    label="📑 PowerPoint (.pptx)",
+                    data=pptx_dash_bytes,
+                    file_name=f"Dashboard_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    use_container_width=True,
+                    type="primary"
+                )
+            except Exception as e_pptx_dash:
+                st.error(f"Erro ao gerar PPTX: {e_pptx_dash}")
+        
+        # Filtro de MOI / MOD, Local, Turno e Status com chaves explícitas
+        col_filtros1, col_filtros2, col_filtros3, col_filtros4 = st.columns(4)
+        with col_filtros1:
+            filtro_dash_mo = st.segmented_control(
+                "Filtrar Visão por Tipo de Mão de Obra:", 
+                ["Ambas", "MOD", "MOI"], 
+                default="Ambas",
+                key="filtro_dash_mo_ctrl_v8"
+            )
+            if not filtro_dash_mo:
+                filtro_dash_mo = "Ambas"
+                
+        with col_filtros2:
+            filtro_dash_local = st.segmented_control(
+                "Filtrar Dados por Local:", 
+                ["Ambas", "PB", "RB", "ESP"], 
+                default="Ambas",
+                key="filtro_dash_local_ctrl_v8"
+            )
+            if not filtro_dash_local:
+                filtro_dash_local = "Ambas"
+                
+        with col_filtros3:
+            turnos_disponiveis = ["Todos"]
+            if "TURNO" in df_atual.columns:
+                turnos_reais = [str(t).strip() for t in df_atual["TURNO"].dropna().unique() if str(t).strip() and str(t).upper() != "NAN"]
+                turnos_disponiveis.extend(sorted(list(set(turnos_reais))))
+            
+            filtro_dash_turno = st.selectbox(
+                "Filtrar por Turno:", 
+                turnos_disponiveis,
+                index=0,
+                key="filtro_dash_turno_ctrl_v8"
+            )
+            
+        with col_filtros4:
+            status_disponiveis = ["Todos"]
+            if "STATUS" in df_atual.columns:
+                status_reais = [str(s).strip() for s in df_atual["STATUS"].dropna().unique() if str(s).strip() and str(s).upper() != "NAN"]
+                status_disponiveis.extend(sorted(list(set(status_reais))))
+                
+            idx_st = status_disponiveis.index("ATIVO") if "ATIVO" in status_disponiveis else 0
+            filtro_dash_status = st.selectbox(
+                "Filtrar por Status:", 
+                status_disponiveis,
+                index=idx_st,
+                key="filtro_dash_status_ctrl_v8"
+            )
+            
+        df_dash = df_atual.copy()
+        
+        # 1. Aplicar filtro Status
+        if filtro_dash_status != "Todos" and "STATUS" in df_dash.columns:
+            df_dash = df_dash[df_dash["STATUS"].astype(str).str.strip().str.upper() == filtro_dash_status.strip().upper()]
+            
+        # 2. Aplicar filtro Turno
+        if filtro_dash_turno != "Todos" and "TURNO" in df_dash.columns:
+            df_dash = df_dash[df_dash["TURNO"].astype(str).str.strip().str.upper() == filtro_dash_turno.strip().upper()]
+            
+        # 3. Aplicar filtro MOI/MOD
+        if filtro_dash_mo == "MOD":
+            df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]
+        elif filtro_dash_mo == "MOI":
+            df_dash = df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]
+            
+        # 4. Aplicar filtro Local (apenas quando não for 'Ambas')
+        if filtro_dash_local == "PB":
+            df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
+        elif filtro_dash_local == "RB":
+            df_dash = df_dash[df_dash["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
+        elif filtro_dash_local == "ESP":
+            df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
+        
+        # Linha 1: Cartões de KPI Customizados (Premium e Dinâmicos)
+        total_efetivo_dash = len(df_dash)
+        
+        encs_unicos_dash = [e for e in df_dash["ENCARREGADO"].dropna().unique() if str(e).strip() != "" and str(e).upper() != "AJUSTAR NOME" and str(e).upper() != "NAN"]
+        qtd_encarregados_dash = len(encs_unicos_dash)
+        
+        qtd_mod_dash = len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"])
+        qtd_moi_dash = len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"])
+        total_mo_dash = qtd_mod_dash + qtd_moi_dash
+        pct_mod_dash = round((qtd_mod_dash / total_mo_dash * 100), 1) if total_mo_dash > 0 else 0.0
+        
+        qtd_funcoes_dash = len([f for f in df_dash["FUNÇÃO"].dropna().unique() if str(f).strip() != "" and str(f).upper() != "NAN"])
+        span_control = round(total_efetivo_dash / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0.0
+        
+        def card_kpi(titulo, valor, icone, cor):
+            return f"""<div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;"><p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p><h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2><div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div></div>"""
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        m1, m2, m3, m4, m5 = st.columns(5)
+        with m1: st.markdown(card_kpi(f"{t('Efetivo')} ({filtro_dash_mo})", total_efetivo_dash, "engineering", "#3b82f6"), unsafe_allow_html=True)
+        with m2: st.markdown(card_kpi(t("Encarregados"), qtd_encarregados_dash, "shield_person", "#10b981"), unsafe_allow_html=True)
+        with m3: st.markdown(card_kpi(t("% MOD"), f"{pct_mod_dash}%", "pie_chart", "#0ea5e9"), unsafe_allow_html=True)
+        with m4: st.markdown(card_kpi(t("Funções"), qtd_funcoes_dash, "build", "#f59e0b"), unsafe_allow_html=True)
+        with m5: st.markdown(card_kpi(t("Span of Control"), span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
+        
         # ==============================================================
         # BRIEFING MATINAL COM IA (PERSISTENTE POR DIA & EDITÁVEL)
         # ==============================================================
@@ -5391,6 +5089,15 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.info("👆 Selecione a data desejada e clique em **'⚡ Gerar / Recalcular com IA'** para montar e salvar o briefing deste dia.")
         st.markdown("---")
         
+        # Valores defensivos para evitar NameError quando um componente de filtro nao renderizar.
+        filtro_dash_local = locals().get("filtro_dash_local", "Geral")
+        filtro_dash_mo = locals().get("filtro_dash_mo", "Ambas")
+        df_dash = locals().get("df_dash", df_atual.copy())
+        qtd_mod_dash = locals().get("qtd_mod_dash", len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"]) if "MÃO DE OBRA" in df_dash.columns else 0)
+        qtd_moi_dash = locals().get("qtd_moi_dash", len(df_dash[df_dash["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"]) if "MÃO DE OBRA" in df_dash.columns else 0)
+        total_mo_dash = locals().get("total_mo_dash", qtd_mod_dash + qtd_moi_dash)
+        encs_unicos_dash = locals().get("encs_unicos_dash", [e for e in df_dash["ENCARREGADO"].dropna().unique() if eh_encarregado_valido(e)] if "ENCARREGADO" in df_dash.columns else [])
+
         col_dash1, col_dash2, col_dash3 = st.columns([3, 3, 4])
         
         with col_dash1:
@@ -5591,14 +5298,14 @@ Retorne apenas o JSON sem crases ou markdown."""
                         
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = st.session_state.df_historico_f1.copy()
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                ok, msg = salvar_f1_seguro(conn, df_novos, caminho_historico_f1_csv)
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
                                 if ok:
                                     st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
@@ -6264,14 +5971,14 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = st.session_state.df_historico_f1.copy()
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                ok, msg = salvar_f1_seguro(conn, df_novos, caminho_historico_f1_csv)
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
                                 if ok:
                                     st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
@@ -6579,7 +6286,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 if st.button("☁️ Puxar Histórico F1 da Nuvem", key="btn_puxar_f1_nuvem", use_container_width=True):
                     try:
                         if conn:
-                            df_nuvem = st.session_state.df_historico_f1.copy()
+                            df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
                             df_nuvem = df_nuvem.dropna(how='all')
                             if not df_nuvem.empty:
                                 st.session_state.df_historico_f1 = df_nuvem
@@ -7246,7 +6953,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
                                     dados['ITEM'] = int(ultimo_item) + 1
                                     st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame([dados])], ignore_index=True)
-                                    st.session_state.df_ia = preencher_caldeira_pelo_pde(st.session_state.df_ia, st.session_state.get("df", pd.DataFrame()))
 
                                 
                                 st.toast(f"✅ {nome_atual} processado com sucesso!")
@@ -7272,7 +6978,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.session_state.force_use_local = True
                 
             if not st.session_state.df_ia.empty:
-                st.session_state.df_ia = preencher_caldeira_pelo_pde(st.session_state.df_ia, st.session_state.get("df", pd.DataFrame()))
                 st.markdown("#### Dados Extraídos")
                 
                 lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
@@ -7411,14 +7116,14 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = st.session_state.df_historico_f1.copy()
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 else:
                                     df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 
-                                ok, msg = salvar_f1_seguro(conn, df_novos, caminho_historico_f1_csv)
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
                                 if ok:
                                     st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
@@ -7453,7 +7158,298 @@ Retorne apenas o JSON sem crases ou markdown."""
                         caldeira_count = caldeira_count.replace('', 'Não Identificada').value_counts()
                         st.bar_chart(caldeira_count, color="#f59e0b")
 
-    # Modulo removido.
+    with tab_ia_cc:
+        st.markdown("### Robô Atualizador de C.C (Google Gemini)")
+        st.markdown("Faça o upload dos PDFs aqui para o robô identificar o Local (PB/RB) e a Área (Estrutura, Tubulação, etc) e atualizar automaticamente o C.C. das equipes na base global do Google Sheets.")
+        
+        if HAS_GENAI:
+            chave_padrao = ""
+            try:
+                chave_padrao = st.secrets.get("GEMINI_API_KEY", "")
+            except Exception:
+                pass
+            
+            st.markdown("#### Configuração e Upload")
+            if not chave_padrao:
+                chave_padrao = st.text_input("🔑 Cole suas Chaves da API Gemini (separadas por vírgula):", type="password", help="Chave oculta e protegida.", key="chave_cc")
+            
+            arquivos_scan_cc = st.file_uploader("Upload de RDCs para atualização de C.C (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True, key="uploader_cc")
+                
+            btn_processar_cc = st.button("🚀 Atualizar C.C das Equipes com IA", type="primary", use_container_width=True)
+            
+            if btn_processar_cc and arquivos_scan_cc and chave_padrao:
+                old_cred = os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+                lista_chaves = [c.strip() for c in chave_padrao.split(",") if c.strip()]
+                idx_chave_atual = 0
+                client = genai.Client(api_key=lista_chaves[idx_chave_atual])
+                nomes_para_prompt = ", ".join(lista_encarregados_base)
+                
+                prompt_ia_cc = f"""
+                Analise este documento. Para CADA formulário de obra (RDC) encontrado no arquivo, extraia os dados.
+                REGRA IMPORTANTÍSSIMA: Retorne APENAS UM objeto JSON por formulário/página.
+                Retorne APENAS um array (lista) em formato JSON válido.
+                [
+                  {{
+                    "DISCIPLINA": "...",
+                    "ENCARREGADO": "...",
+                    "PROBLEMAS": "...",
+                    "LOCAL": "...",
+                    "AREA": "..."
+                  }}
+                ]
+
+                Regras de negócio:
+                - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL.
+                - ENCARREGADO: Extraia o nome do Encarregado escrito no papel. Compare com: [{nomes_para_prompt}]. Retorne EXATAMENTE o nome correspondente. Se ilegível, retorne 'AJUSTAR NOME'.
+                - CALDEIRA: Analise o RDC e classifique: 'caldeira de recuperação' / 'recovery boiler' / RB marcado → 'RB'. 'caldeira de força' / 'power boiler' / PB marcado → 'PB'. 'precipitador' / ESP → 'ESP'. Se nenhum → ''.
+                - LOCAL: Analise a imagem CUIDADOSAMENTE. Procure as opções 'PB ( )' e 'RB ( )'. Verifique se há um 'X', rabisco, visto ou marcação (mesmo que mal desenhada) dentro, em cima ou do lado dos parênteses. Retorne APENAS 'PB' ou 'RB'. Se nenhum, retorne ''.
+                - AREA: Analise as caixinhas de área na imagem com LUPA. Procure por qualquer marcação (X, visto, círculo, rabisco) dentro ou sobre os parênteses. Opções: DUTO, EQUIPAMENTO, TUBULAÇÃO, ESTRUTURA MET, PRECIPITADOR, PRESSAO - MEC, PRESSAO - TUBULACAO, PRESSAO - FORNALHA, PINTURA, SOPRAGEM, ANDAIME. Retorne EXATAMENTE a área marcada. Se nenhuma, retorne ''.
+
+                Apenas o JSON puro começando com [ e terminando com ].
+                """
+
+                # === ANIMAÇÃO PREMIUM DE LOADING ===
+                animacao_html = """
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; background: rgba(15,23,42,0.9); border: 1px solid #0ea5e9; border-radius: 15px; box-shadow: 0 0 30px rgba(14, 165, 233, 0.3); margin-bottom: 20px;">
+                    <div class="radar" style="position: relative; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(14,165,233,0.5); overflow: hidden; background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, rgba(15,23,42,0) 100%);">
+                        <div style="position: absolute; width: 50%; height: 50%; top: 0; left: 50%; transform-origin: bottom left; background: linear-gradient(45deg, rgba(14,165,233,0.9) 0%, transparent 50%); animation: radar-spin 1.5s linear infinite;"></div>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 14px; letter-spacing: 2px; text-shadow: 0 0 10px #0ea5e9; background: #0f172a; padding: 5px; border-radius: 5px;">ENESA</div>
+                        <div style="position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(14,165,233,0.4);"></div>
+                        <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(14,165,233,0.4);"></div>
+                        <div style="position: absolute; top: 20%; left: 20%; width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite;"></div>
+                        <div style="position: absolute; top: 70%; left: 60%; width: 4px; height: 4px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite 0.7s;"></div>
+                    </div>
+                    <p style="color: #0ea5e9; margin-top: 20px; font-weight: bold; font-size: 16px; animation: pulse 1s infinite; margin-bottom: 0;">🤖 IA Atualizando Centros de Custo...</p>
+                    <style>
+                        @keyframes radar-spin { 100% { transform: rotate(360deg); } }
+                        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+                        @keyframes blip { 0%, 100% { opacity: 0; } 10% { opacity: 1; } }
+                    </style>
+                </div>
+                """
+                animacao_placeholder_cc = st.empty()
+                animacao_placeholder_cc.markdown(animacao_html, unsafe_allow_html=True)
+
+                with st.status("🤖 Atualizando C.C das equipes...", expanded=True) as status_cc:
+                    progresso = st.progress(0)
+                    total_arquivos = len(arquivos_scan_cc)
+                    houve_atualizacao_global = False
+                    
+                    for i, arquivo_scan in enumerate(arquivos_scan_cc):
+                        status_cc.update(label=f"Processando arquivo {i+1} de {total_arquivos}: {arquivo_scan.name}...", state="running")
+                    
+                    try:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{arquivo_scan.name.split('.')[-1]}") as tmp:
+                            tmp.write(arquivo_scan.getvalue())
+                            tmp_path = tmp.name
+                            
+                        max_tentativas = 3
+                        sucesso_arquivo = False
+                        for tentativa in range(max_tentativas):
+                            try:
+                                arquivo_up = client.files.upload(file=tmp_path)
+                                
+                                resposta = client.models.generate_content(
+                                    model=st.session_state.get('modelo_gemini', 'gemini-3.7-flash'),
+                                    contents=[arquivo_up, prompt_ia_cc],
+                                    config=genai.types.GenerateContentConfig(
+                                        response_mime_type="application/json",
+                                        response_schema=list[RDC_CC_Schema],
+                                        temperature=0.0
+                                    )
+                                )
+                                
+                                if old_cred:
+                                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = old_cred
+
+                                texto_json = resposta.text.strip()
+                                if "```json" in texto_json:
+                                    texto_json = texto_json.split("```json")[1].split("```")[0].strip()
+                                elif "```" in texto_json:
+                                    texto_json = texto_json.split("```")[1].split("```")[0].strip()
+                                
+                                start_idx = max(0, texto_json.find('[')) if '[' in texto_json else max(0, texto_json.find('{'))
+                                end_idx = max(texto_json.rfind(']'), texto_json.rfind('}'))
+                                if end_idx > start_idx:
+                                    texto_json = texto_json[start_idx:end_idx+1]
+
+                                try:
+                                    dados_extraidos_lista = json.loads(texto_json)
+                                except json.JSONDecodeError as err_json:
+                                    import ast
+                                    import re
+                                    texto_fix = texto_json.replace("null", "None").replace("true", "True").replace("false", "False")
+                                    texto_fix = re.sub(r'\}\s*\{', '}, {', texto_fix)
+                                    texto_fix = re.sub(r'\]\s*\[', '], [', texto_fix)
+                                    texto_fix = re.sub(r'("|\]|\})\s+(")', r'\1, \2', texto_fix)
+                                    try:
+                                        dados_extraidos_lista = ast.literal_eval(texto_fix)
+                                    except SyntaxError:
+                                        try:
+                                            dados_extraidos_lista = ast.literal_eval(texto_fix + '"}]')
+                                        except:
+                                            raise err_json
+                                    except:
+                                        raise err_json
+                                if isinstance(dados_extraidos_lista, dict):
+                                    dados_extraidos_lista = [dados_extraidos_lista]
+                                    
+                                for dados in dados_extraidos_lista:
+                                    # === ATUALIZAR C.C. COMPLETO NA BASE ===
+                                    local_bruto = str(dados.get('LOCAL', '')).strip().upper()
+                                    area_bruta = str(dados.get('AREA', '')).strip().upper()
+                                    disciplina_lida = str(dados.get('DISCIPLINA', '')).strip().upper()
+                                    enc_lido = str(dados.get('ENCARREGADO', '')).strip().upper()
+                                    
+                                    local_lido = ''
+                                    if 'PB' in local_bruto: local_lido = 'PB'
+                                    elif 'RB' in local_bruto: local_lido = 'RB'
+                                    if not local_lido:
+                                        cald = str(dados.get('CALDEIRA', '')).strip().upper()
+                                        if 'PB' in cald: local_lido = 'PB'
+                                        elif 'RB' in cald: local_lido = 'RB'
+                                    
+                                    area_lida = ''
+                                    # 1. Tenta achar na área bruta (exato ou contendo)
+                                    chaves_ordenadas = sorted(mapa_area_sufixo.keys(), key=len, reverse=True)
+                                    for k in chaves_ordenadas:
+                                        if k in area_bruta:
+                                            area_lida = k
+                                            break
+                                            
+                                    # 2. Se não achar, procura na disciplina (cuidado com falsos positivos de 'ESP')
+                                    if not area_lida:
+                                        import re
+                                        for k in chaves_ordenadas:
+                                            if k == 'ESP':
+                                                if re.search(r'\bESP\b', disciplina_lida):
+                                                    area_lida = k
+                                                    break
+                                            elif k in disciplina_lida:
+                                                area_lida = k
+                                                break
+                                            
+                                    if enc_lido and enc_lido != 'AJUSTAR NOME' and 'C.C' in df_atual.columns:
+                                        encarregados_unicos = df_atual['ENCARREGADO'].dropna().unique()
+                                        enc_encontrado = None
+                                        
+                                        for e in encarregados_unicos:
+                                            if str(e).strip().upper() == enc_lido:
+                                                enc_encontrado = e
+                                                break
+                                        if not enc_encontrado:
+                                            for e in encarregados_unicos:
+                                                if enc_lido in str(e).upper():
+                                                    enc_encontrado = e
+                                                    break
+                                        if not enc_encontrado:
+                                            import difflib
+                                            matches = difflib.get_close_matches(enc_lido, [str(e).upper() for e in encarregados_unicos], n=1, cutoff=0.6)
+                                            if matches:
+                                                for e in encarregados_unicos:
+                                                    if str(e).upper() == matches[0]:
+                                                        enc_encontrado = e
+                                                        break
+                                                        
+                                        if enc_encontrado:
+                                            mask_enc = df_atual['ENCARREGADO'] == enc_encontrado
+                                            atualizado = False
+                                            
+                                            if local_lido in ['PB', 'RB']:
+                                                prefixo_novo = '125.02' if local_lido == 'PB' else '125.01'
+                                                sufixo = mapa_area_sufixo.get(area_lida, '')
+                                                
+                                                if sufixo:
+                                                    cc_novo = f"{prefixo_novo}.{sufixo}"
+                                                    df_atual.loc[mask_enc, 'C.C'] = cc_novo
+                                                    atualizado = True
+                                                    st.toast(f"✅ C.C. de TODA A EQUIPE de {enc_encontrado} → {cc_novo}")
+                                                else:
+                                                    if local_lido == 'PB':
+                                                        df_atual.loc[mask_enc, 'C.C'] = df_atual.loc[mask_enc, 'C.C'].str.replace('125.01.', '125.02.', regex=False)
+                                                    else:
+                                                        df_atual.loc[mask_enc, 'C.C'] = df_atual.loc[mask_enc, 'C.C'].str.replace('125.02.', '125.01.', regex=False)
+                                                    atualizado = True
+                                                    st.toast(f"⚠️ C.C. de TODA A EQUIPE de {enc_encontrado} atualizado parcialmente → {local_lido} (manteve sufixo)")
+                                            else:
+                                                st.warning(f"❌ C.C não atualizado para a equipe de {enc_encontrado}: O robô não conseguiu identificar se o local era PB ou RB.")
+                                            
+                                            if atualizado:
+                                                st.session_state.df = df_atual.copy()
+                                                houve_atualizacao_global = True
+                                        else:
+                                            st.error(f"❌ Encarregado '{enc_lido}' não encontrado na base. Equipe não atualizada.")
+
+                                sucesso_arquivo = True
+                                break 
+
+                            except Exception as inner_e:
+                                erro_str = str(inner_e)
+                                if '429' in erro_str or 'RESOURCE_EXHAUSTED' in erro_str:
+                                    if tentativa < max_tentativas - 1:
+                                        if idx_chave_atual < len(lista_chaves) - 1:
+                                            idx_chave_atual += 1
+                                            client = genai.Client(api_key=lista_chaves[idx_chave_atual])
+                                            st.warning(f"🔄 Limite atingido na chave atual. Trocando para a chave reserva {idx_chave_atual + 1}/{len(lista_chaves)}...")
+                                            time.sleep(2)
+                                            continue
+                                        else:
+                                            st.warning(f"⏳ Cota do Google atingida em todas as chaves. Aguardando 60 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                            time.sleep(60)
+                                            continue
+                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
+                                    if tentativa < max_tentativas - 1:
+                                        st.warning(f"⏳ Servidores da IA sobrecarregados. Tentando novamente em 10 segundos... (Tentativa {tentativa+1}/{max_tentativas})")
+                                        time.sleep(10)
+                                        continue
+                                        
+                                msg_erro = f"Erro detalhado na IA: {inner_e}"
+                                try:
+                                    modelos = [m.name for m in client.models.list()]
+                                    msg_erro += f" | Modelos liberados: {modelos}"
+                                except:
+                                    pass
+                                st.error(msg_erro)
+                                break
+                                    
+                        os.remove(tmp_path)
+                        
+                        if sucesso_arquivo:
+                            st.toast(f"✅ {arquivo_scan.name} processado com sucesso!")
+                        else:
+                            st.toast(f"❌ Falha ao processar {arquivo_scan.name}.")
+                            st.session_state.teve_falha_ia_cc = True
+                            
+                    except Exception as e:
+                        st.error(f"Erro no envio do arquivo {arquivo_scan.name}: {e}")
+                        st.session_state.teve_falha_ia_cc = True
+                        
+                    progresso.progress((i + 1) / total_arquivos)
+
+                expandir_status = st.session_state.get('teve_falha_ia_cc', False)
+                status_cc.update(label="✅ Atualização de C.Cs concluída!" if not expandir_status else "⚠️ Leitura finalizada com erros", state="complete", expanded=expandir_status)
+                animacao_placeholder_cc.empty()
+                st.session_state.teve_falha_ia_cc = False
+                
+                if houve_atualizacao_global:
+                    try:
+                        df_atual = preparar_dataframe(df_atual)
+                        st.session_state.df = df_atual.copy()
+                        
+                        status_cc.update(label="Sincronizando C.Cs atualizados com a nuvem...", state="running")
+                        conn_update = st.connection("gsheets", type=GSheetsConnection)
+                        conn_update.update(worksheet="PDE", data=df_atual)
+                        st.cache_data.clear()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar na nuvem: {e}")
+
+                status_cc.update(label="🎉 Atualização de C.Cs concluída!", state="complete", expanded=False)
+                time.sleep(2)
+                st.session_state.force_use_local = True
+                st.rerun()
+                
+                st.dataframe(df_filtrado, use_container_width=True)
+
     with tab_cc:
         st.markdown("### 💰 Controle de Centro de Custo (C.C)")
         
@@ -7779,9 +7775,679 @@ Retorne apenas o JSON sem crases ou markdown."""
             else:
                 st.info("Nenhum colaborador encontrado para este Centro de Custo.")
 
-    # Modulo removido.
-    # Modulo removido.
-    # Modulo removido.
+    with tab_rdc_digital:
+        st.markdown("### <span class='material-symbols-rounded' style='vertical-align: middle; color: #0ea5e9; font-size: 32px;'>edit_document</span> Lançamento de RDC Digital", unsafe_allow_html=True)
+        st.caption("Preencha as informações do seu dia de trabalho seguindo as 3 etapas abaixo. Os dados serão salvos na nuvem.")
+        
+        with st.form("form_rdc_digital"):
+            tab_id, tab_local, tab_ativ = st.tabs(["1️⃣ Identificação", "2️⃣ Localização", "3️⃣ Atividades e Envio"])
+            
+            with tab_id:
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Quem é você e qual seu turno?</p>", unsafe_allow_html=True)
+                rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
+                rdc_turno = st.selectbox("Turno de Trabalho:", ["1º TURNO", "2º TURNO", "3º TURNO", "DIURNO", "NOTURNO", "MISTO"])
+                
+            with tab_local:
+                import datetime
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Onde você trabalhou hoje?</p>", unsafe_allow_html=True)
+                
+                rdc_data = st.date_input("Data do Relatório:", datetime.date.today())
+                
+                area_options = ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OUTRO (DIGITAR)"]
+                area_sel = st.selectbox("Área / Local de Trabalho:", area_options, key="area_sel_adm")
+                rdc_area = area_sel
+                if area_sel == "OUTRO (DIGITAR)":
+                    rdc_area = st.text_input("Qual Área/Local?", placeholder="Ex: Escritório, Almoxarifado...", key="rdc_area_outro_adm")
+                
+                rdc_elevacao = st.text_input("Elevação (Campo Aberto - Opcional):", placeholder="Ex: 16m, 24.000, 30.100, Nível 0...", key="rdc_elevacao_adm")
+                
+                disc_options = [
+                    "EQUIPAMENTOS", "DUTOS", "TUBULACAO", "ESTRUTURA METALICA", "PRECIPITADOR", 
+                    "PRESSAO - MECANICA", "PRESSAO - TUBULACAO", "PRESSAO - FORNALHA", "PINTURA", 
+                    "COMISSIONAMENTO", "OP. ASSISTIDA", "LAVAGEM QUIMICA", "SOPRAGEM", "ANDAIME", 
+                    "OPERADORES", "FORA DE ESCOPO", "GERENCIA", "PRODUCAO", "GARANTIA DA QUALIDADE", 
+                    "PLANEJAMENTO", "ADMINISTRACAO", "SEGURANCA E MEDICINA DO TRABALHO", "INFRAESTRUTURA", 
+                    "ALMOXARIFADO ENESA", "ALMOXARIFADO MATERIAIS", "MANUT. ELETRICA PROVISORIA", 
+                    "TOPOGRAFIA", "MOVIMENTACAO DE CARGAS", "MEDICAO/CUSTO/CONTRATOS", "CIVIL", "MECÂNICA", "ELÉTRICA", "INSTRUMENTAÇÃO", "ISOLAMENTO", "OUTRA (DIGITAR)"
+                ]
+                disc_sel = st.selectbox("Disciplina Principal:", disc_options)
+                
+                rdc_disciplina = disc_sel
+                if disc_sel == "OUTRA (DIGITAR)":
+                    rdc_disciplina = st.text_input("Qual Disciplina?", placeholder="Ex: Tubulação, Solda...")
+                    
+            with tab_ativ:
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>O que foi executado?</p>", unsafe_allow_html=True)
+                rdc_dds = st.text_input("Tópico do DDS do dia:")
+                rdc_atividades = st.text_area("Atividades Executadas (Detalhe os serviços feitos pela equipe):", height=150)
+                rdc_problemas = st.text_area("Problemas / Interrupções / Ocorrências (Opcional):", height=68)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                submit_rdc = st.form_submit_button("🚀 Salvar e Enviar RDC na Nuvem", use_container_width=True, type="primary")
+            
+            if submit_rdc:
+                if not rdc_encarregado:
+                    st.error("⚠️ Por favor, selecione o nome do Encarregado.")
+                elif not rdc_atividades.strip():
+                    st.error("⚠️ Por favor, preencha as Atividades Executadas.")
+                elif disc_sel == "OUTRA (DIGITAR)" and not rdc_disciplina.strip():
+                    st.error("⚠️ Digite a disciplina na caixa 'Qual Disciplina?'.")
+                else:
+                    rdc_json = [{
+                        "ENCARREGADO": rdc_encarregado,
+                        "DATA": rdc_data.strftime("%Y/%m/%d"),
+                        "TURNO": rdc_turno,
+                        "AREA": rdc_area.strip().upper(),
+                        "DISCIPLINA": rdc_disciplina.strip().upper(),
+                        "DDS": rdc_dds.strip(),
+                        "ATIVIDADE": rdc_atividades.strip(),
+                        "CALDEIRA": rdc_problemas.strip(),
+                        "PROBLEMAS": rdc_problemas.strip()
+                    }]
+                    
+                    import json
+                    import requests
+                    
+                    WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+                    
+                    try:
+                        with st.spinner("Enviando dados para a nuvem..."):
+                            res = requests.post(WEBHOOK_URL, json=rdc_json, allow_redirects=True)
+                        if res.status_code == 200:
+                            st.toast(f"RDC Digital de {rdc_encarregado} salvo com sucesso na Nuvem!", icon="✅")
+                            st.info("Para visualizar na tabela da IA, clique em 'Puxar Dados Automáticos' abaixo.")
+                        else:
+                            st.error(f"❌ Erro ao enviar. Servidor retornou: {res.text}")
+                    except Exception as e:
+                        st.error(f"❌ Falha de conexão: {e}")
+        
+
+        st.markdown("---")
+        st.markdown("### 📥 Sincronização de RDCs (Nuvem)")
+        st.caption("Clique no botão abaixo para puxar todos os RDCs lançados pelos encarregados no sistema.")
+        
+        WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+        
+        if st.button("🔄 Puxar Dados Automáticos (Google Sheets)", type="primary", use_container_width=True):
+            with st.spinner("Conectando ao Banco de Dados na Nuvem..."):
+                try:
+                    import requests
+                    response = requests.get(WEBHOOK_URL, timeout=15)
+                    
+                    if response.status_code == 200:
+                        dados_offline = response.json()
+                        
+                        if isinstance(dados_offline, list) and len(dados_offline) > 0:
+                            if 'df_ia' not in st.session_state:
+                                st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+                                
+                            ultimo_item = st.session_state.df_ia['ITEM'].max() if not st.session_state.df_ia.empty and pd.notna(st.session_state.df_ia['ITEM'].max()) else 0
+                            
+                            novos_registros = []
+                            for r in dados_offline:
+                                ultimo_item += 1
+                                novo_reg = {
+                                    'ITEM': ultimo_item,
+                                    'DATA': r.get('DATA', ''),
+                                    'DISCIPLINA': str(r.get('DISCIPLINA', '')).strip().upper(),
+                                    'ENCARREGADO': r.get('ENCARREGADO', ''),
+                                    'TURNO': r.get('TURNO', ''),
+                                    'DDS': r.get('TOPICO_DDS', r.get('DDS', '')),
+                                    'ATIVIDADE': r.get('ATIVIDADES', r.get('ATIVIDADE', '')),
+                                    'PROBLEMAS': r.get('PROBLEMAS', r.get('CALDEIRA', '')),
+                                    'LOCAL': str(r.get('AREA', '')).strip().upper(),
+                                    'AREA': str(r.get('AREA', '')).strip().upper()
+                                }
+                                novos_registros.append(novo_reg)
+                                
+                            st.session_state.df_ia = pd.concat([st.session_state.df_ia, pd.DataFrame(novos_registros)], ignore_index=True)
+                            st.success(f"📦 Sincronização Automática concluída! {len(novos_registros)} RDCs puxados do Google Sheets com sucesso.")
+                            st.balloons()
+                        else:
+                            st.info("👍 Nenhum RDC novo pendente no Google Sheets no momento.")
+                    else:
+                        st.error(f"❌ Erro de conexão. Código HTTP: {response.status_code}")
+                except Exception as e:
+                    st.error(f"❌ Falha de rede ao tentar conectar com a nuvem: {e}")
+
+    # ==============================================================
+    # ABA 10: GERENCIAR PDE
+    # ==============================================================
+    with tab_pde:
+        st.markdown("### 👷 Gerenciar PDE — Base de Funcionários")
+        st.markdown("Visualize, edite e exporte a base completa de efetivo.")
+
+        # Filters
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            encarregado_filtro = st.selectbox("Encarregado", options=["Todos"] + sorted(list(df_atual["ENCARREGADO"].dropna().unique())), key="pde_enc_filtro")
+        with col2:
+            disciplina_filtro = st.selectbox("Disciplina", options=["Todos"] + sorted(list(df_atual["DISCIPLINA"].dropna().unique())), key="pde_disc_filtro")
+        with col3:
+            status_filtro = st.selectbox("Status", options=["Todos"] + sorted(list(df_atual["STATUS"].dropna().unique())), key="pde_status_filtro")
+
+        # Apply filters
+        df_pde_filtrado = df_atual.copy()
+        if encarregado_filtro != "Todos":
+            df_pde_filtrado = df_pde_filtrado[df_pde_filtrado["ENCARREGADO"] == encarregado_filtro]
+        if disciplina_filtro != "Todos":
+            df_pde_filtrado = df_pde_filtrado[df_pde_filtrado["DISCIPLINA"] == disciplina_filtro]
+        if status_filtro != "Todos":
+            df_pde_filtrado = df_pde_filtrado[df_pde_filtrado["STATUS"] == status_filtro]
+
+        # Summary Metrics
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total de Funcionários", len(df_pde_filtrado))
+        m2.metric("Total de Encarregados", df_pde_filtrado["ENCARREGADO"].nunique())
+        m3.metric("Total de C.C", df_pde_filtrado["C.C"].nunique())
+        
+        # Detectar colaboradores sem encarregado
+        mask_sem_enc = (
+            df_atual["ENCARREGADO"].isna() | 
+            (df_atual["ENCARREGADO"].astype(str).str.strip() == "") | 
+            (df_atual["ENCARREGADO"].astype(str).str.strip().str.upper() == "NAN") |
+            (df_atual["ENCARREGADO"].astype(str).str.strip() == "-") |
+            (df_atual["ENCARREGADO"].astype(str).str.strip() == "0")
+        )
+        df_sem_encarregado = df_atual[mask_sem_enc]
+        qtd_sem = len(df_sem_encarregado)
+        
+        # Métrica com destaque vermelho se houver
+        if qtd_sem > 0:
+            m4.metric("⚠️ Sem Encarregado", qtd_sem)
+        else:
+            m4.metric("✅ Sem Encarregado", 0)
+        
+        # Alerta e tabela expansível
+        if qtd_sem > 0:
+            st.warning(f"⚠️ **{qtd_sem} colaborador(es) estão SEM ENCARREGADO definido!** Clique abaixo para ver a lista.")
+            with st.expander(f"👁️ Ver {qtd_sem} Colaboradores sem Encarregado", expanded=False):
+                colunas_mostrar = ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "DISCIPLINA", "STATUS"]
+                colunas_existentes = [c for c in colunas_mostrar if c in df_sem_encarregado.columns]
+                st.dataframe(
+                    df_sem_encarregado[colunas_existentes].reset_index(drop=True),
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # Botão para exportar a lista
+                csv_sem_enc = df_sem_encarregado[colunas_existentes].to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 Baixar Lista (CSV)",
+                    data=csv_sem_enc,
+                    file_name="colaboradores_sem_encarregado.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+        # ==============================================================
+        # QUADRO DE FUNÇÕES POR DISCIPLINA
+        # ==============================================================
+        st.markdown("---")
+        st.markdown("#### 📊 Quantidade de Funções por Disciplina")
+        
+        if "DISCIPLINA" in df_atual.columns and "FUNÇÃO" in df_atual.columns:
+            # Tabela pivot: Disciplina x Função com contagem
+            df_pivot = df_atual.groupby(["DISCIPLINA", "FUNÇÃO"]).size().reset_index(name="QTD")
+            df_pivot = df_pivot.sort_values(["DISCIPLINA", "QTD"], ascending=[True, False])
+            
+            # Resumo por disciplina (total de pessoas e total de funções distintas)
+            df_resumo_disc = df_atual.groupby("DISCIPLINA").agg(
+                Total_Pessoas=("NOME", "count"),
+                Total_Funcoes=("FUNÇÃO", "nunique")
+            ).reset_index().sort_values("Total_Pessoas", ascending=False)
+            
+            # Mostrar tabela resumo
+            st.dataframe(
+                df_resumo_disc.rename(columns={
+                    "DISCIPLINA": "Disciplina",
+                    "Total_Pessoas": "👷 Pessoas",
+                    "Total_Funcoes": "🔧 Funções Distintas"
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Detalhamento por disciplina (expansível)
+            disciplinas_unicas = df_resumo_disc["DISCIPLINA"].tolist()
+            
+            with st.expander(f"🔍 Ver Detalhamento ({len(disciplinas_unicas)} disciplinas)", expanded=False):
+                disc_selecionada = st.selectbox("Selecione a Disciplina:", disciplinas_unicas, key="sel_disc_detalhe")
+                
+                df_detalhe = df_pivot[df_pivot["DISCIPLINA"] == disc_selecionada][["FUNÇÃO", "QTD"]].reset_index(drop=True)
+                total_disc = df_detalhe["QTD"].sum()
+                
+                st.markdown(f"**{disc_selecionada}** — {total_disc} pessoas em {len(df_detalhe)} função(ões)")
+                st.dataframe(
+                    df_detalhe.rename(columns={"FUNÇÃO": "Função", "QTD": "Quantidade"}),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            
+            # ========== BOTÃO BAIXAR EXCEL COM TABELA DINÂMICA ==========
+            st.markdown("")
+            if st.button("📥 Baixar Tabela Dinâmica em Excel", use_container_width=True, key="btn_baixar_pivot_excel"):
+                try:
+                    from openpyxl import Workbook
+                    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                    from openpyxl.utils import get_column_letter
+                    
+                    wb_pv = Workbook()
+                    
+                    # ---- ABA 1: TABELA DINÂMICA (Matriz Disciplina x Função) ----
+                    ws_pivot = wb_pv.active
+                    ws_pivot.title = "Tabela Dinamica"
+                    
+                    todas_funcoes = sorted(df_atual["FUNÇÃO"].dropna().unique())
+                    todas_disciplinas = sorted(df_atual["DISCIPLINA"].dropna().unique())
+                    
+                    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+                    header_font = Font(bold=True, color="FFFFFF", size=11)
+                    total_fill = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+                    total_font = Font(bold=True, size=11)
+                    borda = Border(
+                        left=Side(style="thin"), right=Side(style="thin"),
+                        top=Side(style="thin"), bottom=Side(style="thin")
+                    )
+                    
+                    # Título
+                    ws_pivot.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(todas_disciplinas) + 2)
+                    ws_pivot.cell(row=1, column=1, value="TABELA DINAMICA - FUNCOES POR DISCIPLINA")
+                    ws_pivot.cell(row=1, column=1).font = Font(bold=True, size=14, color="1F4E79")
+                    ws_pivot.cell(row=1, column=1).alignment = Alignment(horizontal="center")
+                    
+                    # Cabeçalhos
+                    ws_pivot.cell(row=3, column=1, value="FUNCAO")
+                    ws_pivot.cell(row=3, column=1).font = header_font
+                    ws_pivot.cell(row=3, column=1).fill = header_fill
+                    ws_pivot.cell(row=3, column=1).border = borda
+                    ws_pivot.column_dimensions["A"].width = 40
+                    
+                    for j, disc in enumerate(todas_disciplinas):
+                        col = j + 2
+                        ws_pivot.cell(row=3, column=col, value=disc)
+                        ws_pivot.cell(row=3, column=col).font = header_font
+                        ws_pivot.cell(row=3, column=col).fill = header_fill
+                        ws_pivot.cell(row=3, column=col).alignment = Alignment(horizontal="center")
+                        ws_pivot.cell(row=3, column=col).border = borda
+                        ws_pivot.column_dimensions[get_column_letter(col)].width = 18
+                    
+                    col_total = len(todas_disciplinas) + 2
+                    ws_pivot.cell(row=3, column=col_total, value="TOTAL")
+                    ws_pivot.cell(row=3, column=col_total).font = header_font
+                    ws_pivot.cell(row=3, column=col_total).fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    ws_pivot.cell(row=3, column=col_total).alignment = Alignment(horizontal="center")
+                    ws_pivot.cell(row=3, column=col_total).border = borda
+                    ws_pivot.column_dimensions[get_column_letter(col_total)].width = 12
+                    
+                    # Dados
+                    lookup = df_pivot.set_index(["FUNÇÃO", "DISCIPLINA"])["QTD"]
+                    
+                    for i, func in enumerate(todas_funcoes):
+                        row = i + 4
+                        ws_pivot.cell(row=row, column=1, value=func)
+                        ws_pivot.cell(row=row, column=1).border = borda
+                        total_linha = 0
+                        
+                        for j, disc in enumerate(todas_disciplinas):
+                            col = j + 2
+                            try:
+                                qtd = int(lookup.get((func, disc), 0))
+                            except Exception:
+                                qtd = 0
+                            if qtd > 0:
+                                ws_pivot.cell(row=row, column=col, value=qtd)
+                            ws_pivot.cell(row=row, column=col).alignment = Alignment(horizontal="center")
+                            ws_pivot.cell(row=row, column=col).border = borda
+                            total_linha += qtd
+                        
+                        ws_pivot.cell(row=row, column=col_total, value=total_linha)
+                        ws_pivot.cell(row=row, column=col_total).font = Font(bold=True)
+                        ws_pivot.cell(row=row, column=col_total).alignment = Alignment(horizontal="center")
+                        ws_pivot.cell(row=row, column=col_total).border = borda
+                    
+                    # Linha TOTAL
+                    row_total = len(todas_funcoes) + 4
+                    ws_pivot.cell(row=row_total, column=1, value="TOTAL GERAL")
+                    ws_pivot.cell(row=row_total, column=1).font = total_font
+                    ws_pivot.cell(row=row_total, column=1).fill = total_fill
+                    ws_pivot.cell(row=row_total, column=1).border = borda
+                    grande_total = 0
+                    
+                    for j, disc in enumerate(todas_disciplinas):
+                        col = j + 2
+                        soma_col = sum(int(lookup.get((f, disc), 0)) for f in todas_funcoes)
+                        ws_pivot.cell(row=row_total, column=col, value=soma_col)
+                        ws_pivot.cell(row=row_total, column=col).font = total_font
+                        ws_pivot.cell(row=row_total, column=col).fill = total_fill
+                        ws_pivot.cell(row=row_total, column=col).alignment = Alignment(horizontal="center")
+                        ws_pivot.cell(row=row_total, column=col).border = borda
+                        grande_total += soma_col
+                    
+                    ws_pivot.cell(row=row_total, column=col_total, value=grande_total)
+                    ws_pivot.cell(row=row_total, column=col_total).font = Font(bold=True, color="FFFFFF", size=12)
+                    ws_pivot.cell(row=row_total, column=col_total).fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    ws_pivot.cell(row=row_total, column=col_total).alignment = Alignment(horizontal="center")
+                    ws_pivot.cell(row=row_total, column=col_total).border = borda
+                    
+                    # ---- ABA 2: DETALHADO ----
+                    ws_det = wb_pv.create_sheet("Detalhado")
+                    ws_det.append(["DISCIPLINA", "FUNCAO", "QUANTIDADE"])
+                    for cell in ws_det[1]:
+                        cell.font = header_font
+                        cell.fill = header_fill
+                        cell.border = borda
+                    for _, r in df_pivot.iterrows():
+                        ws_det.append([r["DISCIPLINA"], r["FUNÇÃO"], r["QTD"]])
+                    ws_det.column_dimensions["A"].width = 30
+                    ws_det.column_dimensions["B"].width = 40
+                    ws_det.column_dimensions["C"].width = 15
+                    
+                    # ---- ABA 3: RESUMO ----
+                    ws_res = wb_pv.create_sheet("Resumo")
+                    ws_res.append(["DISCIPLINA", "TOTAL PESSOAS", "FUNCOES DISTINTAS"])
+                    for cell in ws_res[1]:
+                        cell.font = header_font
+                        cell.fill = header_fill
+                        cell.border = borda
+                    for _, r in df_resumo_disc.iterrows():
+                        ws_res.append([r["DISCIPLINA"], r["Total_Pessoas"], r["Total_Funcoes"]])
+                    ws_res.column_dimensions["A"].width = 30
+                    ws_res.column_dimensions["B"].width = 18
+                    ws_res.column_dimensions["C"].width = 22
+                    
+                    buf_pivot = io.BytesIO()
+                    wb_pv.save(buf_pivot)
+                    wb_pv.close()
+                    buf_pivot.seek(0)
+                    
+                    st.download_button(
+                        label="⬇️ Clique aqui para Baixar",
+                        data=buf_pivot,
+                        file_name=f"Tabela_Dinamica_Funcoes_{datetime.datetime.now().strftime('%d_%m_%Y')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        key="btn_download_pivot_file"
+                    )
+                    st.success("✅ Planilha gerada com 3 abas: Tabela Dinâmica, Detalhado e Resumo!")
+                except Exception as e:
+                    st.error(f"Erro ao gerar Excel: {e}")
+        else:
+            st.info("ℹ️ As colunas DISCIPLINA e FUNÇÃO não foram encontradas no PDE.")
+        
+        st.markdown("---")
+
+        # Editable data
+        st.markdown("#### Base Atual")
+        colunas_pde = ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "ENCARREGADO", "TURNO", "STATUS", "DISCIPLINA", "MÃO DE OBRA"]
+        colunas_pde_existentes = [c for c in colunas_pde if c in df_pde_filtrado.columns]
+        df_editado_pde = st.data_editor(
+            df_pde_filtrado[colunas_pde_existentes],
+            key="editor_pde",
+            use_container_width=True
+        )
+
+        # Add employee
+        with st.expander("➕ Adicionar Funcionário"):
+            with st.form("form_add_func"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    new_mat = st.text_input("MATRICULA")
+                    new_nome = st.text_input("NOME")
+                    new_funcao = st.text_input("FUNÇÃO")
+                with c2:
+                    new_cc = st.text_input("C.C")
+                    new_enc = st.text_input("ENCARREGADO")
+                    new_turno = st.text_input("TURNO")
+                with c3:
+                    new_status = st.text_input("STATUS", value="ATIVO")
+                    new_disc = st.text_input("DISCIPLINA")
+                    new_mo = st.text_input("MÃO DE OBRA")
+
+                submitted_add = st.form_submit_button("➕ Adicionar ao Sistema")
+                if submitted_add:
+                    try:
+                        novo_dado = pd.DataFrame([{
+                            "MATRICULA": new_mat, "NOME": new_nome, "FUNÇÃO": new_funcao,
+                            "C.C": new_cc, "ENCARREGADO": new_enc, "TURNO": new_turno,
+                            "STATUS": new_status, "DISCIPLINA": new_disc, "MÃO DE OBRA": new_mo
+                        }])
+                        st.session_state.df = pd.concat([df_atual, novo_dado], ignore_index=True)
+                        st.session_state.df.to_csv(caminho_base_salva_csv, index=False)
+                        st.success("✅ Funcionário adicionado com sucesso!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar: {e}")
+
+        # Action Buttons
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button("💾 Salvar Alterações na PDE", key="btn_salvar_pde", type="primary", use_container_width=True):
+                try:
+                    # Atualizar o DataFrame principal com as edições
+                    for col in colunas_pde_existentes:
+                        if col in df_editado_pde.columns:
+                            df_pde_filtrado[col] = df_editado_pde[col].values
+                    # Aplicar de volta no df_atual
+                    df_atual.update(df_pde_filtrado)
+                    df_atual.to_csv(caminho_base_salva_csv, index=False)
+                    st.session_state.df = df_atual
+                    try:
+                        if conn:
+                            conn.update(worksheet="PDE", data=df_atual)
+                            st.toast("☁️ Sincronizado com Google Sheets!", icon="✅")
+                    except Exception as e_gs:
+                        st.error(f"⚠️ Erro ao salvar no Google Sheets: {e_gs}")
+                    st.success("✅ Alterações salvas com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
+
+        with b2:
+            if st.button("🔄 Puxar do Google Sheets", key="btn_sync_pde", use_container_width=True):
+                try:
+                    if conn:
+                        df_gs = conn.read(worksheet="PDE", ttl=0)
+                        df_gs = df_gs.dropna(how='all')
+                        df_gs.to_csv(caminho_base_salva_csv, index=False)
+                        st.success("✅ Dados sincronizados do Google Sheets!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.warning("Conexão com Google Sheets não disponível.")
+                except Exception as e:
+                    st.error(f"Erro ao sincronizar: {e}")
+
+        with b3:
+            try:
+                buffer_pde = io.BytesIO()
+                with pd.ExcelWriter(buffer_pde, engine='openpyxl') as writer:
+                    df_pde_filtrado.to_excel(writer, index=False, sheet_name='PDE')
+                st.download_button(
+                    label="⬇️ Exportar Excel",
+                    data=buffer_pde.getvalue(),
+                    file_name="Base_PDE_Filtrada.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_export_pde",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Erro ao gerar Excel: {e}")
+
+    # ==============================================================
+    # ABA 11: BANCO DE RDCs
+    # ==============================================================
+    with tab_banco_rdc:
+        st.markdown("### 📑 Banco de RDCs — Histórico Completo")
+        st.markdown("Todos os RDCs lidos pela IA, salvos permanentemente no sistema.")
+
+        try:
+            if os.path.exists(caminho_rdc_registros_csv):
+                df_rdc_banco = pd.read_csv(caminho_rdc_registros_csv)
+
+                if not df_rdc_banco.empty:
+                    # Filters
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        data_inicio_rdc = st.date_input("De:", value=None, key="rdc_data_de")
+                    with c2:
+                        data_fim_rdc = st.date_input("Até:", value=None, key="rdc_data_ate")
+                    with c3:
+                        encarregados_rdc = ["Todos"] + sorted(list(df_rdc_banco["ENCARREGADO"].dropna().unique()))
+                        enc_filtro_rdc = st.selectbox("Encarregado", options=encarregados_rdc, key="rdc_enc_filtro")
+
+                    c4, c5, c6 = st.columns(3)
+                    with c4:
+                        disc_rdc = ["Todos"] + sorted(list(df_rdc_banco["DISCIPLINA"].dropna().unique()))
+                        disc_filtro_rdc = st.selectbox("Disciplina", options=disc_rdc, key="rdc_disc_filtro")
+                    with c5:
+                        if "CALDEIRA" in df_rdc_banco.columns:
+                            caldeira_rdc = ["Todos"] + sorted([x for x in df_rdc_banco["CALDEIRA"].dropna().unique() if str(x).strip()])
+                        else:
+                            caldeira_rdc = ["Todos"]
+                        cald_filtro_rdc = st.selectbox("Caldeira", options=caldeira_rdc, key="rdc_cald_filtro")
+                    with c6:
+                        busca_atividade = st.text_input("🔎 Buscar na atividade", key="rdc_busca")
+
+                    # Apply filters
+                    df_rdc_filtrado = df_rdc_banco.copy()
+                    if "DATA" in df_rdc_filtrado.columns and (data_inicio_rdc or data_fim_rdc):
+                        df_rdc_filtrado["_DATA_DT"] = pd.to_datetime(df_rdc_filtrado["DATA"], errors='coerce')
+                        if data_inicio_rdc:
+                            df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["_DATA_DT"].dt.date >= data_inicio_rdc]
+                        if data_fim_rdc:
+                            df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["_DATA_DT"].dt.date <= data_fim_rdc]
+                        df_rdc_filtrado = df_rdc_filtrado.drop(columns=["_DATA_DT"])
+
+                    if enc_filtro_rdc != "Todos":
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["ENCARREGADO"] == enc_filtro_rdc]
+                    if disc_filtro_rdc != "Todos":
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["DISCIPLINA"] == disc_filtro_rdc]
+                    if cald_filtro_rdc != "Todos" and "CALDEIRA" in df_rdc_filtrado.columns:
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["CALDEIRA"] == cald_filtro_rdc]
+                    if busca_atividade and "ATIVIDADE" in df_rdc_filtrado.columns:
+                        df_rdc_filtrado = df_rdc_filtrado[df_rdc_filtrado["ATIVIDADE"].astype(str).str.contains(busca_atividade, case=False, na=False)]
+
+                    # Summary
+                    st.caption(f"📊 Mostrando **{len(df_rdc_filtrado)}** de **{len(df_rdc_banco)}** RDCs")
+
+                    # Data Editor
+                    cols_to_show = [c for c in ["DATA", "DISCIPLINA", "ENCARREGADO", "TURNO", "CALDEIRA", "ATIVIDADE", "DDS", "PROBLEMAS"] if c in df_rdc_filtrado.columns]
+                    df_editado_rdc = st.data_editor(
+                        df_rdc_filtrado[cols_to_show] if cols_to_show else df_rdc_filtrado,
+                        key="editor_banco_rdc",
+                        use_container_width=True
+                    )
+
+                    with st.expander("📝 Ver Transcrições Completas"):
+                        if "TRANSCRICAO" in df_rdc_filtrado.columns:
+                            for _, row in df_rdc_filtrado.iterrows():
+                                st.markdown(f"**{row.get('ENCARREGADO', '?')}** — {row.get('DATA', '?')}")
+                                st.text(str(row.get('TRANSCRICAO', '')))
+                                st.markdown("---")
+                        else:
+                            st.info("Coluna de transcrição não disponível.")
+
+                    # Action buttons
+                    b1, b2, b3 = st.columns(3)
+                    with b1:
+                        if st.button("💾 Salvar Edições", key="btn_salvar_rdc", type="primary", use_container_width=True):
+                            try:
+                                # Aplicar edições de volta no dataframe completo
+                                for col in cols_to_show:
+                                    if col in df_editado_rdc.columns:
+                                        df_rdc_filtrado[col] = df_editado_rdc[col].values
+                                df_rdc_banco.update(df_rdc_filtrado)
+                                df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
+                                st.success("✅ Registros atualizados!")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar: {e}")
+                    with b2:
+                        try:
+                            buffer_rdc_xls = io.BytesIO()
+                            with pd.ExcelWriter(buffer_rdc_xls, engine='openpyxl') as writer:
+                                df_rdc_filtrado.to_excel(writer, index=False, sheet_name='RDCs')
+                            st.download_button(
+                                label="⬇️ Excel",
+                                data=buffer_rdc_xls.getvalue(),
+                                file_name="Banco_RDC_Filtrado.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="btn_export_rdc_xls",
+                                use_container_width=True
+                            )
+                        except Exception as e:
+                            st.error(f"Erro ao gerar Excel: {e}")
+                    with b3:
+                        csv_rdc = df_rdc_filtrado.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="⬇️ CSV",
+                            data=csv_rdc,
+                            file_name="Banco_RDC_Filtrado.csv",
+                            mime="text/csv",
+                            key="btn_export_rdc_csv",
+                            use_container_width=True
+                        )
+
+                    with st.expander("🗑️ Ferramentas de Limpeza do Banco de RDCs"):
+                        st.warning("⚠️ Atenção: As ações abaixo afetam o banco de dados salvo.")
+                        
+                        col_limp1, col_limp2, col_limp3 = st.columns(3)
+                        
+                        with col_limp1:
+                            st.markdown("**🔧 Corrigir Todas as Datas para 2026**")
+                            if st.button("Corrigir Datas", key="btn_fix_all_dates", help="Converte qualquer data com ano incorreto (ex: 2020, 2016) para 2026"):
+                                try:
+                                    ano_hoje = datetime.datetime.now().year
+                                    def _corrigir_ano_banco(v):
+                                        dt = pd.to_datetime(v, dayfirst=True, format='mixed', errors='coerce')
+                                        if pd.notna(dt) and dt.year < 2024:
+                                            return dt.replace(year=ano_hoje).strftime('%Y-%m-%d')
+                                        return v
+                                    df_rdc_banco["DATA"] = df_rdc_banco["DATA"].apply(_corrigir_ano_banco)
+                                    df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
+                                    st.success("✅ Todas as datas foram corrigidas para o ano atual!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+                                    
+                        with col_limp2:
+                            st.markdown("**🗑️ Excluir RDCs por Data**")
+                            datas_excluir_opcoes = sorted(list(df_rdc_banco["DATA"].dropna().unique()))
+                            data_para_excluir = st.selectbox("Selecione a data para apagar:", datas_excluir_opcoes, key="sel_data_apagar_rdc")
+                            if st.button(f"Apagar RDCs de {data_para_excluir}", type="primary", key="btn_apagar_por_data"):
+                                try:
+                                    df_rdc_banco = df_rdc_banco[df_rdc_banco["DATA"] != data_para_excluir].reset_index(drop=True)
+                                    df_rdc_banco.to_csv(caminho_rdc_registros_csv, index=False)
+                                    st.success(f"✅ RDCs da data {data_para_excluir} apagados com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+                                    
+                        with col_limp3:
+                            st.markdown("**💥 Zerar / Apagar Todo o Banco**")
+                            confirmar_zerar = st.checkbox("Confirmo que desejo apagar TODOS os RDCs salvos", key="chk_zerar_banco_rdc")
+                            if st.button("🚨 Zerar Banco Completo", type="primary", key="btn_zerar_banco_total", disabled=not confirmar_zerar):
+                                try:
+                                    df_vazio = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+                                    df_vazio.to_csv(caminho_rdc_registros_csv, index=False)
+                                    # Limpar cache do briefing tambem
+                                    for k in list(st.session_state.keys()):
+                                        if k.startswith("briefing_cache_"):
+                                            del st.session_state[k]
+                                    st.success("✅ Banco de RDCs zerado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao zerar banco: {e}")
+                else:
+                    st.info("📭 Banco de RDCs vazio. Processe alguns RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para popular esta tabela.")
+            else:
+                st.info("📭 Nenhum RDC salvo ainda. Processe RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para começar a guardar.")
+        except Exception as e:
+            st.error(f"Erro ao carregar banco de RDCs: {e}")
+
+    # ==============================================================
+    # ABA 12: ANÁLISE DE GARGALOS
+    # ==============================================================
     with tab_gargalos:
         st.markdown("### 🔍 Análise de Gargalos — Inteligência dos RDCs")
         st.markdown("Dashboard analítico gerado automaticamente a partir dos RDCs processados pela IA. Identifique os maiores gargalos da obra em segundos.")
@@ -8544,7 +9210,132 @@ Retorne apenas o JSON sem crases ou markdown."""
     # ==============================================================
     # ABA 13: ADMIN
     # ==============================================================
-    # Modulo removido.
+    with tab_admin:
+        st.markdown("### ⚙️ Painel Administrativo")
+        st.markdown("Controle central do banco de dados e configurações do sistema.")
+
+        try:
+            # Database Status Table
+            st.markdown("#### 📦 Status do Banco de Dados")
+            tabelas_info = []
+            arquivos_banco = {
+                "Colaboradores (PDE)": caminho_base_salva_csv,
+                "Escala Diária": caminho_escala_csv,
+                "Registros RDC": caminho_rdc_registros_csv,
+                "Histórico F1": caminho_historico_f1_csv,
+                "Histórico C.C": caminho_hist_cc,
+                "Exceções F1": os.path.join(pasta_base, "f1_excecoes.csv")
+            }
+
+            for nome_tabela, caminho_tabela in arquivos_banco.items():
+                if os.path.exists(caminho_tabela):
+                    tamanho = os.path.getsize(caminho_tabela) / 1024
+                    modificado = datetime.datetime.fromtimestamp(os.path.getmtime(caminho_tabela)).strftime('%d/%m/%Y %H:%M')
+                    try:
+                        linhas = len(pd.read_csv(caminho_tabela))
+                    except:
+                        linhas = 0
+                    status_tb = "✅ Ativo"
+                else:
+                    tamanho = 0
+                    modificado = "-"
+                    linhas = 0
+                    status_tb = "❌ Não encontrado"
+
+                tabelas_info.append({
+                    "Tabela": nome_tabela,
+                    "Status": status_tb,
+                    "Registros": linhas,
+                    "Tamanho (KB)": round(tamanho, 1),
+                    "Última Atualização": modificado
+                })
+
+            df_status = pd.DataFrame(tabelas_info)
+            st.dataframe(df_status, use_container_width=True, hide_index=True)
+
+            # Action Buttons
+            st.markdown("#### 🔧 Ações")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                try:
+                    buffer_backup = io.BytesIO()
+                    with pd.ExcelWriter(buffer_backup, engine='openpyxl') as writer:
+                        for item in tabelas_info:
+                            caminho_item = arquivos_banco[item["Tabela"]]
+                            if os.path.exists(caminho_item):
+                                try:
+                                    df_temp = pd.read_csv(caminho_item)
+                                    sheet_name = item["Tabela"][:31]
+                                    df_temp.to_excel(writer, index=False, sheet_name=sheet_name)
+                                except:
+                                    pass
+
+                    st.download_button(
+                        label="📥 Backup Geral (Excel)",
+                        data=buffer_backup.getvalue(),
+                        file_name=f"Backup_Geral_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="btn_backup_geral",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"Erro ao gerar backup: {e}")
+
+            with c2:
+                if st.button("🔄 Sincronizar Google Sheets", key="btn_sync_admin", use_container_width=True):
+                    try:
+                        if conn:
+                            conn.update(worksheet="PDE", data=df_atual)
+                            if st.session_state.get('df_historico_f1') is not None:
+                                salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                            st.success("✅ Sincronização com Google Sheets concluída!")
+                        else:
+                            st.warning("Conexão com Google Sheets não disponível.")
+                    except Exception as e:
+                        st.error(f"Erro ao sincronizar: {e}")
+
+            with c3:
+                with st.popover("🗑️ Limpar Tabela"):
+                    st.warning("⚠️ Cuidado! Isso apagará todos os dados da tabela selecionada.")
+                    tabela_limpar = st.selectbox("Selecione a tabela:", options=list(arquivos_banco.keys()), key="admin_tabela_limpar")
+                    confirmacao = st.text_input("Digite 'CONFIRMAR' para prosseguir:", key="admin_confirmacao")
+                    if st.button("🗑️ Apagar Tabela", type="primary", key="btn_apagar_tabela"):
+                        if confirmacao == "CONFIRMAR":
+                            caminho_apagar = arquivos_banco[tabela_limpar]
+                            if os.path.exists(caminho_apagar):
+                                try:
+                                    df_empty = pd.read_csv(caminho_apagar).head(0)
+                                    df_empty.to_csv(caminho_apagar, index=False)
+                                    st.success(f"✅ Tabela '{tabela_limpar}' limpa com sucesso!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao limpar: {e}")
+                            else:
+                                st.error("Arquivo não encontrado.")
+                        else:
+                            st.error("Confirmação incorreta. Digite exatamente 'CONFIRMAR'.")
+
+            # Encarregados Manager
+            with st.expander("👥 Gerenciar Encarregados (Lista Oficial)"):
+                if "ENCARREGADO" in df_atual.columns:
+                    encarregados_ativos = sorted(df_atual["ENCARREGADO"].dropna().unique().tolist())
+                    df_enc = pd.DataFrame({"Nome do Encarregado": encarregados_ativos, "Efetivo": [len(df_atual[df_atual["ENCARREGADO"] == e]) for e in encarregados_ativos]})
+                    st.dataframe(df_enc, use_container_width=True, hide_index=True)
+                    st.caption(f"Total: {len(encarregados_ativos)} encarregados ativos")
+                else:
+                    st.info("Coluna 'ENCARREGADO' não encontrada na base atual.")
+
+            # Activity Logs
+            st.markdown("#### 🕒 Atividade Recente")
+            logs_ordenados = sorted(tabelas_info, key=lambda x: x["Última Atualização"], reverse=True)
+            for item in logs_ordenados:
+                if item["Última Atualização"] != "-":
+                    st.markdown(f"• **{item['Tabela']}** — {item['Registros']} registros — atualizada em {item['Última Atualização']}")
+
+        except Exception as e:
+            st.error(f"Erro no painel administrativo: {e}")
+
 
 else:
     st.markdown(f"""
