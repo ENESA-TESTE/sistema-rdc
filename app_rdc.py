@@ -12,6 +12,43 @@ import json
 import time
 import tempfile
 import plotly.express as px
+import logging
+from logging.handlers import RotatingFileHandler
+
+# ==========================================
+# CONFIGURACAO CENTRAL DO AMBIENTE
+# ==========================================
+def _env_bool(nome, padrao=False):
+    return str(os.getenv(nome, str(padrao))).strip().lower() in {"1", "true", "sim", "yes", "on"}
+
+MODO_DEMONSTRACAO = _env_bool("SGO_DEMO_MODE", True)
+ACESSO_DIRETO = _env_bool("SGO_DIRECT_ACCESS", True)
+PERMITIR_ACOES_DESTRUTIVAS = _env_bool("SGO_ALLOW_DESTRUCTIVE_ACTIONS", False)
+VERSAO_APP = os.getenv("SGO_APP_VERSION", "8.1")
+AMBIENTE_APP = "DEMONSTRACAO" if MODO_DEMONSTRACAO else "OPERACAO CONTROLADA"
+
+_logger = logging.getLogger("sgo_rdc_pde")
+if not _logger.handlers:
+    _logger.setLevel(logging.INFO)
+    try:
+        _handler = RotatingFileHandler("sgo_rdc_pde.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+        _handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+        _logger.addHandler(_handler)
+    except Exception:
+        _logger.addHandler(logging.NullHandler())
+
+def registrar_erro(contexto, erro):
+    _logger.exception("%s: %s", contexto, erro)
+
+def obter_secret(nome, padrao=""):
+    try:
+        valor = st.secrets.get(nome, "")
+        if valor:
+            return str(valor).strip()
+    except Exception:
+        pass
+    return str(os.getenv(nome, padrao)).strip()
+
 
 # ==========================================
 # AUTO-RECUPERAR LOGO CASO O ARQUIVO SEJA DELETADO
@@ -1424,17 +1461,10 @@ st.markdown(f"""
     <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
 """, unsafe_allow_html=True)
 
-# --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
-try:
-    if "pwd" in st.query_params and st.query_params["pwd"] == "Campo@2026":
-        st.session_state.logged_in = True
-        st.session_state.role = "encarregado"
-except Exception:
-    pass
-
-# --- LOGIN / AUTENTICAÇÃO (MIGRAÇÃO) ---
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = True  # Bypass do login antigo para usar o novo (usuario_logado)
+# --- ACESSO DIRETO CONTROLADO ---
+# Sem tela de login interna e sem senha em URL. A publicacao deve ser protegida pela infraestrutura da TI.
+if ACESSO_DIRETO:
+    st.session_state.logged_in = True
     st.session_state.role = "admin"
 
 # Removido o header global daqui para aparecer apenas após o login.
@@ -1456,6 +1486,8 @@ caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
 caminho_escala_csv = os.path.join(pasta_base, "escala_diaria.csv")
 caminho_rdc_registros_csv = os.path.join(pasta_base, "rdc_registros.csv")
 caminho_briefings_json = os.path.join(pasta_base, "briefings_historico.json")
+WEBHOOK_RDC_URL = obter_secret("WEBHOOK_RDC_URL", "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec")
+GOOGLE_SHEETS_EDIT_URL = obter_secret("GOOGLE_SHEETS_EDIT_URL", "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/edit?usp=sharing")
 
 celula_encarregado = "I4"
 celula_matricula = "B9"
@@ -2267,8 +2299,8 @@ def backup_google_drive(file_path, mime_type, file_name):
             
             drive_service = build('drive', 'v3', credentials=creds)
             
-            # Buscar pasta "RDO_Backups"
-            pasta_nome = "RDO_Backups"
+            # Buscar pasta "RDC_Backups"
+            pasta_nome = "RDC_Backups"
             query = f"name='{pasta_nome}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
             response = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
             pastas = response.get('files', [])
@@ -2342,7 +2374,6 @@ if 'mostrar_upload' not in st.session_state:
 # =================================================================
 # SISTEMA DE LOGIN (BLOQUEIO GLOBAL) E COOKIES
 # =================================================================
-import extra_streamlit_components as stx
 
 
 # =================================================================
@@ -2649,47 +2680,20 @@ def sincronizar_dados_globais():
                 st.session_state.df = preparar_dataframe(_df)
 
 sincronizar_dados_globais()
+_logger.info("Aplicacao iniciada | ambiente=%s | versao=%s | acesso_direto=%s", AMBIENTE_APP, VERSAO_APP, ACESSO_DIRETO)
 
-cookie_manager = stx.CookieManager()
+# IDENTIDADE DA SESSAO EM ACESSO DIRETO
+st.session_state.setdefault("usuario_logado", "operacao_local")
+st.session_state.setdefault("role_usuario", "admin")
+st.session_state.setdefault("nome_completo", "Operacao Local")
 
-caminho_usuarios = "usuarios.json"
-import json
-if not os.path.exists(caminho_usuarios):
-    with open(caminho_usuarios, "w", encoding="utf-8") as f:
-        json.dump({"admin": {"senha": "123", "nome": "Administrador", "role": "admin"}}, f)
-
-
-def carregar_usuarios():
-    if not os.path.exists(caminho_usuarios): return {}
-    with open(caminho_usuarios, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def salvar_usuarios(users):
-    with open(caminho_usuarios, "w", encoding="utf-8") as f:
-        json.dump(users, f)
-
-# === ACESSO DIRETO (SEM TELA DE LOGIN) ===
-if "usuario_logado" not in st.session_state:
-    st.session_state.usuario_logado = "admin"
-if "role_usuario" not in st.session_state:
-    st.session_state.role_usuario = "admin"
-if "nome_completo" not in st.session_state:
-    st.session_state.nome_completo = "Administrador"
-
-usuarios_db = carregar_usuarios()
-
-
-# =================================================================
-
-
-# =================================================================
 # CABEÇALHO GLOBAL (Mostrado apenas se logado)
 # =================================================================
 # Status bar with live info
 import datetime as dt_mod
 hora_agora = dt_mod.datetime.now().strftime("%H:%M")
 data_agora = dt_mod.datetime.now().strftime("%d/%m/%Y")
-nome_user_logado = st.session_state.get('nome_completo', 'Admin')
+nome_user_logado = st.session_state.get('nome_completo', 'Operacao Local')
 
 st.markdown(f"""
     <div class="enesa-header">
@@ -2699,7 +2703,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.0</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v{VERSAO_APP}</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2725,6 +2729,11 @@ st.markdown(f"""
 # =================================================================
 # BARRA LATERAL
 # =================================================================
+if MODO_DEMONSTRACAO:
+    st.warning("🧪 AMBIENTE DEMONSTRATIVO — Dados fictícios ou controlados. Ações destrutivas estão bloqueadas.")
+else:
+    st.info("🔒 OPERAÇÃO CONTROLADA — Acesso direto protegido pela infraestrutura definida pela TI.")
+
 arquivo_pde = None
 arquivo_modelo = None
 
@@ -2855,10 +2864,10 @@ with st.sidebar:
                     <span style='font-size: 11px; color: #94a3b8; font-weight: 500;'>Sistema Operacional</span>
                 </div>
                 <span style='font-size: 10px; color: #334155;'>|</span>
-                <span style='font-size: 11px; color: #64748b;'>📅 Última att: 12/09/2026</span>
+                <span style='font-size: 11px; color: #64748b;'>📅 Atualizado em: {data_agora}</span>
                 <span style='font-size: 10px; color: #334155;'>|</span>
                 <div style='display: inline-block; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 20px; padding: 2px 12px;'>
-                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v8.0</span>
+                    <span style='font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;'>v{VERSAO_APP}</span>
                 </div>
             </div>
             <div style='border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;'>
@@ -3154,7 +3163,7 @@ if st.session_state.df is not None:
                     import json
                     import requests
                     
-                    WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+                    WEBHOOK_URL = WEBHOOK_RDC_URL
                     
                     try:
                         with st.spinner("Enviando dados para a nuvem..."):
@@ -3177,7 +3186,7 @@ if st.session_state.df is not None:
         class PDF(FPDF):
             def header(self):
                 self.set_font('helvetica', 'B', 15)
-                self.cell(0, 10, 'Relatorio Executivo - Sistema RDO & PDE', new_x="LMARGIN", new_y="NEXT", align='C')
+                self.cell(0, 10, 'Relatorio Executivo - Sistema RDC & PDE', new_x="LMARGIN", new_y="NEXT", align='C')
                 self.set_font('helvetica', '', 10)
                 agora = dt_mod.datetime.now().strftime("%d/%m/%Y %H:%M")
                 self.cell(0, 5, f'Gerado em: {agora}', new_x="LMARGIN", new_y="NEXT", align='C')
@@ -3979,7 +3988,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     esp_count += 1
                 else:
                     rb_count += 1
-        if total_rdcs_num == 0:
+        if total_rdcs_num == 0 and MODO_DEMONSTRACAO:
             rb_count, pb_count, esp_count = 54, 31, 12
             total_rdcs_num = 97
             
@@ -4033,15 +4042,15 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v8.0)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v{VERSAO_APP})'))
         
         # 2. CARDS KPIS
         y_kpi = 32
         w_card = 45
         h_card = 15.5
         cards_kpi = [
-            ('EFETIVO TOTAL', f"{total_efetivo_num} Colab." if total_efetivo_num > 0 else "847 Colab.", "Efetivo em Campo", (14, 165, 233)),
-            ('PRODUTIVIDADE MOD', f"{pct_mod}%" if pct_mod > 0 else "84.2%", "Mão de Obra Direta", (34, 197, 94)),
+            ('EFETIVO TOTAL', f"{total_efetivo_num} Colab." if total_efetivo_num > 0 else ("847 Colab." if MODO_DEMONSTRACAO else "0 Colab."), "Efetivo em Campo", (14, 165, 233)),
+            ('PRODUTIVIDADE MOD', f"{pct_mod}%" if pct_mod > 0 else ("84.2%" if MODO_DEMONSTRACAO else "0.0%"), "Mão de Obra Direta", (34, 197, 94)),
             ('RDCS PROCESSADOS', f"{total_rdcs_num} RDCs", "Extraídos c/ IA Gemini", (168, 85, 247)),
             ('FRENTES DE SERVIÇO', f"{rb_count + pb_count + esp_count} Frentes", "Operação em Campo", (245, 158, 11))
         ]
@@ -4124,7 +4133,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(13, y_dist + 11)
         pdf.set_font('Helvetica', 'I', 6.8)
         pdf.set_text_color(100, 116, 139)
-        pdf.cell(184, 3.8, safe_pdf('Obs: Dados auditados e consolidados automaticamente via Inteligência Artificial Gemini v8.0.'))
+        pdf.cell(184, 3.8, safe_pdf(f'Obs: Dados auditados e consolidados automaticamente via Inteligência Artificial Gemini v{VERSAO_APP}.'))
         
         # 6. ASSINATURAS
         y_sign = 251
@@ -4161,7 +4170,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v8.0 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf(f'Relatório Executivo One-Pager · Sistema RDC Inteligente v{VERSAO_APP} · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -4877,7 +4886,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 btn_gerar_br = st.button("⚡ Gerar / Recalcular com IA", type="primary", use_container_width=True, key="btn_gerar_briefing_ia")
             with col_b3:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("🗑️ Limpar / Apagar RDCs", use_container_width=True, key="btn_reset_briefing_cache", help="Apaga todos os RDCs salvos e limpa a lista de datas para reprocessar do zero"):
+                if st.button("🗑️ Limpar / Apagar RDCs", use_container_width=True, key="btn_reset_briefing_cache", help="Apaga todos os RDCs salvos e limpa a lista de datas para reprocessar do zero", disabled=not PERMITIR_ACOES_DESTRUTIVAS):
                     try:
                         df_vazio = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
                         df_vazio.to_csv(caminho_rdc_registros_csv, index=False)
@@ -4999,7 +5008,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             st.toast(f"💾 Briefing de {data_brief_sel} atualizado e salvo com sucesso!")
                             st.rerun()
                     with btn_del_col:
-                        if st.button("🗑️ Excluir Briefing Deste Dia", key=f"btn_excluir_brief_{data_brief_sel}", use_container_width=True):
+                        if st.button("🗑️ Excluir Briefing Deste Dia", key=f"btn_excluir_brief_{data_brief_sel}", use_container_width=True, disabled=not PERMITIR_ACOES_DESTRUTIVAS):
                             excluir_briefing_dia(data_brief_sel)
                             if cache_key in st.session_state:
                                 del st.session_state[cache_key]
@@ -5917,7 +5926,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 df_exc_show = df_exc_show.sort_values("DATA", ascending=False).head(20)
                 st.dataframe(df_exc_show, hide_index=True, use_container_width=True)
                 
-                if st.button("🗑️ Limpar Todos os Abonos", key="btn_limpar_abonos"):
+                if st.button("🗑️ Limpar Todos os Abonos", key="btn_limpar_abonos", disabled=not PERMITIR_ACOES_DESTRUTIVAS):
                     st.session_state.df_f1_excecoes = pd.DataFrame(columns=["DATA", "ENCARREGADO", "MOTIVO"])
                     if os.path.exists(caminho_f1_excecoes):
                         os.remove(caminho_f1_excecoes)
@@ -7839,7 +7848,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     import json
                     import requests
                     
-                    WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+                    WEBHOOK_URL = WEBHOOK_RDC_URL
                     
                     try:
                         with st.spinner("Enviando dados para a nuvem..."):
@@ -7857,7 +7866,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         st.markdown("### 📥 Sincronização de RDCs (Nuvem)")
         st.caption("Clique no botão abaixo para puxar todos os RDCs lançados pelos encarregados no sistema.")
         
-        WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxfE96gE7ckdmapBLBHJuoX2bvAt-2d76OUJNiSRsLgFCOiySeQhFOopp3DoC5Fn95D/exec"
+        WEBHOOK_URL = WEBHOOK_RDC_URL
         
         if st.button("🔄 Puxar Dados Automáticos (Google Sheets)", type="primary", use_container_width=True):
             with st.spinner("Conectando ao Banco de Dados na Nuvem..."):
@@ -8417,7 +8426,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         with col_limp3:
                             st.markdown("**💥 Zerar / Apagar Todo o Banco**")
                             confirmar_zerar = st.checkbox("Confirmo que desejo apagar TODOS os RDCs salvos", key="chk_zerar_banco_rdc")
-                            if st.button("🚨 Zerar Banco Completo", type="primary", key="btn_zerar_banco_total", disabled=not confirmar_zerar):
+                            if st.button("🚨 Zerar Banco Completo", type="primary", key="btn_zerar_banco_total", disabled=(not confirmar_zerar) or (not PERMITIR_ACOES_DESTRUTIVAS)):
                                 try:
                                     df_vazio = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
                                     df_vazio.to_csv(caminho_rdc_registros_csv, index=False)
@@ -9143,7 +9152,7 @@ Retorne apenas o JSON sem crases ou markdown."""
     with tab_banco_dados:
         st.markdown("### 📊 Banco de Dados (Planilha ao Vivo)")
         
-        sheets_url_edit = "https://docs.google.com/spreadsheets/d/1ajWLKG4I56_QAwc1VoZmi8w4YSGbmHf6oEho_yWmsYY/edit?usp=sharing"
+        sheets_url_edit = GOOGLE_SHEETS_EDIT_URL
         
         # Painel principal com instruções
         st.markdown("""
@@ -9204,6 +9213,8 @@ Retorne apenas o JSON sem crases ou markdown."""
     with tab_admin:
         st.markdown("### ⚙️ Painel Administrativo")
         st.markdown("Controle central do banco de dados e configurações do sistema.")
+        if not PERMITIR_ACOES_DESTRUTIVAS:
+            st.info("🛡️ Modo seguro ativo. Para liberar limpezas críticas, defina SGO_ALLOW_DESTRUCTIVE_ACTIONS=true e reinicie o aplicativo.")
 
         try:
             # Database Status Table
@@ -9290,7 +9301,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     st.warning("⚠️ Cuidado! Isso apagará todos os dados da tabela selecionada.")
                     tabela_limpar = st.selectbox("Selecione a tabela:", options=list(arquivos_banco.keys()), key="admin_tabela_limpar")
                     confirmacao = st.text_input("Digite 'CONFIRMAR' para prosseguir:", key="admin_confirmacao")
-                    if st.button("🗑️ Apagar Tabela", type="primary", key="btn_apagar_tabela"):
+                    if st.button("🗑️ Apagar Tabela", type="primary", key="btn_apagar_tabela", disabled=not PERMITIR_ACOES_DESTRUTIVAS):
                         if confirmacao == "CONFIRMAR":
                             caminho_apagar = arquivos_banco[tabela_limpar]
                             if os.path.exists(caminho_apagar):
