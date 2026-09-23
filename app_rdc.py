@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v8.8
+# PALETA CORPORATIVA SGO v9.1
 # ================================================================
 st.markdown("""
 <style>
@@ -1447,6 +1447,40 @@ st.markdown("""
 .sgo-team-version span{color:#38bdf8;font-weight:800;margin-left:5px;}
 .enesa-header{background:rgba(9,22,38,.94)!important;border-color:var(--sgo-border)!important;border-left-color:var(--sgo-accent)!important;}
 [data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"]{background:rgba(13,27,45,.76)!important;border-color:var(--sgo-border)!important;}
+</style>
+""", unsafe_allow_html=True)
+
+# ================================================================
+# EXPERIENCIA MOBILE SGO 2.0
+# ================================================================
+st.markdown("""
+<style>
+@media(max-width:768px){
+  header[data-testid="stHeader"]{display:block!important;visibility:visible!important;background:rgba(7,17,31,.96)!important;height:48px!important;}
+  [data-testid="stSidebarCollapseButton"]{display:flex!important;visibility:visible!important;position:fixed!important;top:7px!important;left:8px!important;z-index:1000000!important;}
+  [data-testid="stSidebar"]{width:286px!important;min-width:286px!important;max-width:286px!important;transform:none!important;z-index:999999!important;}
+  [data-testid="stSidebar"] .block-container{padding:10px 10px 22px!important;}
+  .block-container{padding:3.3rem .65rem 5.5rem!important;max-width:100%!important;}
+  .enesa-header{padding:11px 12px!important;margin:0 0 12px!important;border-radius:10px!important;}
+  .enesa-header h1{font-size:1.1rem!important}.enesa-header p{font-size:.72rem!important}
+  [data-testid="stHorizontalBlock"]{gap:.55rem!important;align-items:stretch!important;}
+  [data-testid="column"]{min-width:calc(50% - .4rem)!important;flex:1 1 calc(50% - .4rem)!important;}
+  [data-testid="stMetric"]{min-height:96px!important;padding:12px!important;}
+  [data-testid="stMetricValue"]{font-size:1.5rem!important;}
+  .stButton button,.stDownloadButton button,.stLinkButton a{min-height:48px!important;font-size:.88rem!important;border-radius:10px!important;padding:10px 12px!important;}
+  .stTextInput input,.stDateInput input,.stNumberInput input,.stSelectbox [data-baseweb="select"]>div{min-height:48px!important;font-size:16px!important;}
+  .stTextArea textarea{font-size:16px!important;min-height:110px!important;}
+  [data-testid="stDataFrame"]{max-width:100vw!important;overflow-x:auto!important;border-radius:10px!important;}
+  [data-testid="stExpander"] summary{min-height:48px!important;padding:10px 12px!important;}
+  .sgo-sidebar-logo-wrap img{width:225px!important;}
+  .sgo-card{min-height:100px!important;padding:13px!important}.sgo-card-value{font-size:1.55rem!important}
+  .js-plotly-plot{min-height:260px!important;}
+}
+@media(max-width:430px){
+  [data-testid="column"]{min-width:100%!important;flex:1 1 100%!important;}
+  .block-container{padding-left:.5rem!important;padding-right:.5rem!important;}
+  h1{font-size:1.25rem!important}h2{font-size:1.1rem!important}h3{font-size:1rem!important}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2735,7 +2769,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v8.8</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.1</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2860,7 +2894,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v8.8</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.1</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -3881,17 +3915,11 @@ Retorne apenas o JSON sem crases ou markdown."""
     # =================================================================
     # UTILITÁRIOS: QR CODE MOBILE & RELATÓRIO ONE-PAGER EXECUTIVO
     # =================================================================
+    URL_PUBLICA_SGO = "https://sistema-rdc-x7bmgqmwjp2e2bkhch8mtg.streamlit.app/"
+
     def obter_url_sistema():
-        """Obtém o IP local da máquina para permitir acesso via celular na mesma rede."""
-        import socket
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('8.8.8.8', 80))
-            ip_local = s.getsockname()[0]
-            s.close()
-            return f"http://{ip_local}:8501"
-        except Exception:
-            return "http://localhost:8501"
+        """Retorna o endereço público fixo do SGO para QR Code e acesso mobile."""
+        return URL_PUBLICA_SGO
 
     def gerar_qr_code_b64(url_destino):
         """Gera imagem base64 do QR Code para renderização visual em tela ou popover."""
@@ -3917,8 +3945,7 @@ Retorne apenas o JSON sem crases ou markdown."""
     @st.dialog("📱 Acesso Mobile em Tempo Real (Diretoria)")
     def modal_qr_code_mobile():
         """Modal executivo centralizado para exibir QR Code de acesso mobile."""
-        url_detectada = obter_url_sistema()
-        url_custom = st.session_state.get("url_mobile_custom", url_detectada)
+        url_custom = URL_PUBLICA_SGO
         qr_b64 = gerar_qr_code_b64(url_custom)
         st.markdown(f"""
         <div style="text-align: center; padding: 10px 0;">
@@ -3934,10 +3961,8 @@ Retorne apenas o JSON sem crases ou markdown."""
             </div>
         </div>
         """, unsafe_allow_html=True)
-        url_in = st.text_input("🔗 Link Mobile Personalizado (ex: Cloudflare / ngrok):", value=url_custom, key="qr_modal_url_input")
-        if url_in != url_custom:
-            st.session_state.url_mobile_custom = url_in
-            st.rerun()
+        st.link_button("🌐 Abrir o Sistema no Smartphone", URL_PUBLICA_SGO, use_container_width=True, type="primary")
+        st.caption("Link público fixo do SGO. O mesmo endereço é usado no QR Code.")
 
     def gerar_pdf_one_pager_executivo(df_dia_rdcs=None, df_f1=None, df_efetivo=None, data_str="", nome_site="ENESA ENGENHARIA - OBRA 125 ARAUCO", briefing_data=None, logo_path=""):
         """Gera Relatório Executivo One-Pager condensado em 1 página A4 de alto padrão corporativo."""
@@ -4028,7 +4053,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v8.8)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.1)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4156,7 +4181,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v8.8 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.1 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -4218,8 +4243,44 @@ Retorne apenas o JSON sem crases ou markdown."""
         </style>
         """, unsafe_allow_html=True)
         
+        # Tema TV 2.0: maior leitura, contraste e aproveitamento em telas grandes.
+        st.markdown("""
+        <style>
+          .stApp {background:radial-gradient(circle at 50% -20%,#18345a 0%,#091526 45%,#050b14 100%)!important;}
+          .block-container{max-width:1920px!important;padding:.65rem 1.15rem 1.2rem!important;}
+          [data-testid="stSidebar"], [data-testid="stSidebarCollapseButton"]{display:none!important;}
+          .enesa-header,.watermark-edson{display:none!important;}
+          [data-testid="stMetric"],[data-testid="stVerticalBlockBorderWrapper"]{
+            background:linear-gradient(145deg,rgba(20,40,66,.95),rgba(10,23,40,.96))!important;
+            border:1px solid rgba(91,166,231,.20)!important;border-radius:14px!important;
+            box-shadow:0 12px 34px rgba(0,0,0,.28)!important;
+          }
+          .tv-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;
+            background:linear-gradient(90deg,rgba(15,36,61,.98),rgba(11,26,45,.98));
+            border:1px solid rgba(56,189,248,.20);border-radius:14px;padding:12px 17px;
+            margin-bottom:13px;box-shadow:0 10px 30px rgba(0,0,0,.28)}
+          .tv-brand{font-size:1.15rem;font-weight:850;color:#f8fafc;letter-spacing:.2px}
+          .tv-sub{font-size:.72rem;color:#86a0bf;margin-top:3px}.tv-clock{font-size:1.45rem;font-weight:850;color:#38bdf8}
+          .tv-card-kpi{min-height:126px!important;padding:17px 19px!important;border-radius:14px!important;
+            background:linear-gradient(145deg,#142943,#0d1c30)!important;border:1px solid rgba(148,163,184,.14)!important;
+            box-shadow:0 10px 28px rgba(0,0,0,.26)!important}
+          .tv-card-chart{background:linear-gradient(145deg,#10233b,#0a1728)!important;
+            border:1px solid rgba(148,163,184,.14)!important;border-radius:14px!important}
+          .tv-section-title{font-size:1.55rem;font-weight:850;color:#fff;margin:0}.tv-section-sub{font-size:.78rem;color:#89a0ba;margin-top:4px}
+          .stButton button,.stDownloadButton button,.stLinkButton a{min-height:44px!important;border-radius:9px!important;font-weight:700!important}
+          [data-testid="stDataFrame"]{border-radius:12px!important;border:1px solid rgba(148,163,184,.14)!important}
+          @media(min-width:1600px){.tv-card-kpi{min-height:145px!important}.tv-section-title{font-size:1.8rem!important}}
+        </style>
+        """, unsafe_allow_html=True)
+
         # --- BARRA DE NAVEGAÇÃO SUPERIOR DO MODO TV ---
-        col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([2.8, 3.8, 1.8, 1.2])
+        st.markdown(f"""
+        <div class="tv-topbar">
+          <div><div class="tv-brand">SGO | RDC & PDE</div><div class="tv-sub">Centro de Comando Operacional · {nome_site_display}</div></div>
+          <div style="text-align:right"><div class="tv-clock">{hora_agora}</div><div class="tv-sub">{data_agora} · Dados sincronizados</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+        col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2.2, 3.8, 1.4, 1.3, 1.0])
         with col_nav1:
             st.markdown(f"""<div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;"><div class="tv-badge-live">● AO VIVO</div><span style="font-size: 16px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">{nome_site_display}</span></div>""", unsafe_allow_html=True)
             
@@ -4237,7 +4298,15 @@ Retorne apenas o JSON sem crases ou markdown."""
                 modal_qr_code_mobile()
                     
         with col_nav4:
-            if st.button("❌ Sair da TV", type="secondary", use_container_width=True):
+            if st.button("🔄 Atualizar", use_container_width=True, key="btn_tv_refresh", type="secondary"):
+                try:
+                    st.cache_data.clear()
+                except Exception:
+                    pass
+                sincronizar_dados_globais()
+                st.rerun()
+        with col_nav5:
+            if st.button("❌ Sair", type="secondary", use_container_width=True):
                 st.session_state.modo_tv = False
                 st.rerun()
                     
