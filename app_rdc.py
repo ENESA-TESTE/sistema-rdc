@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.1.3
+# PALETA CORPORATIVA SGO v9.2
 # ================================================================
 st.markdown("""
 <style>
@@ -1447,90 +1447,6 @@ st.markdown("""
 .sgo-team-version span{color:#38bdf8;font-weight:800;margin-left:5px;}
 .enesa-header{background:rgba(9,22,38,.94)!important;border-color:var(--sgo-border)!important;border-left-color:var(--sgo-accent)!important;}
 [data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"]{background:rgba(13,27,45,.76)!important;border-color:var(--sgo-border)!important;}
-</style>
-""", unsafe_allow_html=True)
-
-# ================================================================
-# EXPERIENCIA MOBILE SGO 2.0
-# ================================================================
-st.markdown("""
-<style>
-@media(max-width:768px){
-  header[data-testid="stHeader"]{display:block!important;visibility:visible!important;background:rgba(7,17,31,.96)!important;height:48px!important;}
-  [data-testid="stSidebarCollapseButton"]{display:flex!important;visibility:visible!important;position:fixed!important;top:7px!important;left:8px!important;z-index:1000000!important;}
-  [data-testid="stSidebar"]{width:286px!important;min-width:286px!important;max-width:286px!important;z-index:999999!important;}
-  [data-testid="stSidebar"] .block-container{padding:10px 10px 22px!important;}
-  .block-container{padding:3.3rem .65rem 5.5rem!important;max-width:100%!important;}
-  .enesa-header{padding:11px 12px!important;margin:0 0 12px!important;border-radius:10px!important;}
-  .enesa-header h1{font-size:1.1rem!important}.enesa-header p{font-size:.72rem!important}
-  [data-testid="stHorizontalBlock"]{gap:.55rem!important;align-items:stretch!important;}
-  [data-testid="column"]{min-width:calc(50% - .4rem)!important;flex:1 1 calc(50% - .4rem)!important;}
-  [data-testid="stMetric"]{min-height:96px!important;padding:12px!important;}
-  [data-testid="stMetricValue"]{font-size:1.5rem!important;}
-  .stButton button,.stDownloadButton button,.stLinkButton a{min-height:48px!important;font-size:.88rem!important;border-radius:10px!important;padding:10px 12px!important;}
-  .stTextInput input,.stDateInput input,.stNumberInput input,.stSelectbox [data-baseweb="select"]>div{min-height:48px!important;font-size:16px!important;}
-  .stTextArea textarea{font-size:16px!important;min-height:110px!important;}
-  [data-testid="stDataFrame"]{max-width:100vw!important;overflow-x:auto!important;border-radius:10px!important;}
-  [data-testid="stExpander"] summary{min-height:48px!important;padding:10px 12px!important;}
-  .sgo-sidebar-logo-wrap img{width:225px!important;}
-  .sgo-card{min-height:100px!important;padding:13px!important}.sgo-card-value{font-size:1.55rem!important}
-  .js-plotly-plot{min-height:260px!important;}
-}
-@media(max-width:430px){
-  [data-testid="column"]{min-width:100%!important;flex:1 1 100%!important;}
-  .block-container{padding-left:.5rem!important;padding-right:.5rem!important;}
-  h1{font-size:1.25rem!important}h2{font-size:1.1rem!important}h3{font-size:1rem!important}
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ================================================================
-# MENU MOBILE NATIVO - CORRECAO v9.1.3
-# ================================================================
-st.markdown("""
-<style>
-@media screen and (max-width: 768px) {
-  header[data-testid="stHeader"] {
-    display:block!important; visibility:visible!important; opacity:1!important;
-    height:52px!important; min-height:52px!important;
-    background:rgba(7,17,31,.98)!important;
-    border-bottom:1px solid rgba(56,189,248,.16)!important;
-    z-index:999990!important;
-  }
-  [data-testid="stSidebarCollapsedControl"],
-  [data-testid="collapsedControl"] {
-    display:flex!important; visibility:visible!important; opacity:1!important;
-    pointer-events:auto!important; position:fixed!important;
-    top:7px!important; left:8px!important; z-index:1000002!important;
-  }
-  [data-testid="stSidebarCollapsedControl"] button,
-  [data-testid="collapsedControl"] button {
-    display:flex!important; visibility:visible!important;
-    width:44px!important; height:40px!important; min-width:44px!important;
-    align-items:center!important; justify-content:center!important;
-    padding:8px!important; border-radius:9px!important;
-    background:#15436f!important; color:#fff!important;
-    border:1px solid rgba(56,189,248,.38)!important;
-    box-shadow:0 6px 18px rgba(0,0,0,.35)!important;
-  }
-  [data-testid="stSidebarCollapsedControl"] svg,
-  [data-testid="collapsedControl"] svg {
-    display:block!important; visibility:visible!important;
-    width:23px!important; height:23px!important; color:#fff!important; fill:#fff!important;
-  }
-  section[data-testid="stSidebar"] {
-    display:block!important; visibility:visible!important;
-    width:286px!important; min-width:286px!important; max-width:286px!important;
-    z-index:1000001!important; box-shadow:12px 0 35px rgba(0,0,0,.45)!important;
-  }
-  section[data-testid="stSidebar"][aria-expanded="true"] {transform:translateX(0)!important;}
-  section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
-    display:flex!important; visibility:visible!important; opacity:1!important;
-    position:absolute!important; top:8px!important; right:8px!important; left:auto!important;
-    z-index:1000003!important;
-  }
-  .block-container {padding-top:3.8rem!important;}
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2819,7 +2735,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.1.3</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2881,58 +2797,88 @@ with st.sidebar:
 
     st.markdown("""
     <style>
-      [data-testid="stSidebar"] {min-width:292px!important;max-width:292px!important;width:292px!important;}
-      [data-testid="stSidebar"] .block-container {padding:14px 12px 18px!important;}
-      [data-testid="stSidebar"] div.stButton > button {
-        min-height:42px!important;width:100%!important;text-align:left!important;
-        justify-content:flex-start!important;border-radius:8px!important;padding:8px 12px!important;
-        font-size:13px!important;font-weight:550!important;margin:1px 0!important;
+      /* Desktop: largura confortável. No celular, o Streamlit controla o painel nativamente. */
+      @media (min-width: 769px) {
+        section[data-testid="stSidebar"] {min-width:292px!important;max-width:292px!important;width:292px!important;}
+      }
+      section[data-testid="stSidebar"] .block-container {padding:14px 12px 18px!important;}
+      section[data-testid="stSidebar"] div.stButton > button {
+        min-height:44px!important;width:100%!important;text-align:left!important;
+        justify-content:flex-start!important;border-radius:8px!important;padding:9px 12px!important;
+        font-size:13px!important;font-weight:600!important;margin:1px 0!important;
         box-shadow:none!important;border:1px solid transparent!important;
       }
-      [data-testid="stSidebar"] div.stButton > button[kind="primary"] {
+      section[data-testid="stSidebar"] div.stButton > button[kind="primary"] {
         background:linear-gradient(90deg,#194b91,#173b72)!important;
         border-color:#2e69b8!important;color:#fff!important;
       }
-      [data-testid="stSidebar"] div.stButton > button[kind="secondary"] {
+      section[data-testid="stSidebar"] div.stButton > button[kind="secondary"] {
         background:transparent!important;color:#cbd5e1!important;
       }
-      [data-testid="stSidebar"] div.stButton > button[kind="secondary"]:hover {
+      section[data-testid="stSidebar"] div.stButton > button[kind="secondary"]:hover {
         background:rgba(59,130,246,.09)!important;border-color:rgba(59,130,246,.18)!important;
       }
       .sgo-nav-group {font-size:10px;color:#607a9e;font-weight:750;letter-spacing:1.1px;
         text-transform:uppercase;margin:15px 5px 6px;}
-      .sgo-nav-footer {font-size:10px;color:#60748f;padding:12px 4px 0;border-top:1px solid rgba(148,163,184,.12);margin-top:16px;}
-      @media(max-width:768px){[data-testid="stSidebar"]{min-width:286px!important;max-width:286px!important;width:286px!important;}}
+
+      /* Mobile: preserve header and native sidebar trigger, without forcing transforms or widths. */
+      @media (max-width:768px) {
+        header[data-testid="stHeader"] {
+          display:block!important;visibility:visible!important;opacity:1!important;
+          height:50px!important;min-height:50px!important;background:rgba(7,17,31,.98)!important;
+          border-bottom:1px solid rgba(56,189,248,.16)!important;z-index:999990!important;
+        }
+        [data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"] {
+          display:flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;
+        }
+        section[data-testid="stSidebar"] .block-container {padding:10px 10px 22px!important;}
+        section[data-testid="stSidebar"] div.stButton > button {min-height:48px!important;font-size:14px!important;}
+        .sgo-sidebar-logo-wrap img{width:205px!important;box-shadow:none!important;}
+        .block-container{padding:3.25rem .58rem 5.4rem!important;max-width:100%!important;}
+        [data-testid="stHorizontalBlock"]{gap:.55rem!important;align-items:stretch!important;flex-wrap:wrap!important;}
+        [data-testid="column"]{min-width:calc(50% - .4rem)!important;flex:1 1 calc(50% - .4rem)!important;}
+        [data-testid="stMetric"]{min-height:96px!important;padding:12px!important;}
+        .stButton button,.stDownloadButton button,.stLinkButton a{min-height:48px!important;font-size:.9rem!important;}
+        .stTextInput input,.stDateInput input,.stNumberInput input,.stSelectbox [data-baseweb="select"]>div,
+        .stMultiSelect [data-baseweb="select"]>div{min-height:48px!important;font-size:16px!important;}
+        .stTextArea textarea{font-size:16px!important;min-height:110px!important;}
+        [data-testid="stDataFrame"]{max-width:100vw!important;overflow-x:auto!important;}
+        [data-testid="stExpander"] summary{min-height:48px!important;padding:10px 12px!important;}
+      }
+      @media (max-width:430px) {
+        [data-testid="column"]{min-width:100%!important;flex:1 1 100%!important;}
+        h1{font-size:1.28rem!important} h2{font-size:1.12rem!important} h3{font-size:1rem!important}
+      }
     </style>
     """, unsafe_allow_html=True)
 
     def _nav_button(label, icon, key):
         ativo = st.session_state.pagina_sgo == label
-        if st.button(f"{icon}   {label}", key=key, use_container_width=True, type="primary" if ativo else "secondary"):
+        if st.button(f"{icon}   {label}", key=key, use_container_width=True,
+                     type="primary" if ativo else "secondary"):
             st.session_state.pagina_sgo = label
             st.rerun()
 
+    # Funções prioritárias para smartphone e operação diária.
     _nav_button("Dashboard", "⌂", "nav_dashboard")
-    st.markdown('<div class="sgo-nav-group">Gestão</div>', unsafe_allow_html=True)
     _nav_button("Resumo Diário", "▣", "nav_resumo")
     _nav_button("Competição F1", "🏆", "nav_f1")
-    st.markdown('<div class="sgo-nav-group">Campo</div>', unsafe_allow_html=True)
     _nav_button("Emissão de RDC", "▤", "nav_emissao")
-    _nav_button("Escala", "♟", "nav_escala")
-    st.markdown('<div class="sgo-nav-group">Inteligência</div>', unsafe_allow_html=True)
     _nav_button("Leitor de RDC (IA)", "⌗", "nav_ia")
-    _nav_button("Análise de Gargalos", "▥", "nav_gargalos")
-    _nav_button("Controle de C.C", "⚙", "nav_cc")
-    _nav_button("Banco de Dados", "▱", "nav_banco")
 
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    if st.button("❔   Ajuda e Suporte", key="nav_ajuda", use_container_width=True, type="secondary"):
-        st.info("Para suporte, registre o erro, a tela e o horário da ocorrência.")
-    if st.button("▣   Modo TV", key="nav_modo_tv", use_container_width=True, type="secondary"):
-        st.session_state.modo_tv = True
-        st.session_state.tv_slide = 0
-        st.rerun()
-    st.markdown("---")
+    # Funções técnicas ficam recolhidas para reduzir a altura do menu no celular.
+    with st.expander("Mostrar mais opções", expanded=False):
+        _nav_button("Escala", "♟", "nav_escala")
+        _nav_button("Análise de Gargalos", "▥", "nav_gargalos")
+        _nav_button("Controle de C.C", "⚙", "nav_cc")
+        _nav_button("Banco de Dados", "▱", "nav_banco")
+        if st.button("▣   Modo TV", key="nav_modo_tv", use_container_width=True, type="secondary"):
+            st.session_state.modo_tv = True
+            st.session_state.tv_slide = 0
+            st.rerun()
+        if st.button("❔   Ajuda e Suporte", key="nav_ajuda", use_container_width=True, type="secondary"):
+            st.info("Para suporte, registre o erro, a tela e o horário da ocorrência.")
+
     # Configuracoes tecnicas internas.
     if "idioma" not in st.session_state:
         st.session_state.idioma = "Português"
@@ -2944,7 +2890,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.1.3</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4103,7 +4049,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.1.3)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4231,7 +4177,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.1.3 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -4245,10 +4191,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         sincronizar_dados_globais()
         
         slide_atual = st.session_state.get("tv_slide", 0)
-        tv_nome_sistema = "Sistema de Gestão RDC & PDE"
-        tv_subtitulo_sistema = "Centro de Comando Operacional"
-        tv_obra_referencia = "Obra 125 Arauco"
-        nome_site_display = tv_nome_sistema
+        nome_site_display = nome_site if (nome_site and str(nome_site).strip()) else "ENESA ENGENHARIA"
         
         # CSS Ultra Premium para Modo TV Fullscreen
         st.markdown("""
@@ -4326,100 +4269,50 @@ Retorne apenas o JSON sem crases ou markdown."""
         </style>
         """, unsafe_allow_html=True)
 
-        # Layout TV 3.0: navegacao em linhas independentes, sem cortes ou sobreposicao.
-        st.markdown("""
-        <style>
-          .tv-topbar{display:flex!important;align-items:center!important;justify-content:space-between!important;
-            gap:20px!important;width:100%!important;min-height:72px!important;box-sizing:border-box!important;
-            background:linear-gradient(100deg,#102a48,#0a1c31)!important;border:1px solid rgba(56,189,248,.32)!important;
-            border-left:5px solid #2f81f7!important;border-radius:13px!important;padding:12px 16px!important;
-            margin:0 0 10px!important;box-shadow:0 10px 28px rgba(0,0,0,.28)!important;overflow:hidden!important}
-          .tv-brand{font-size:1.25rem!important;font-weight:850!important;color:#fff!important;line-height:1.15!important}
-          .tv-sub{font-size:.74rem!important;color:#8eabc8!important;margin-top:5px!important}
-          .tv-clock{font-size:1.45rem!important;color:#38bdf8!important;font-weight:850!important;line-height:1!important}
-          .tv-live-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
-            padding:2px 2px 7px;box-sizing:border-box}
-          .tv-live-system{display:flex;align-items:center;gap:9px;color:#f8fafc;font-size:14px;font-weight:800;white-space:nowrap}
-          .tv-online-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 11px #10b981;display:inline-block}
-          .tv-nav-label{font-size:10px;color:#6684a5;font-weight:800;letter-spacing:1.25px;text-transform:uppercase;
-            margin:2px 0 5px;text-align:center}
-          .tv-nav-zone{background:rgba(9,24,42,.72);border:1px solid rgba(125,158,196,.15);border-radius:12px;
-            padding:8px 10px 10px;margin-bottom:8px}
-          /* Os botoes do Modo TV nunca podem cortar texto. */
-          .tv-nav-zone + div [data-testid="stButton"] button,
-          div[data-testid="stButton"] button{white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important}
-          @media(max-width:1100px){.tv-brand{font-size:1.05rem!important}.tv-sub{font-size:.68rem!important}}
-        </style>
-        """, unsafe_allow_html=True)
-
         # --- BARRA DE NAVEGAÇÃO SUPERIOR DO MODO TV ---
         st.markdown(f"""
         <div class="tv-topbar">
-          <div>
-            <div class="tv-brand">{tv_nome_sistema}</div>
-            <div class="tv-sub">{tv_subtitulo_sistema} · {tv_obra_referencia}</div>
-          </div>
-          <div style="text-align:right;min-width:150px">
-            <div class="tv-clock">{hora_agora}</div>
-            <div class="tv-sub">{data_agora} · Dados sincronizados</div>
-          </div>
-        </div>
-        <div class="tv-live-row">
-          <div style="display:flex;align-items:center;gap:12px">
-            <div class="tv-badge-live">● AO VIVO</div>
-            <div class="tv-live-system"><span class="tv-online-dot"></span>{tv_nome_sistema}</div>
-          </div>
-          <div style="font-size:11px;color:#6684a5;font-weight:700">PAINEL EXECUTIVO · TEMPO REAL</div>
+          <div><div class="tv-brand">SGO | RDC & PDE</div><div class="tv-sub">Centro de Comando Operacional · {nome_site_display}</div></div>
+          <div style="text-align:right"><div class="tv-clock">{hora_agora}</div><div class="tv-sub">{data_agora} · Dados sincronizados</div></div>
         </div>
         """, unsafe_allow_html=True)
-
-        # Linha exclusiva para troca de telas. Evita corte em resolucoes menores.
-        st.markdown('<div class="tv-nav-label">Selecionar painel</div>', unsafe_allow_html=True)
-        tv_tab1, tv_tab2, tv_tab3 = st.columns(3, gap="small")
-        with tv_tab1:
-            if st.button("📊 1. Efetivo & KPIs", key="tv_go_efetivo", use_container_width=True,
-                         type="primary" if slide_atual % 3 == 0 else "secondary"):
-                if slide_atual % 3 != 0:
-                    st.session_state.tv_slide = 0
-                    st.rerun()
-        with tv_tab2:
-            if st.button("🏎️ 2. Competição F1", key="tv_go_f1", use_container_width=True,
-                         type="primary" if slide_atual % 3 == 1 else "secondary"):
-                if slide_atual % 3 != 1:
-                    st.session_state.tv_slide = 1
-                    st.rerun()
-        with tv_tab3:
-            if st.button("🤖 3. Briefing & IA", key="tv_go_briefing", use_container_width=True,
-                         type="primary" if slide_atual % 3 == 2 else "secondary"):
-                if slide_atual % 3 != 2:
-                    st.session_state.tv_slide = 2
+        col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2.2, 3.8, 1.4, 1.3, 1.0])
+        with col_nav1:
+            st.markdown(f"""<div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;"><div class="tv-badge-live">● AO VIVO</div><span style="font-size: 16px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">{nome_site_display}</span></div>""", unsafe_allow_html=True)
+            
+        with col_nav2:
+            opcoes_slides = ["📊 1. Efetivo & KPIs", "🏎️ 2. Competição F1", "🤖 3. Briefing & IA"]
+            slide_sel = st.segmented_control("", opcoes_slides, default=opcoes_slides[slide_atual % 3], key="tv_slide_selector")
+            if slide_sel:
+                idx_novo = opcoes_slides.index(slide_sel)
+                if idx_novo != slide_atual:
+                    st.session_state.tv_slide = idx_novo
                     st.rerun()
 
-        # Linha separada para acoes operacionais.
-        tv_action1, tv_action2, tv_action3 = st.columns([1.4, 1.2, 1.0], gap="small")
-        with tv_action1:
+        with col_nav3:
             if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_tv_open_qr", type="secondary"):
                 modal_qr_code_mobile()
-        with tv_action2:
-            if st.button("🔄 Atualizar Dados", use_container_width=True, key="btn_tv_refresh", type="secondary"):
+                    
+        with col_nav4:
+            if st.button("🔄 Atualizar", use_container_width=True, key="btn_tv_refresh", type="secondary"):
                 try:
                     st.cache_data.clear()
                 except Exception:
                     pass
                 sincronizar_dados_globais()
                 st.rerun()
-        with tv_action3:
-            if st.button("❌ Sair do Modo TV", type="secondary", use_container_width=True, key="btn_tv_exit"):
+        with col_nav5:
+            if st.button("❌ Sair", type="secondary", use_container_width=True):
                 st.session_state.modo_tv = False
                 st.rerun()
-
-        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+                    
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         
         # =========================================================
         # SLIDE 0: DASHBOARD EXECUTIVO & KPIs DE EFETIVO
         # =========================================================
         if slide_atual % 3 == 0:
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{tv_obra_referencia}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span><span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span></div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{nome_site_display}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span><span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span></div></div>""", unsafe_allow_html=True)
             
             # Filtro rápido de Local
             filtro_tv_local = st.segmented_control(
