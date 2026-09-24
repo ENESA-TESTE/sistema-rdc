@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.1.1
+# PALETA CORPORATIVA SGO v9.1.2
 # ================================================================
 st.markdown("""
 <style>
@@ -1485,7 +1485,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# MENU MOBILE NATIVO - CORRECAO v9.1.1.1
+# MENU MOBILE NATIVO - CORRECAO v9.1.2.1
 # ================================================================
 st.markdown("""
 <style>
@@ -2819,7 +2819,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.1.1</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.1.2</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2944,7 +2944,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.1.1</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.1.2</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4103,7 +4103,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.1.1)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.1.2)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4231,7 +4231,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.1.1 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.1.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -4245,7 +4245,12 @@ Retorne apenas o JSON sem crases ou markdown."""
         sincronizar_dados_globais()
         
         slide_atual = st.session_state.get("tv_slide", 0)
-        nome_site_display = nome_site if (nome_site and str(nome_site).strip()) else "ENESA ENGENHARIA"
+
+        # Identidade fixa do Modo TV. Mantem o mesmo nome em todas as telas e reruns.
+        tv_nome_sistema = "Sistema de Gestão RDC & PDE"
+        tv_subtitulo_sistema = "Centro de Comando Operacional"
+        tv_obra_referencia = "Obra 125 Arauco"
+        nome_site_display = tv_nome_sistema
         
         # CSS Ultra Premium para Modo TV Fullscreen
         st.markdown("""
@@ -4306,11 +4311,14 @@ Retorne apenas o JSON sem crases ou markdown."""
             box-shadow:0 12px 34px rgba(0,0,0,.28)!important;
           }
           .tv-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;
-            background:linear-gradient(90deg,rgba(15,36,61,.98),rgba(11,26,45,.98));
-            border:1px solid rgba(56,189,248,.20);border-radius:14px;padding:12px 17px;
-            margin-bottom:13px;box-shadow:0 10px 30px rgba(0,0,0,.28)}
-          .tv-brand{font-size:1.15rem;font-weight:850;color:#f8fafc;letter-spacing:.2px}
-          .tv-sub{font-size:.72rem;color:#86a0bf;margin-top:3px}.tv-clock{font-size:1.45rem;font-weight:850;color:#38bdf8}
+            background:linear-gradient(100deg,rgba(13,36,62,.99),rgba(8,24,42,.99));
+            border:1px solid rgba(56,189,248,.28);border-radius:14px;padding:13px 18px;
+            margin-bottom:10px;box-shadow:0 10px 30px rgba(0,0,0,.30);position:relative;overflow:hidden}
+          .tv-topbar:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(#38bdf8,#2f81f7)}
+          .tv-brand{font-size:1.2rem;font-weight:850;color:#f8fafc;letter-spacing:.2px}
+          .tv-sub{font-size:.74rem;color:#86a0bf;margin-top:3px}.tv-clock{font-size:1.5rem;font-weight:850;color:#38bdf8}
+          .tv-system-chip{display:inline-flex;align-items:center;gap:7px;color:#eaf5ff;font-size:14px;font-weight:800;white-space:nowrap}
+          .tv-system-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 10px #10b981}
           .tv-card-kpi{min-height:126px!important;padding:17px 19px!important;border-radius:14px!important;
             background:linear-gradient(145deg,#142943,#0d1c30)!important;border:1px solid rgba(148,163,184,.14)!important;
             box-shadow:0 10px 28px rgba(0,0,0,.26)!important}
@@ -4326,13 +4334,13 @@ Retorne apenas o JSON sem crases ou markdown."""
         # --- BARRA DE NAVEGAÇÃO SUPERIOR DO MODO TV ---
         st.markdown(f"""
         <div class="tv-topbar">
-          <div><div class="tv-brand">SGO | RDC & PDE</div><div class="tv-sub">Centro de Comando Operacional · {nome_site_display}</div></div>
+          <div><div class="tv-brand">{tv_nome_sistema}</div><div class="tv-sub">{tv_subtitulo_sistema} · {tv_obra_referencia}</div></div>
           <div style="text-align:right"><div class="tv-clock">{hora_agora}</div><div class="tv-sub">{data_agora} · Dados sincronizados</div></div>
         </div>
         """, unsafe_allow_html=True)
         col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2.2, 3.8, 1.4, 1.3, 1.0])
         with col_nav1:
-            st.markdown(f"""<div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;"><div class="tv-badge-live">● AO VIVO</div><span style="font-size: 16px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">{nome_site_display}</span></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="display:flex;align-items:center;gap:12px;padding-top:4px;"><div class="tv-badge-live">● AO VIVO</div><div class="tv-system-chip"><span class="tv-system-dot"></span>{tv_nome_sistema}</div></div>""", unsafe_allow_html=True)
             
         with col_nav2:
             opcoes_slides = ["📊 1. Efetivo & KPIs", "🏎️ 2. Competição F1", "🤖 3. Briefing & IA"]
@@ -4366,7 +4374,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         # SLIDE 0: DASHBOARD EXECUTIVO & KPIs DE EFETIVO
         # =========================================================
         if slide_atual % 3 == 0:
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{nome_site_display}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span><span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span></div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{tv_obra_referencia}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span><span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span></div></div>""", unsafe_allow_html=True)
             
             # Filtro rápido de Local
             filtro_tv_local = st.segmented_control(
@@ -4623,7 +4631,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_f1=st.session_state.get("df_historico_f1", pd.DataFrame()),
                         df_efetivo=st.session_state.get("df", None),
                         data_str=data_tv_brief_str,
-                        nome_site=nome_site_display,
+                        nome_site=tv_nome_sistema,
                         briefing_data=briefing_tv,
                         logo_path=caminho_logo_enesa
                     )
