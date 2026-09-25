@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.2
+# PALETA CORPORATIVA SGO v9.4
 # ================================================================
 st.markdown("""
 <style>
@@ -2735,7 +2735,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.4</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2890,7 +2890,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.4</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4049,7 +4049,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.4)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4177,7 +4177,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.4 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -7182,7 +7182,8 @@ Retorne apenas o JSON sem crases ou markdown."""
 
     # Modulo removido da navegacao operacional.
     if pagina_sgo == "Controle de C.C":
-        st.markdown("### 💰 Controle de Centro de Custo (C.C)")
+        st.markdown("### 📊 Análise de Distribuição por Centro de Custo")
+        st.caption("Visão executiva da concentração de mão de obra por contrato, C.C, função e liderança.")
         
         # === ÚLTIMA ATUALIZAÇÃO ===
         ultima_base = ""
@@ -7254,7 +7255,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.warning(f"⚠️ **ATENÇÃO:** Foram encontrados **{invalid_cc_count} colaboradores** com C.C **inválido** (não existe no mapa oficial). Exemplos: {', '.join(unique_invalids[:5])}")
 
             # Filtro PB/RB/ESP, Turno e Status Global para a aba C.C
-            col_cc_filt1, col_cc_filt2, col_cc_filt3 = st.columns(3)
+            st.markdown("#### 🎛️ Filtros da análise")
+            col_cc_filt1, col_cc_filt2, col_cc_filt3, col_cc_filt4 = st.columns(4)
             with col_cc_filt1:
                 filtro_local = st.segmented_control(
                     "Filtrar Dados por Local:", 
@@ -7291,7 +7293,9 @@ Retorne apenas o JSON sem crases ou markdown."""
                     key="filtro_cc_status_key"
                 )
                 
-            df_cc_aba = df_atual[df_atual["C.C"].str.strip() != ""]
+            with col_cc_filt4:
+                filtro_cc_mo = st.selectbox("Tipo de Mão de Obra:", ["Todas", "MOD", "MOI"], key="filtro_cc_mo_key_v94")
+            df_cc_aba = df_atual[df_atual["C.C"].str.strip() != ""].copy()
             if filtro_local == "PB":
                 df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
             elif filtro_local == "RB":
@@ -7305,6 +7309,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
             if filtro_cc_status != "Todos" and "STATUS" in df_cc_aba.columns:
                 df_cc_aba = df_cc_aba[df_cc_aba["STATUS"] == filtro_cc_status]
+            if filtro_cc_mo != "Todas" and "MÃO DE OBRA" in df_cc_aba.columns:
+                df_cc_aba = df_cc_aba[df_cc_aba["MÃO DE OBRA"].astype(str).str.strip().str.upper() == filtro_cc_mo]
 
             lista_cc = sorted([str(cc) for cc in df_cc_aba["C.C"].unique()])
             
@@ -7331,6 +7337,23 @@ Retorne apenas o JSON sem crases ou markdown."""
                 elif local: return f"{cc_code} ({local})"
                 else: return str(cc_code)
             
+            def contrato_cc(cc):
+                cc_s = str(cc)
+                if ".005" in cc_s: return "ESP"
+                if "125.02" in cc_s: return "PB"
+                if "125.01" in cc_s: return "RB"
+                return "OUTROS"
+            df_cc_aba["CONTRATO"] = df_cc_aba["C.C"].apply(contrato_cc)
+            cont_contrato = df_cc_aba["CONTRATO"].value_counts().to_dict()
+            cc_counts_exec = df_cc_aba["C.C"].value_counts()
+            pct_top5 = round(cc_counts_exec.head(5).sum() / len(df_cc_aba) * 100, 1) if len(df_cc_aba) else 0
+            maior_cc = str(cc_counts_exec.index[0]) if not cc_counts_exec.empty else "N/A"
+            maior_cc_qtd = int(cc_counts_exec.iloc[0]) if not cc_counts_exec.empty else 0
+            st.info(f"📌 **Leitura executiva:** os 5 maiores C.C concentram **{pct_top5}%** do efetivo filtrado. Maior concentração: **{format_cc(maior_cc) if maior_cc != 'N/A' else 'N/A'}**, com **{maior_cc_qtd} colaboradores**.")
+            st.markdown("#### 🧭 Distribuição por contrato")
+            ct1,ct2,ct3,ct4 = st.columns(4)
+            ct1.metric("RB", cont_contrato.get("RB",0)); ct2.metric("PB", cont_contrato.get("PB",0)); ct3.metric("ESP", cont_contrato.get("ESP",0)); ct4.metric("Outros", cont_contrato.get("OUTROS",0))
+            st.markdown("#### 📌 Visão executiva")
             # Métricas gerais Customizadas
             def card_kpi_cc(titulo, valor, cor):
                 return f"""
@@ -7358,14 +7381,16 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             with col_graf1:
                 # Gráfico de distribuição por C.C.
-                st.markdown("**Distribuição de Efetivo por Centro de Custo**")
+                st.markdown("#### 🏗️ Ranking de concentração por C.C")
                 
                 cc_contagem = df_cc_aba["C.C"].value_counts().reset_index()
                 cc_contagem.columns = ["Centro de Custo", "Quantidade"]
                 cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
+                cc_contagem["Participação"] = (cc_contagem["Quantidade"] / max(len(df_cc_aba), 1) * 100).round(1)
+                cc_contagem["Texto"] = cc_contagem.apply(lambda r: f"{int(r['Quantidade'])} | {r['Participação']:.1f}%", axis=1)
                 
                 if len(cc_contagem) > 0:
-                    fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale=[(0, "#0f172a"), (1, "#8b5cf6")], text="Quantidade")
+                    fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale=[(0, "#12345a"), (0.55, "#2f81f7"), (1, "#8b5cf6")], text="Texto")
                     fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
                     fig_cc.update_yaxes(categoryorder="total ascending")
                     fig_cc.update_xaxes(visible=False)
@@ -7392,6 +7417,13 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             st.markdown("---")
             
+            st.markdown("#### 🎯 Concentração e criticidade")
+            if not cc_contagem.empty:
+                df_concentracao = cc_contagem.copy()
+                df_concentracao["Situação"] = df_concentracao["Participação"].apply(lambda p: "🔴 Alta concentração" if p >= 15 else ("🟡 Atenção" if p >= 8 else "🟢 Normal"))
+                df_concentracao["Participação"] = df_concentracao["Participação"].map(lambda x: f"{x:.1f}%")
+                st.dataframe(df_concentracao[["Nome C.C", "Quantidade", "Participação", "Situação"]].head(15), hide_index=True, use_container_width=True)
+
             # --- Seção de Histórico (Máquina do Tempo) ---
             if os.path.exists(caminho_hist_cc):
                 try:
@@ -7453,7 +7485,8 @@ Retorne apenas o JSON sem crases ou markdown."""
             st.markdown("---")
             
             # Filtros por C.C. e Equipe
-            st.markdown("**Consulta Detalhada**")
+            st.markdown("#### 🔎 Raio-X do Centro de Custo")
+            st.caption("Selecione um C.C e/ou uma liderança para visualizar composição, funções e colaboradores.")
             
             # Filtramos a lista de encarregados para exibir APENAS quem realmente é encarregado da lista oficial
             lista_encarregados_detalhada = sorted([str(e) for e in df_cc_aba["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
@@ -7473,6 +7506,13 @@ Retorne apenas o JSON sem crases ou markdown."""
                 df_cc_filtrado = df_cc_filtrado[df_cc_filtrado["ENCARREGADO"] == enc_selecionado]
             
             if len(df_cc_filtrado) > 0:
+                qtd_det = len(df_cc_filtrado)
+                mod_det = int((df_cc_filtrado["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD").sum()) if "MÃO DE OBRA" in df_cc_filtrado.columns else 0
+                moi_det = int((df_cc_filtrado["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI").sum()) if "MÃO DE OBRA" in df_cc_filtrado.columns else 0
+                enc_det = df_cc_filtrado["ENCARREGADO"].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+                fun_det = df_cc_filtrado["FUNÇÃO"].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+                d1,d2,d3,d4,d5 = st.columns(5)
+                d1.metric("Efetivo", qtd_det); d2.metric("MOD", mod_det); d3.metric("MOI", moi_det); d4.metric("Encarregados", enc_det); d5.metric("Funções", fun_det)
                 # Resumo de funções no C.C. selecionado
                 st.markdown(f"**Funções no C.C. selecionado** ({len(df_cc_filtrado)} colaboradores)")
                 func_cc = df_cc_filtrado["FUNÇÃO"].value_counts().reset_index()
