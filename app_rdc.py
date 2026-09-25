@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.2
+# PALETA CORPORATIVA SGO v9.3
 # ================================================================
 st.markdown("""
 <style>
@@ -2064,7 +2064,9 @@ def preparar_dataframe(df):
         col_clean = str(col).strip().upper()
         
         # Ignorar matriculas de líderes/encarregados para não sobrescrever a matricula principal
-        if "MATRÍCULA" in col_clean or "MATRICULA" in col_clean or "MAT." in col_clean or "CHAPA" in col_clean or "CRACHÁ" in col_clean or "CRACHA" in col_clean or "RE " in col_clean or "RE" == col_clean:
+        if "CRACHÁ" in col_clean or "CRACHA" in col_clean:
+            mapeamento[col] = "CRACHA"
+        elif "MATRÍCULA" in col_clean or "MATRICULA" in col_clean or "MAT." in col_clean or "CHAPA" in col_clean or "RE " in col_clean or "RE" == col_clean:
             if "LÍDER" in col_clean or "LIDER" in col_clean or "ENCARREGADO" in col_clean or "COORDENADOR" in col_clean or "SUPERVISOR" in col_clean:
                 continue
             else:
@@ -2113,7 +2115,7 @@ def preparar_dataframe(df):
             return ""
         return s
 
-    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "COORDENADOR", "TURNO", "STATUS", "C.C", "DISCIPLINA", "MÃO DE OBRA"]:
+    for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "COORDENADOR", "TURNO", "STATUS", "CRACHA", "C.C", "DISCIPLINA", "MÃO DE OBRA"]:
         if c not in df.columns:
             df[c] = ""
         df[c] = df[c].apply(_limpar_celula_segura)
@@ -2735,7 +2737,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.3</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2890,7 +2892,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.3</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4049,7 +4051,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.3)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4177,7 +4179,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.3 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -4729,6 +4731,30 @@ Retorne apenas o JSON sem crases ou markdown."""
             except Exception as e_pptx_dash:
                 st.error(f"Erro ao gerar PPTX: {e_pptx_dash}")
         
+        # Status gerencial: combina STATUS e a situacao do CRACHA do PDE.
+        import unicodedata
+        def _norm_status(valor):
+            txt = "" if valor is None or pd.isna(valor) else str(valor).strip().upper()
+            return "".join(c for c in unicodedata.normalize("NFD", txt) if unicodedata.category(c) != "Mn")
+        def _categoria_status_pde(row):
+            status_txt = _norm_status(row.get("STATUS", ""))
+            cracha_txt = _norm_status(row.get("CRACHA", ""))
+            combinado = f"{status_txt} {cracha_txt}".strip()
+            if any(x in combinado for x in ["AGUARDANDO", "EM CONFECCAO", "PENDENTE", "NAO LIBERADO", "NAO ENTREGUE"]): return "AGUARDANDO CRACHA"
+            if any(x in combinado for x in ["BLOQUEADO", "BLOQUEIO", "SUSPENSO"]): return "CRACHA BLOQUEADO"
+            if any(x in cracha_txt for x in ["LIBERADO", "ENTREGUE", "PRONTO"]): return "CRACHA LIBERADO"
+            if any(x in status_txt for x in ["INATIVO", "DESLIGADO", "DEMITIDO", "AFASTADO"]): return "INATIVO"
+            if status_txt == "ATIVO" or status_txt.startswith("ATIVO "): return "ATIVO"
+            if not status_txt and not cracha_txt: return "SEM INFORMACAO"
+            return status_txt or cracha_txt or "SEM INFORMACAO"
+        df_status_base = df_atual.copy()
+        df_status_base["_STATUS_GERENCIAL"] = df_status_base.apply(_categoria_status_pde, axis=1)
+        contagem_status = df_status_base["_STATUS_GERENCIAL"].value_counts().to_dict()
+        ordem_status = ["ATIVO", "AGUARDANDO CRACHA", "CRACHA BLOQUEADO", "CRACHA LIBERADO", "INATIVO", "SEM INFORMACAO"]
+        extras_status = sorted(c for c in contagem_status if c not in ordem_status)
+        categorias_status = [c for c in ordem_status if contagem_status.get(c, 0) > 0] + extras_status
+        rotulo_status = {"ATIVO":"Ativo", "AGUARDANDO CRACHA":"Aguardando crachá", "CRACHA BLOQUEADO":"Crachá bloqueado", "CRACHA LIBERADO":"Crachá liberado", "INATIVO":"Inativo", "SEM INFORMACAO":"Sem informação"}
+
         # Filtro de MOI / MOD, Local, Turno e Status com chaves explícitas
         col_filtros1, col_filtros2, col_filtros3, col_filtros4 = st.columns(4)
         with col_filtros1:
@@ -4765,25 +4791,19 @@ Retorne apenas o JSON sem crases ou markdown."""
             )
             
         with col_filtros4:
-            status_disponiveis = ["Todos"]
-            if "STATUS" in df_atual.columns:
-                status_reais = [str(s).strip() for s in df_atual["STATUS"].dropna().unique() if str(s).strip() and str(s).upper() != "NAN"]
-                status_disponiveis.extend(sorted(list(set(status_reais))))
-                
-            idx_st = status_disponiveis.index("ATIVO") if "ATIVO" in status_disponiveis else 0
+            status_opcoes = ["TODOS"] + categorias_status
+            status_labels = {c: f"{rotulo_status.get(c, c.title())} ({contagem_status.get(c, 0)})" for c in categorias_status}
+            status_labels["TODOS"] = f"Todos ({len(df_status_base)})"
+            idx_st = status_opcoes.index("ATIVO") if "ATIVO" in status_opcoes else 0
             filtro_dash_status = st.selectbox(
-                "Filtrar por Status:", 
-                status_disponiveis,
-                index=idx_st,
-                key="filtro_dash_status_ctrl_v8"
-            )
-            
-        df_dash = df_atual.copy()
-        
-        # 1. Aplicar filtro Status
-        if filtro_dash_status != "Todos" and "STATUS" in df_dash.columns:
-            df_dash = df_dash[df_dash["STATUS"].astype(str).str.strip().str.upper() == filtro_dash_status.strip().upper()]
-            
+                "Filtrar por Status:", status_opcoes, index=idx_st,
+                format_func=lambda c: status_labels.get(c, c), key="filtro_dash_status_ctrl_v9")
+
+        df_dash = df_status_base.copy()
+        # 1. Aplicar filtro Status/Cracha
+        if filtro_dash_status != "TODOS":
+            df_dash = df_dash[df_dash["_STATUS_GERENCIAL"] == filtro_dash_status]
+
         # 2. Aplicar filtro Turno
         if filtro_dash_turno != "Todos" and "TURNO" in df_dash.columns:
             df_dash = df_dash[df_dash["TURNO"].astype(str).str.strip().str.upper() == filtro_dash_turno.strip().upper()]
@@ -4802,6 +4822,15 @@ Retorne apenas o JSON sem crases ou markdown."""
         elif filtro_dash_local == "ESP":
             df_dash = df_dash[df_dash["C.C"].apply(lambda x: ".005" in str(x))]
         
+        st.caption("Quantidade por status do PDE")
+        resumo_chaves = [c for c in ordem_status if c in contagem_status]
+        if resumo_chaves:
+            cols_status = st.columns(len(resumo_chaves))
+            cores_status = {"ATIVO":"#10b981", "AGUARDANDO CRACHA":"#f59e0b", "CRACHA BLOQUEADO":"#ef4444", "CRACHA LIBERADO":"#38bdf8", "INATIVO":"#64748b", "SEM INFORMACAO":"#a855f7"}
+            for coluna, chave in zip(cols_status, resumo_chaves):
+                with coluna:
+                    st.markdown(f"<div style='background:rgba(15,23,42,.55);border:1px solid {cores_status.get(chave, '#64748b')}55;border-radius:10px;padding:9px;text-align:center'><div style='font-size:10px;color:#94a3b8;font-weight:700'>{rotulo_status.get(chave, chave)}</div><div style='font-size:22px;color:{cores_status.get(chave, '#e2e8f0')};font-weight:800'>{contagem_status.get(chave, 0)}</div></div>", unsafe_allow_html=True)
+
         # Linha 1: Cartões de KPI Customizados (Premium e Dinâmicos)
         total_efetivo_dash = len(df_dash)
         
@@ -5260,7 +5289,8 @@ Retorne apenas o JSON sem crases ou markdown."""
         st.markdown("---")
         st.markdown(f"**🔍 Base Completa ({filtro_dash_mo})**")
         termo_busca = st.text_input("Buscar funcionário (Nome, Matrícula ou Função):")
-        df_exibicao = df_dash[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "C.C"]].copy()
+        colunas_base_dash = [c for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "C.C", "STATUS", "CRACHA"] if c in df_dash.columns]
+        df_exibicao = df_dash[colunas_base_dash].copy()
         if termo_busca:
             mask = (
                 df_exibicao["NOME"].astype(str).str.contains(termo_busca, case=False, na=False) |
