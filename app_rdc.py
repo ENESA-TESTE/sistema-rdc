@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.4
+# PALETA CORPORATIVA SGO v9.4.1
 # ================================================================
 st.markdown("""
 <style>
@@ -2735,7 +2735,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.4</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.4.1</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2890,7 +2890,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.4</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.4.1</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4049,7 +4049,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.4)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.4.1)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4177,7 +4177,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.4 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.4.1 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -7228,15 +7228,32 @@ Retorne apenas o JSON sem crases ou markdown."""
             st.warning("⚠️ A coluna de Centro de Custo (C.C) não foi encontrada na base de dados atual. Verifique se a planilha possui essa coluna.")
         else:
             # === ALERTA DE C.C INVÁLIDO ===
-            df_em_branco = df_atual[df_atual["C.C"].isna() | df_atual["C.C"].str.strip().eq("")]
+            # C.C é uma pendência operacional somente para quem já deveria estar trabalhando.
+            # Demitidos/inativos e pessoas aguardando crachá/mobilização ficam fora desse alerta.
+            import unicodedata as _ud_cc
+            def _norm_cc_status(v):
+                txt = "" if v is None or pd.isna(v) else str(v).strip().upper()
+                return "".join(c for c in _ud_cc.normalize("NFD", txt) if _ud_cc.category(c) != "Mn")
+            def _fora_escopo_cc(row):
+                status_txt = _norm_cc_status(row.get("STATUS", ""))
+                cracha_txt = _norm_cc_status(row.get("CRACHA", ""))
+                combinado = f"{status_txt} {cracha_txt}"
+                termos_fora = ["DEMITIDO", "DESLIGADO", "INATIVO", "AFASTADO", "AGUARDANDO", "EM CONFECCAO", "PENDENTE", "NAO LIBERADO", "NAO ENTREGUE"]
+                return any(t in combinado for t in termos_fora)
+            mask_cc_vazio = df_atual["C.C"].isna() | df_atual["C.C"].astype(str).str.strip().eq("")
+            mask_fora_escopo_cc = df_atual.apply(_fora_escopo_cc, axis=1)
+            df_em_branco = df_atual[mask_cc_vazio & ~mask_fora_escopo_cc]
+            qtd_fora_cc = int((mask_cc_vazio & mask_fora_escopo_cc).sum())
             if not df_em_branco.empty:
-                st.error(f"⚠️ **ALERTA DE SISTEMA:** Existem **{len(df_em_branco)} colaboradores** na base atual **sem Centro de Custo** (C.C em branco). Eles não aparecerão nos cálculos de custo!")
+                st.error(f"⚠️ **ALERTA DE SISTEMA:** Existem **{len(df_em_branco)} colaboradores em condição operacional** sem Centro de Custo. Demitidos/inativos e pessoas aguardando crachá não entram neste alerta.")
+            elif qtd_fora_cc > 0:
+                st.success("✅ Nenhum colaborador em condição operacional está sem C.C. Registros demitidos/inativos ou aguardando crachá foram desconsiderados corretamente.")
             
             valid_prefixes = ["125.01.", "125.02."]
             valid_suffixes = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113']
             
             invalid_cc_list = []
-            df_preenchido = df_atual[~df_atual["C.C"].isna() & (df_atual["C.C"].str.strip() != "")]
+            df_preenchido = df_atual[(~df_atual["C.C"].isna()) & (df_atual["C.C"].astype(str).str.strip() != "") & (~df_atual.apply(_fora_escopo_cc, axis=1))]
             for _, row in df_preenchido.iterrows():
                 cc_val = str(row["C.C"]).strip()
                 is_valid = False
@@ -7295,7 +7312,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
             with col_cc_filt4:
                 filtro_cc_mo = st.selectbox("Tipo de Mão de Obra:", ["Todas", "MOD", "MOI"], key="filtro_cc_mo_key_v94")
-            df_cc_aba = df_atual[df_atual["C.C"].str.strip() != ""].copy()
+            df_cc_aba = df_atual[(df_atual["C.C"].astype(str).str.strip() != "") & (~df_atual.apply(_fora_escopo_cc, axis=1))].copy()
             if filtro_local == "PB":
                 df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
             elif filtro_local == "RB":
