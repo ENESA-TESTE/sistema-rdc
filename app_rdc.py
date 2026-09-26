@@ -137,9 +137,10 @@ from streamlit_gsheets import GSheetsConnection
 config_dir = ".streamlit"
 os.makedirs(config_dir, exist_ok=True)
 config_path = os.path.join(config_dir, "config.toml")
-if not os.path.exists(config_path):
-    with open(config_path, "w", encoding="utf-8") as f:
-        f.write('[theme]\nbase="dark"\nprimaryColor="#f39c12"\nbackgroundColor="#1e1e1e"\nsecondaryBackgroundColor="#2b2b2b"\ntextColor="#e0e4ea"\n')
+# Tema controlado pelo SGO Claro v10.1.
+os.makedirs(config_dir, exist_ok=True)
+with open(config_path, "w", encoding="utf-8") as f:
+    f.write('[theme]\nbase="light"\nprimaryColor="#1769AA"\nbackgroundColor="#F4F8FC"\nsecondaryBackgroundColor="#FFFFFF"\ntextColor="#102A43"\nfont="sans serif"\n')
 
 caminho_nome_site = "nome_empresa.txt"
 if os.path.exists(caminho_nome_site):
@@ -1434,7 +1435,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.2
+# PALETA CORPORATIVA SGO v10.1 TESTE CLARO
 # ================================================================
 st.markdown("""
 <style>
@@ -1458,6 +1459,139 @@ st.markdown("""
 [data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"]{background:rgba(13,27,45,.76)!important;border-color:var(--sgo-border)!important;}
 </style>
 """, unsafe_allow_html=True)
+
+# === INICIO SGO CLARO TESTE v10.1 ===
+st.markdown("""
+<style>
+:root{
+ --sgo-bg:#F4F8FC;--sgo-surface:#FFFFFF;--sgo-surface-2:#EDF5FC;
+ --sgo-navy:#0B2E59;--sgo-blue:#1769AA;--sgo-sky:#0EA5E9;
+ --sgo-cyan:#38BDF8;--sgo-text:#102A43;--sgo-muted:#627D98;
+ --sgo-border:#D9E5F1;--sgo-success:#14804A;--sgo-warning:#B76E00;
+ --sgo-danger:#C62828;--sgo-shadow:0 5px 18px rgba(15,55,95,.09);
+}
+html,body,[class*="css"]{font-family:Inter,"Segoe UI",Arial,sans-serif!important;}
+.stApp{
+ background:#F4F8FC!important;
+ background-image:none!important;
+ color:var(--sgo-text)!important;
+ animation:none!important;
+ margin-top:0!important;
+}
+.block-container{max-width:1500px!important;padding-top:1rem!important;animation:none!important;}
+h1,h2,h3,h4,h5,h6{color:var(--sgo-navy)!important;text-shadow:none!important;}
+p,label,li{color:var(--sgo-text)}
+.stCaption,[data-testid="stCaptionContainer"]{color:var(--sgo-muted)!important;}
+
+/* Cabecalho */
+.enesa-header{
+ background:#FFFFFF!important;border:1px solid var(--sgo-border)!important;
+ border-left:5px solid var(--sgo-blue)!important;border-radius:12px!important;
+ box-shadow:var(--sgo-shadow)!important;padding:18px 20px!important;
+ margin:0 0 18px!important;transform:none!important;animation:none!important;
+}
+.enesa-header:after{display:none!important}.enesa-header:hover{transform:none!important;}
+.enesa-header h1,.enesa-header h1 span{color:var(--sgo-navy)!important;background:none!important;-webkit-text-fill-color:var(--sgo-navy)!important;}
+
+/* Sidebar corporativa escura, conteudo claro */
+section[data-testid="stSidebar"],[data-testid="stSidebar"]{
+ background:#0B2E59!important;background-image:none!important;
+ border-right:1px solid #164879!important;box-shadow:3px 0 16px rgba(10,46,89,.12)!important;
+ backdrop-filter:none!important;
+}
+[data-testid="stSidebar"] *{text-shadow:none!important;}
+[data-testid="stSidebar"] h1,[data-testid="stSidebar"] h2,[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] p,[data-testid="stSidebar"] label{color:#F8FAFC!important;}
+.sgo-nav-group,.sgo-team-title,.sgo-team-version{color:#9EC9EE!important;}
+.sgo-team-names{color:#E6F2FC!important;}
+section[data-testid="stSidebar"] div.stButton>button[kind="primary"]{
+ background:#1769AA!important;color:#FFF!important;border:1px solid #38BDF8!important;
+ box-shadow:none!important;
+}
+section[data-testid="stSidebar"] div.stButton>button[kind="secondary"]{
+ background:transparent!important;color:#EAF4FC!important;border:1px solid transparent!important;
+}
+section[data-testid="stSidebar"] div.stButton>button[kind="secondary"]:hover{
+ background:rgba(255,255,255,.09)!important;border-color:rgba(255,255,255,.18)!important;
+}
+
+/* Cartoes */
+[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stForm"],
+[data-testid="stFileUploader"], .stDataFrame{
+ background:#FFFFFF!important;background-image:none!important;
+ border:1px solid var(--sgo-border)!important;border-radius:12px!important;
+ box-shadow:var(--sgo-shadow)!important;backdrop-filter:none!important;
+ animation:none!important;transform:none!important;
+}
+[data-testid="stMetric"]{border-top:3px solid var(--sgo-blue)!important;padding:16px 18px!important;}
+[data-testid="stMetricLabel"]{color:var(--sgo-muted)!important;font-weight:650!important;}
+[data-testid="stMetricValue"]{color:var(--sgo-blue)!important;background:none!important;-webkit-text-fill-color:var(--sgo-blue)!important;font-weight:750!important;}
+[data-testid="stMetricDelta"]{font-weight:650!important;}
+[data-testid="stMetric"]:hover,.stDataFrame:hover,[data-testid="stExpander"]:hover{transform:none!important;box-shadow:0 7px 22px rgba(15,55,95,.12)!important;}
+
+/* Botoes */
+.stButton button,.stDownloadButton button,.stLinkButton a{
+ border-radius:8px!important;font-weight:650!important;box-shadow:none!important;
+ transition:background-color .15s ease,border-color .15s ease!important;animation:none!important;
+}
+div.stButton>button[data-baseweb="button"],div.stButton>button[kind="primary"]{
+ background:#1769AA!important;color:#FFF!important;border:1px solid #1769AA!important;
+}
+div.stButton>button[data-baseweb="button"]:hover,div.stButton>button[kind="primary"]:hover{
+ background:#12578E!important;border-color:#12578E!important;transform:none!important;animation:none!important;
+}
+.stDownloadButton>button{background:#1769AA!important;color:#FFF!important;border:1px solid #1769AA!important;}
+
+/* Campos */
+.stTextInput input,.stTextArea textarea,.stDateInput input,.stNumberInput input,
+.stSelectbox [data-baseweb="select"]>div,.stMultiSelect [data-baseweb="select"]>div{
+ background:#FFFFFF!important;color:var(--sgo-text)!important;border:1px solid #BDD1E3!important;
+ box-shadow:none!important;backdrop-filter:none!important;border-radius:8px!important;
+}
+.stTextInput input:focus,.stTextArea textarea:focus,.stDateInput input:focus,.stNumberInput input:focus{
+ border-color:var(--sgo-blue)!important;box-shadow:0 0 0 3px rgba(23,105,170,.12)!important;transform:none!important;
+}
+[data-baseweb="popover"],[data-baseweb="menu"],ul[role="listbox"]{background:#FFFFFF!important;color:var(--sgo-text)!important;}
+li[role="option"]{color:var(--sgo-text)!important;}
+li[role="option"]:hover{background:#E8F3FB!important;}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"]{background:#E8F2FA!important;border:1px solid var(--sgo-border)!important;border-radius:10px!important;padding:4px!important;box-shadow:none!important;backdrop-filter:none!important;position:static!important;}
+.stTabs [data-baseweb="tab-list"]:before{display:none!important;}
+.stTabs [data-baseweb="tab"]{color:#486581!important;border-radius:7px!important;animation:none!important;}
+.stTabs [aria-selected="true"]{background:#1769AA!important;color:#FFF!important;box-shadow:none!important;border:none!important;}
+
+/* Tabelas */
+[data-testid="stDataFrame"] table thead tr{background:#1769AA!important;background-image:none!important;}
+[data-testid="stDataFrame"] table thead th{background:#1769AA!important;color:#FFF!important;border-color:#2B78B5!important;}
+[data-testid="stDataFrame"] table tbody tr:nth-child(odd){background:#FFFFFF!important;}
+[data-testid="stDataFrame"] table tbody tr:nth-child(even){background:#F2F7FB!important;}
+[data-testid="stDataFrame"] table tbody td{color:var(--sgo-text)!important;border-color:#E2EBF3!important;}
+[data-testid="stDataFrame"] table tbody tr:hover{background:#E7F3FC!important;}
+
+/* Alertas */
+[data-testid="stAlert"]{background:#FFFFFF!important;color:var(--sgo-text)!important;border-radius:10px!important;box-shadow:none!important;backdrop-filter:none!important;}
+hr{height:1px!important;background:#D9E5F1!important;border:0!important;}
+.stProgress>div>div{background:#1769AA!important;}
+.watermark-edson{color:#6E8EAA!important;background:none!important;-webkit-text-fill-color:#6E8EAA!important;text-shadow:none!important;animation:none!important;opacity:.62!important;}
+
+/* Plotly e componentes incorporados */
+[data-testid="stPlotlyChart"]{background:#FFFFFF!important;border:1px solid var(--sgo-border)!important;border-radius:12px!important;padding:6px!important;box-shadow:var(--sgo-shadow)!important;}
+
+/* Mobile */
+@media(max-width:768px){
+ header[data-testid="stHeader"]{display:block!important;visibility:visible!important;background:#0B2E59!important;height:50px!important;}
+ .block-container{padding:3.25rem .65rem 5rem!important;}
+ [data-testid="column"]{min-width:calc(50% - .35rem)!important;flex:1 1 calc(50% - .35rem)!important;}
+ .stTabs [data-baseweb="tab-list"]{position:static!important;border-radius:10px!important;}
+}
+@media(max-width:430px){[data-testid="column"]{min-width:100%!important;flex:1 1 100%!important;}}
+
+/* Reduz movimento sem afetar o indicador online */
+*:not(.tv-badge-live):not(.tv-online-dot){animation-duration:0s!important;animation-iteration-count:1!important;}
+</style>
+""", unsafe_allow_html=True)
+# === FIM SGO CLARO TESTE v10.1 ===
 
 # --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
 try:
@@ -2744,7 +2878,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v10.1 TESTE CLARO</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2899,7 +3033,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v10.1 TESTE CLARO</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4058,7 +4192,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v10.1 TESTE CLARO)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4186,7 +4320,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v10.1 TESTE CLARO · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
