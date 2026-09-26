@@ -13,6 +13,15 @@ import time
 import tempfile
 import plotly.express as px
 
+# Hora local oficial do SGO (Mato Grosso do Sul).
+def agora_local_sgo():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(datetime.timezone.utc).astimezone(ZoneInfo("America/Campo_Grande")).replace(tzinfo=None)
+    except Exception:
+        return datetime.datetime.utcnow() - datetime.timedelta(hours=4)
+
+
 # ==========================================
 # AUTO-RECUPERAR LOGO CASO O ARQUIVO SEJA DELETADO
 # ==========================================
@@ -2506,7 +2515,7 @@ def salvar_briefing_dia(data_str, briefing_dict):
             briefing_dict["data_formatada"] = dt.strftime("%d/%m/%Y")
         except Exception:
             briefing_dict["data_formatada"] = str(data_str)
-        briefing_dict["data_salvo"] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        briefing_dict["data_salvo"] = agora_local_sgo().strftime("%d/%m/%Y %H:%M")
         dados[chave_iso] = briefing_dict
         
         # 1. Salvar no arquivo local
@@ -3355,7 +3364,7 @@ if st.session_state.df is not None:
         add_text_box(slide1, Inches(1.5), Inches(5.0), Inches(10.333), Inches(0.6),
             f"Relatório de Efetivo e Produtividade — {dt_mod.datetime.now().strftime('%d/%m/%Y')}", font_size=16, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
         add_text_box(slide1, Inches(1.5), Inches(5.7), Inches(10.333), Inches(0.5),
-            f"Gerado em: {dt_mod.datetime.now().strftime('%d/%m/%Y às %H:%M')}", font_size=12, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+            f"Gerado em: {agora_local_sgo().strftime('%d/%m/%Y às %H:%M')}", font_size=12, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
 
         # ============================================
         # SLIDE 2: PAINEL DE EFETIVO E ESTRUTURA
@@ -3630,7 +3639,7 @@ if st.session_state.df is not None:
                 self.set_x(x_txt)
                 self.set_font('Helvetica', 'I', 8)
                 self.set_text_color(120, 120, 120)
-                self.cell(w_txt, 5, safe_pdf(f'Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")} | {total_rdcs} RDCs | {total_enc} encarregados'), 0, 1, 'C')
+                self.cell(w_txt, 5, safe_pdf(f'Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")} | {total_rdcs} RDCs | {total_enc} encarregados'), 0, 1, 'C')
                 # Linha separadora abaixo do header
                 y_line = max(self.get_y(), 8 + logo_w_h) + 2
                 self.set_y(y_line)
@@ -5532,7 +5541,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             self.set_text_color(0, 0, 0)
                             self.cell(0, 10, 'Relatorio de Pendencias - RDC', 0, 1, 'C')
                             self.set_font('Helvetica', 'I', 10)
-                            self.cell(0, 10, f'Data Referencia: {data_filtro_str} (Gerado em: {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
+                            self.cell(0, 10, f'Data Referencia: {data_filtro_str} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
                             self.ln(5)
                     
                     pdf = PDF()
@@ -8007,7 +8016,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 add_text_box(slide1, Inches(1.5), Inches(4.8), Inches(10.333), Inches(0.6),
                                     f"Período: {datas_texto}", font_size=16, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
                                 add_text_box(slide1, Inches(1.5), Inches(5.5), Inches(10.333), Inches(0.5),
-                                    f"Gerado em: {datetime.datetime.now().strftime('%d/%m/%Y às %H:%M')}", font_size=12, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
+                                    f"Gerado em: {agora_local_sgo().strftime('%d/%m/%Y às %H:%M')}", font_size=12, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
                                 
                                 # ============================================
                                 # SLIDE 2: MÉTRICAS GERAIS
