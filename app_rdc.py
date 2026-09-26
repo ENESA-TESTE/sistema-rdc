@@ -137,10 +137,9 @@ from streamlit_gsheets import GSheetsConnection
 config_dir = ".streamlit"
 os.makedirs(config_dir, exist_ok=True)
 config_path = os.path.join(config_dir, "config.toml")
-# Tema controlado pelo SGO Claro v10.1.
-os.makedirs(config_dir, exist_ok=True)
-with open(config_path, "w", encoding="utf-8") as f:
-    f.write('[theme]\nbase="light"\nprimaryColor="#1769AA"\nbackgroundColor="#F4F8FC"\nsecondaryBackgroundColor="#FFFFFF"\ntextColor="#102A43"\nfont="sans serif"\n')
+# O tema e gerenciado pelo arquivo .streamlit/config.toml criado fora do fluxo do app.
+# Nao escrever config.toml durante a execucao do Streamlit.
+pass
 
 caminho_nome_site = "nome_empresa.txt"
 if os.path.exists(caminho_nome_site):
@@ -1435,7 +1434,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v10.1 TESTE CLARO
+# PALETA CORPORATIVA SGO v10.1.1 TESTE CLARO
 # ================================================================
 st.markdown("""
 <style>
@@ -1460,7 +1459,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# === INICIO SGO CLARO TESTE v10.1 ===
+# === INICIO SGO CLARO TESTE v10.1.1 ===
 st.markdown("""
 <style>
 :root{
@@ -1591,7 +1590,7 @@ hr{height:1px!important;background:#D9E5F1!important;border:0!important;}
 *:not(.tv-badge-live):not(.tv-online-dot){animation-duration:0s!important;animation-iteration-count:1!important;}
 </style>
 """, unsafe_allow_html=True)
-# === FIM SGO CLARO TESTE v10.1 ===
+# === FIM SGO CLARO TESTE v10.1.1 ===
 
 # --- CHECAR LOGIN POR LINK RÁPIDO (QR CODE) ---
 try:
@@ -2878,7 +2877,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v10.1 TESTE CLARO</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v10.1.1 TESTE CLARO</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -3033,7 +3032,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v10.1 TESTE CLARO</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v10.1.1 TESTE CLARO</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4192,7 +4191,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v10.1 TESTE CLARO)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v10.1.1 TESTE CLARO)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4320,7 +4319,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v10.1 TESTE CLARO · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v10.1.1 TESTE CLARO · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
