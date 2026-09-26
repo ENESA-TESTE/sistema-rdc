@@ -1434,7 +1434,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v10.0
+# PALETA CORPORATIVA SGO v9.2
 # ================================================================
 st.markdown("""
 <style>
@@ -1456,108 +1456,6 @@ st.markdown("""
 .sgo-team-version span{color:#38bdf8;font-weight:800;margin-left:5px;}
 .enesa-header{background:rgba(9,22,38,.94)!important;border-color:var(--sgo-border)!important;border-left-color:var(--sgo-accent)!important;}
 [data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"]{background:rgba(13,27,45,.76)!important;border-color:var(--sgo-border)!important;}
-</style>
-""", unsafe_allow_html=True)
-
-# ================================================================
-# SGO BLUE CORPORATE DESIGN SYSTEM v10.0
-# ================================================================
-st.markdown("""
-<style>
-:root{
- --sgo-navy-950:#050d19;--sgo-navy-900:#081525;--sgo-navy-850:#0b1b2f;
- --sgo-navy-800:#10233b;--sgo-blue-700:#155f9f;--sgo-blue-600:#1769aa;
- --sgo-blue-500:#0ea5e9;--sgo-cyan:#38bdf8;--sgo-white:#f8fafc;
- --sgo-text:#eaf2fb;--sgo-muted:#91a8c1;--sgo-border:rgba(93,155,211,.20);
- --sgo-success:#10b981;--sgo-warning:#f59e0b;--sgo-danger:#ef4444;
- --sgo-shadow:0 8px 24px rgba(0,0,0,.22);
-}
-html,body,[class*="css"]{font-family:Inter,Segoe UI,Arial,sans-serif!important;}
-.stApp{background:linear-gradient(155deg,var(--sgo-navy-950) 0%,var(--sgo-navy-900) 50%,#07111f 100%)!important;color:var(--sgo-text)!important;animation:none!important;margin-top:0!important;}
-.block-container{max-width:1500px!important;padding-top:1rem!important;animation:none!important;}
-h1,h2,h3,h4,h5,h6{font-family:Inter,Segoe UI,Arial,sans-serif!important;color:var(--sgo-white)!important;text-shadow:none!important;letter-spacing:-.25px!important;}
-p,label,span,li{color:inherit}.stCaption,[data-testid="stCaptionContainer"]{color:var(--sgo-muted)!important;}
-
-/* Cabeçalho corporativo */
-.enesa-header{background:linear-gradient(105deg,#0d223b,#0a1b2f)!important;border:1px solid var(--sgo-border)!important;border-left:5px solid var(--sgo-blue-500)!important;border-radius:13px!important;padding:18px 20px!important;margin:0 0 18px!important;box-shadow:var(--sgo-shadow)!important;transform:none!important;animation:none!important;}
-.enesa-header:after{display:none!important}.enesa-header:hover{transform:none!important;box-shadow:var(--sgo-shadow)!important;}
-.enesa-header h1 span{background:none!important;-webkit-text-fill-color:var(--sgo-white)!important;color:var(--sgo-white)!important;}
-
-/* Sidebar */
-section[data-testid="stSidebar"]{background:linear-gradient(180deg,#071423,#06101d)!important;border-right:1px solid var(--sgo-border)!important;box-shadow:8px 0 24px rgba(0,0,0,.2)!important;backdrop-filter:none!important;}
-.sgo-sidebar-logo-wrap{background:#fff!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:12px!important;padding:10px!important;margin-bottom:12px!important;}
-.sgo-sidebar-logo-wrap img{box-shadow:none!important;border-radius:8px!important;}
-section[data-testid="stSidebar"] div.stButton>button{border-radius:8px!important;box-shadow:none!important;transform:none!important;transition:background .15s ease,border-color .15s ease!important;}
-section[data-testid="stSidebar"] div.stButton>button[kind="primary"]{background:linear-gradient(90deg,var(--sgo-blue-700),var(--sgo-blue-600))!important;border:1px solid #2882c0!important;color:#fff!important;}
-section[data-testid="stSidebar"] div.stButton>button[kind="secondary"]{background:transparent!important;color:#c8d8e8!important;border:1px solid transparent!important;}
-section[data-testid="stSidebar"] div.stButton>button[kind="secondary"]:hover{background:rgba(14,165,233,.10)!important;border-color:rgba(56,189,248,.22)!important;}
-.sgo-team-version span{color:var(--sgo-cyan)!important}.sgo-team-names{color:#b9cee2!important}.sgo-team-title{color:#6f8baa!important;}
-
-/* Cards e containers */
-[data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"],[data-testid="stVerticalBlockBorderWrapper"]{background:linear-gradient(145deg,#10233b,#0c1c30)!important;border:1px solid var(--sgo-border)!important;border-radius:12px!important;box-shadow:var(--sgo-shadow)!important;backdrop-filter:none!important;animation:none!important;transform:none!important;}
-[data-testid="stMetric"]{padding:16px 18px!important;border-bottom:3px solid var(--sgo-blue-500)!important;}
-[data-testid="stMetric"]:hover,[data-testid="stExpander"]:hover,.stDataFrame:hover{transform:none!important;box-shadow:var(--sgo-shadow)!important;border-color:rgba(56,189,248,.35)!important;}
-[data-testid="stMetricLabel"]{color:var(--sgo-muted)!important;font-weight:650!important;text-transform:uppercase!important;font-size:.72rem!important;letter-spacing:.5px!important;}
-[data-testid="stMetricValue"]{color:var(--sgo-white)!important;background:none!important;-webkit-text-fill-color:var(--sgo-white)!important;font-size:2rem!important;}
-[data-testid="stMetricDelta"]{font-weight:650!important;}
-
-/* Botoes */
-.stButton button,.stDownloadButton button,.stLinkButton a{border-radius:8px!important;font-weight:650!important;box-shadow:none!important;animation:none!important;transform:none!important;transition:background .15s ease,border-color .15s ease!important;}
-.stButton button[kind="primary"]{background:linear-gradient(135deg,var(--sgo-blue-600),var(--sgo-blue-500))!important;color:#fff!important;border:1px solid #35a9dc!important;}
-.stButton button[kind="secondary"]{background:#10233b!important;color:#dce9f5!important;border:1px solid #254766!important;}
-.stButton button:hover,.stDownloadButton button:hover,.stLinkButton a:hover{transform:none!important;border-color:var(--sgo-cyan)!important;box-shadow:0 5px 14px rgba(14,165,233,.14)!important;}
-.stDownloadButton button{background:linear-gradient(135deg,var(--sgo-blue-700),var(--sgo-blue-500))!important;color:#fff!important;border:1px solid #278cc4!important;}
-
-/* Inputs */
-.stTextInput input,.stTextArea textarea,.stDateInput input,.stNumberInput input,.stSelectbox [data-baseweb="select"]>div,.stMultiSelect [data-baseweb="select"]>div{background:#0c1d31!important;border:1px solid #294966!important;color:var(--sgo-white)!important;border-radius:8px!important;box-shadow:none!important;backdrop-filter:none!important;}
-.stTextInput input:focus,.stTextArea textarea:focus,.stDateInput input:focus,.stNumberInput input:focus{border-color:var(--sgo-cyan)!important;box-shadow:0 0 0 3px rgba(56,189,248,.12)!important;transform:none!important;}
-[data-baseweb="popover"],[role="listbox"]{background:#10233b!important;color:var(--sgo-white)!important;}
-[role="option"]:hover{background:#173a5b!important;}
-
-/* Tabs */
-.stTabs [data-baseweb="tab-list"]{background:#0b1b2f!important;border:1px solid var(--sgo-border)!important;border-radius:10px!important;padding:4px!important;box-shadow:none!important;backdrop-filter:none!important;}
-.stTabs [data-baseweb="tab"]{color:#91a8c1!important;border-radius:7px!important;}
-.stTabs [aria-selected="true"]{background:var(--sgo-blue-600)!important;color:#fff!important;border:1px solid #2e93ca!important;box-shadow:none!important;}
-.stTabs [data-baseweb="tab-list"]:before{display:none!important;}
-
-/* Tabelas */
-.stDataFrame,[data-testid="stDataFrame"],.stTable{background:#0c1d31!important;border:1px solid var(--sgo-border)!important;border-radius:10px!important;box-shadow:var(--sgo-shadow)!important;backdrop-filter:none!important;transform:none!important;}
-[data-testid="stDataFrame"] table thead tr,.stTable thead tr{background:#123456!important;border-bottom:2px solid var(--sgo-blue-500)!important;}
-[data-testid="stDataFrame"] table thead th,.stTable th{color:#f5f9fd!important;text-transform:uppercase!important;font-size:.72rem!important;letter-spacing:.35px!important;}
-[data-testid="stDataFrame"] table tbody tr:nth-child(odd),.stTable tbody tr:nth-child(odd){background:#0c1d31!important;}
-[data-testid="stDataFrame"] table tbody tr:nth-child(even),.stTable tbody tr:nth-child(even){background:#10253d!important;}
-[data-testid="stDataFrame"] table tbody tr:hover,.stTable tbody tr:hover{background:#153957!important;}
-
-/* Alertas: cor com significado */
-[data-testid="stAlert"]{background:#0e2137!important;border-radius:9px!important;box-shadow:none!important;backdrop-filter:none!important;animation:none!important;}
-div[data-testid="stNotification"]{border-radius:9px!important;}
-
-/* Separadores, progresso e graficos */
-hr{height:1px!important;background:#203b57!important;border:0!important;margin:16px 0!important;}
-.stProgress>div>div{background:linear-gradient(90deg,var(--sgo-blue-600),var(--sgo-cyan))!important;}
-.js-plotly-plot,.plot-container,.plotly{border-radius:11px!important;}
-.watermark-edson{display:none!important;animation:none!important;}
-
-/* Contratos dentro da mesma familia azul */
-.sgo-contract-rb{color:#60a5fa!important}.sgo-contract-pb{color:#38bdf8!important}.sgo-contract-esp{color:#bae6fd!important}
-
-/* Mobile nativo e limpo */
-@media(max-width:768px){
- header[data-testid="stHeader"]{display:block!important;visibility:visible!important;height:50px!important;background:#071423!important;border-bottom:1px solid var(--sgo-border)!important;}
- [data-testid="stSidebarCollapsedControl"],[data-testid="collapsedControl"]{display:flex!important;visibility:visible!important;opacity:1!important;}
- .block-container{padding:3.35rem .6rem 5rem!important;max-width:100%!important;}
- .enesa-header{padding:12px 13px!important;margin-bottom:12px!important}.enesa-header h1{font-size:1.12rem!important;}
- [data-testid="column"]{min-width:calc(50% - .35rem)!important;flex:1 1 calc(50% - .35rem)!important;}
- .stButton button,.stDownloadButton button,.stLinkButton a{min-height:48px!important;}
- .stTextInput input,.stTextArea textarea,.stDateInput input,.stNumberInput input,.stSelectbox [data-baseweb="select"]>div{font-size:16px!important;min-height:48px!important;}
- .stTabs [data-baseweb="tab-list"]{position:static!important;border-radius:10px!important;padding:4px!important;box-shadow:none!important;}
- .stTabs [data-baseweb="tab"]{min-height:44px!important;font-size:.76rem!important;}
-}
-@media(max-width:430px){[data-testid="column"]{min-width:100%!important;flex:1 1 100%!important;}[data-testid="stMetricValue"]{font-size:1.55rem!important;}}
-
-/* Desliga excesso de movimento */
-*,*:before,*:after{animation-duration:0s!important;animation-iteration-count:1!important;}
-.tv-badge-live,.tv-online-dot{animation:pulse 2s ease-in-out infinite!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2846,7 +2744,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v10.0</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -3001,7 +2899,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v10.0</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4160,7 +4058,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v10.0)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4288,7 +4186,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v10.0 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
