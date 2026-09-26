@@ -5332,10 +5332,58 @@ Retorne apenas o JSON sem crases ou markdown."""
                     _df_novo = _df_original.loc[~_mask_apagar].copy().reset_index(drop=True)
                     _df_novo.to_csv(caminho_historico_f1_csv, index=False)
                     st.session_state.df_historico_f1 = _df_novo
-                    if conn is not None:
-                        salvar_f1_seguro(conn, _df_novo, caminho_historico_f1_csv)
-                    st.success(f"✅ {_qtd_apagada} entrega(s) removida(s) de {data_resumo.strftime('%d/%m/%Y')}.")
-                    st.toast("Dia limpo. O gráfico semanal foi atualizado.", icon="✅")
+
+                    # Exclusao intencional: sobrescreve a nuvem diretamente.
+                    # Nao usa salvar_f1_seguro porque a protecao anti-perda pode restaurar o dia apagado.
+                    _salvou_nuvem = False
+                    _erro_nuvem = ""
+                    try:
+                        _sh_limpeza = obter_planilha_google()
+                        if _sh_limpeza:
+                            _ws_limpeza = _sh_limpeza.worksheet("Historico_F1")
+                            _valores = [["DATA", "ENCARREGADO"]] + _df_novo[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
+                            _ws_limpeza.clear()
+                            _ws_limpeza.update(values=_valores, range_name=f"A1:B{len(_valores)}")
+                            _salvou_nuvem = True
+                    except Exception as _e:
+                        _erro_nuvem = str(_e)
+
+                    if not _salvou_nuvem and conn is not None:
+                        try:
+                            conn.update(worksheet="Historico_F1", data=_df_novo)
+                            _salvou_nuvem = True
+                        except Exception as _e2:
+                            _erro_nuvem = str(_e2)
+
+                    if not _salvou_nuvem:
+                        st.error(f"❌ A nuvem nao confirmou a exclusao: {_erro_nuvem}")
+                        st.stop()
+
+                    # Confere a propria aba Historico_F1 apos a gravacao.
+                    try:
+                        _sh_check = obter_planilha_google()
+                        _registros_check = _sh_check.worksheet("Historico_F1").get_all_records() if _sh_check else []
+                        _df_check = pd.DataFrame(_registros_check)
+                        if not _df_check.empty and "DATA" in _df_check.columns:
+                            _datas_check = pd.to_datetime(_df_check["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
+                            _restantes = int((_datas_check == data_filtro_str).sum())
+                        else:
+                            _restantes = 0
+                    except Exception as _echeck:
+                        st.error(f"❌ A exclusao foi enviada, mas nao foi possivel confirmar a nuvem: {_echeck}")
+                        st.stop()
+
+                    if _restantes != 0:
+                        st.error(f"❌ Exclusao incompleta: ainda existem {_restantes} registro(s) de {data_resumo.strftime('%d/%m/%Y')} na nuvem.")
+                        st.stop()
+
+                    # Limpa cache de leitura para impedir que a tela reutilize os 42 registros antigos.
+                    try:
+                        st.cache_data.clear()
+                    except Exception:
+                        pass
+                    st.success(f"✅ {_qtd_apagada} entrega(s) de {data_resumo.strftime('%d/%m/%Y')} apagada(s) do sistema e da nuvem.")
+                    st.toast("Exclusao confirmada. O grafico semanal sera atualizado.", icon="✅")
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
