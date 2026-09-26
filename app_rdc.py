@@ -5541,7 +5541,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             self.set_text_color(0, 0, 0)
                             self.cell(0, 10, 'Relatorio de Pendencias - RDC', 0, 1, 'C')
                             self.set_font('Helvetica', 'I', 10)
-                            self.cell(0, 10, f'Data Referencia: {data_filtro_str} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
+                            self.cell(0, 10, f'Data Referencia: {data_resumo.strftime("%d/%m/%Y")} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
                             self.ln(5)
                     
                     pdf = PDF()
