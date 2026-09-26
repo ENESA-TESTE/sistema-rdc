@@ -1425,7 +1425,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.4.1
+# PALETA CORPORATIVA SGO v9.2
 # ================================================================
 st.markdown("""
 <style>
@@ -2735,7 +2735,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.4.1</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2890,7 +2890,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.4.1</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4049,7 +4049,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.4.1)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4177,7 +4177,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.4.1 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -5165,30 +5165,61 @@ Retorne apenas o JSON sem crases ou markdown."""
         col_evolucao, col_gauge = st.columns([6, 4])
         
         with col_evolucao:
-            st.markdown("**📈 Evolução Diária de Entregas de RDC (Mês Atual)**")
+            st.markdown("**📈 Evolução Diária de Entregas de RDC (Semana)**")
             if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
                 df_hist_dash = st.session_state.df_historico_f1.copy()
                 df_hist_dash["DATA"] = pd.to_datetime(df_hist_dash["DATA"], errors='coerce')
-                mes_atual = datetime.date.today().strftime("%Y-%m")
-                df_hist_dash = df_hist_dash[df_hist_dash["DATA"].dt.strftime("%Y-%m") == mes_atual]
-                
+                df_hist_dash = df_hist_dash.dropna(subset=["DATA"])
+
+                hoje_ref_semana = pd.Timestamp(datetime.date.today())
+                inicio_semana_atual = hoje_ref_semana - pd.Timedelta(days=hoje_ref_semana.weekday())
+                semanas_disponiveis = []
                 if not df_hist_dash.empty:
-                    entregas_por_dia = df_hist_dash.groupby(df_hist_dash["DATA"].dt.strftime("%Y-%m-%d")).size().reset_index(name="Entregas")
-                    entregas_por_dia.columns = ["Data", "Qtd Entregue"]
-                    
-                    fig_evolucao = px.line(entregas_por_dia, x="Data", y="Qtd Entregue", markers=True, 
-                                           title="", line_shape="spline", color_discrete_sequence=["#0ea5e9"])
-                    fig_evolucao.update_layout(
-                        xaxis_title="Dia", yaxis_title="RDCs Entregues",
-                        yaxis=dict(dtick=1),
-                        margin=dict(l=0, r=20, t=10, b=0),
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#e0e4ea"), height=250
-                    )
-                    fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=8))
-                    st.plotly_chart(fig_evolucao, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-                else:
-                    st.info("Ainda não há entregas neste mês.")
+                    inicios = df_hist_dash["DATA"].dt.normalize() - pd.to_timedelta(df_hist_dash["DATA"].dt.weekday, unit="D")
+                    semanas_disponiveis = sorted(inicios.dropna().unique(), reverse=True)
+                if inicio_semana_atual.to_datetime64() not in semanas_disponiveis:
+                    semanas_disponiveis.insert(0, inicio_semana_atual.to_datetime64())
+
+                def _rotulo_semana(dt_sem):
+                    ini = pd.Timestamp(dt_sem)
+                    fim = ini + pd.Timedelta(days=6)
+                    prefixo = "Semana atual · " if ini.date() == inicio_semana_atual.date() else ""
+                    return f"{prefixo}{ini.strftime('%d/%m')} a {fim.strftime('%d/%m/%Y')}"
+
+                semana_sel = st.selectbox(
+                    "Semana de referência:", semanas_disponiveis,
+                    format_func=_rotulo_semana, key="dash_semana_rdc_v95"
+                )
+                inicio_semana = pd.Timestamp(semana_sel)
+                fim_semana = inicio_semana + pd.Timedelta(days=6)
+                df_semana_dash = df_hist_dash[(df_hist_dash["DATA"] >= inicio_semana) & (df_hist_dash["DATA"] <= fim_semana + pd.Timedelta(hours=23, minutes=59, seconds=59))]
+
+                dias_semana = pd.date_range(inicio_semana, fim_semana, freq="D")
+                entregas_serie = df_semana_dash.groupby(df_semana_dash["DATA"].dt.normalize()).size().reindex(dias_semana, fill_value=0)
+                entregas_por_dia = entregas_serie.rename("Qtd Entregue").reset_index().rename(columns={"index":"Data"})
+                entregas_por_dia["Dia"] = entregas_por_dia["Data"].dt.strftime("%a %d/%m").replace({"Mon":"Seg", "Tue":"Ter", "Wed":"Qua", "Thu":"Qui", "Fri":"Sex", "Sat":"Sáb", "Sun":"Dom"}, regex=True)
+
+                total_semana_rdc = int(entregas_por_dia["Qtd Entregue"].sum())
+                media_semana_rdc = round(total_semana_rdc / 7, 1)
+                pico_row = entregas_por_dia.loc[entregas_por_dia["Qtd Entregue"].idxmax()]
+                pico_semana_rdc = int(pico_row["Qtd Entregue"])
+                pico_dia_rdc = str(pico_row["Dia"])
+                sm1, sm2, sm3 = st.columns(3)
+                sm1.metric("RDCs na semana", total_semana_rdc)
+                sm2.metric("Média diária", media_semana_rdc)
+                sm3.metric("Maior dia", f"{pico_semana_rdc} · {pico_dia_rdc}")
+
+                fig_evolucao = px.line(entregas_por_dia, x="Dia", y="Qtd Entregue", markers=True,
+                                       title="", line_shape="spline", color_discrete_sequence=["#0ea5e9"], text="Qtd Entregue")
+                fig_evolucao.update_layout(
+                    xaxis_title="Dia da semana", yaxis_title="RDCs Entregues",
+                    yaxis=dict(dtick=1, rangemode="tozero"),
+                    margin=dict(l=0, r=20, t=10, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e0e4ea"), height=270
+                )
+                fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=9), textposition="top center")
+                st.plotly_chart(fig_evolucao, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Sem histórico de F1.")
                 
@@ -7182,8 +7213,7 @@ Retorne apenas o JSON sem crases ou markdown."""
 
     # Modulo removido da navegacao operacional.
     if pagina_sgo == "Controle de C.C":
-        st.markdown("### 📊 Análise de Distribuição por Centro de Custo")
-        st.caption("Visão executiva da concentração de mão de obra por contrato, C.C, função e liderança.")
+        st.markdown("### 💰 Controle de Centro de Custo (C.C)")
         
         # === ÚLTIMA ATUALIZAÇÃO ===
         ultima_base = ""
@@ -7228,32 +7258,15 @@ Retorne apenas o JSON sem crases ou markdown."""
             st.warning("⚠️ A coluna de Centro de Custo (C.C) não foi encontrada na base de dados atual. Verifique se a planilha possui essa coluna.")
         else:
             # === ALERTA DE C.C INVÁLIDO ===
-            # C.C é uma pendência operacional somente para quem já deveria estar trabalhando.
-            # Demitidos/inativos e pessoas aguardando crachá/mobilização ficam fora desse alerta.
-            import unicodedata as _ud_cc
-            def _norm_cc_status(v):
-                txt = "" if v is None or pd.isna(v) else str(v).strip().upper()
-                return "".join(c for c in _ud_cc.normalize("NFD", txt) if _ud_cc.category(c) != "Mn")
-            def _fora_escopo_cc(row):
-                status_txt = _norm_cc_status(row.get("STATUS", ""))
-                cracha_txt = _norm_cc_status(row.get("CRACHA", ""))
-                combinado = f"{status_txt} {cracha_txt}"
-                termos_fora = ["DEMITIDO", "DESLIGADO", "INATIVO", "AFASTADO", "AGUARDANDO", "EM CONFECCAO", "PENDENTE", "NAO LIBERADO", "NAO ENTREGUE"]
-                return any(t in combinado for t in termos_fora)
-            mask_cc_vazio = df_atual["C.C"].isna() | df_atual["C.C"].astype(str).str.strip().eq("")
-            mask_fora_escopo_cc = df_atual.apply(_fora_escopo_cc, axis=1)
-            df_em_branco = df_atual[mask_cc_vazio & ~mask_fora_escopo_cc]
-            qtd_fora_cc = int((mask_cc_vazio & mask_fora_escopo_cc).sum())
+            df_em_branco = df_atual[df_atual["C.C"].isna() | df_atual["C.C"].str.strip().eq("")]
             if not df_em_branco.empty:
-                st.error(f"⚠️ **ALERTA DE SISTEMA:** Existem **{len(df_em_branco)} colaboradores em condição operacional** sem Centro de Custo. Demitidos/inativos e pessoas aguardando crachá não entram neste alerta.")
-            elif qtd_fora_cc > 0:
-                st.success("✅ Nenhum colaborador em condição operacional está sem C.C. Registros demitidos/inativos ou aguardando crachá foram desconsiderados corretamente.")
+                st.error(f"⚠️ **ALERTA DE SISTEMA:** Existem **{len(df_em_branco)} colaboradores** na base atual **sem Centro de Custo** (C.C em branco). Eles não aparecerão nos cálculos de custo!")
             
             valid_prefixes = ["125.01.", "125.02."]
             valid_suffixes = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113']
             
             invalid_cc_list = []
-            df_preenchido = df_atual[(~df_atual["C.C"].isna()) & (df_atual["C.C"].astype(str).str.strip() != "") & (~df_atual.apply(_fora_escopo_cc, axis=1))]
+            df_preenchido = df_atual[~df_atual["C.C"].isna() & (df_atual["C.C"].str.strip() != "")]
             for _, row in df_preenchido.iterrows():
                 cc_val = str(row["C.C"]).strip()
                 is_valid = False
@@ -7272,8 +7285,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.warning(f"⚠️ **ATENÇÃO:** Foram encontrados **{invalid_cc_count} colaboradores** com C.C **inválido** (não existe no mapa oficial). Exemplos: {', '.join(unique_invalids[:5])}")
 
             # Filtro PB/RB/ESP, Turno e Status Global para a aba C.C
-            st.markdown("#### 🎛️ Filtros da análise")
-            col_cc_filt1, col_cc_filt2, col_cc_filt3, col_cc_filt4 = st.columns(4)
+            col_cc_filt1, col_cc_filt2, col_cc_filt3 = st.columns(3)
             with col_cc_filt1:
                 filtro_local = st.segmented_control(
                     "Filtrar Dados por Local:", 
@@ -7310,9 +7322,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     key="filtro_cc_status_key"
                 )
                 
-            with col_cc_filt4:
-                filtro_cc_mo = st.selectbox("Tipo de Mão de Obra:", ["Todas", "MOD", "MOI"], key="filtro_cc_mo_key_v94")
-            df_cc_aba = df_atual[(df_atual["C.C"].astype(str).str.strip() != "") & (~df_atual.apply(_fora_escopo_cc, axis=1))].copy()
+            df_cc_aba = df_atual[df_atual["C.C"].str.strip() != ""]
             if filtro_local == "PB":
                 df_cc_aba = df_cc_aba[df_cc_aba["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
             elif filtro_local == "RB":
@@ -7326,8 +7336,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
             if filtro_cc_status != "Todos" and "STATUS" in df_cc_aba.columns:
                 df_cc_aba = df_cc_aba[df_cc_aba["STATUS"] == filtro_cc_status]
-            if filtro_cc_mo != "Todas" and "MÃO DE OBRA" in df_cc_aba.columns:
-                df_cc_aba = df_cc_aba[df_cc_aba["MÃO DE OBRA"].astype(str).str.strip().str.upper() == filtro_cc_mo]
 
             lista_cc = sorted([str(cc) for cc in df_cc_aba["C.C"].unique()])
             
@@ -7354,23 +7362,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                 elif local: return f"{cc_code} ({local})"
                 else: return str(cc_code)
             
-            def contrato_cc(cc):
-                cc_s = str(cc)
-                if ".005" in cc_s: return "ESP"
-                if "125.02" in cc_s: return "PB"
-                if "125.01" in cc_s: return "RB"
-                return "OUTROS"
-            df_cc_aba["CONTRATO"] = df_cc_aba["C.C"].apply(contrato_cc)
-            cont_contrato = df_cc_aba["CONTRATO"].value_counts().to_dict()
-            cc_counts_exec = df_cc_aba["C.C"].value_counts()
-            pct_top5 = round(cc_counts_exec.head(5).sum() / len(df_cc_aba) * 100, 1) if len(df_cc_aba) else 0
-            maior_cc = str(cc_counts_exec.index[0]) if not cc_counts_exec.empty else "N/A"
-            maior_cc_qtd = int(cc_counts_exec.iloc[0]) if not cc_counts_exec.empty else 0
-            st.info(f"📌 **Leitura executiva:** os 5 maiores C.C concentram **{pct_top5}%** do efetivo filtrado. Maior concentração: **{format_cc(maior_cc) if maior_cc != 'N/A' else 'N/A'}**, com **{maior_cc_qtd} colaboradores**.")
-            st.markdown("#### 🧭 Distribuição por contrato")
-            ct1,ct2,ct3,ct4 = st.columns(4)
-            ct1.metric("RB", cont_contrato.get("RB",0)); ct2.metric("PB", cont_contrato.get("PB",0)); ct3.metric("ESP", cont_contrato.get("ESP",0)); ct4.metric("Outros", cont_contrato.get("OUTROS",0))
-            st.markdown("#### 📌 Visão executiva")
             # Métricas gerais Customizadas
             def card_kpi_cc(titulo, valor, cor):
                 return f"""
@@ -7398,16 +7389,14 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             with col_graf1:
                 # Gráfico de distribuição por C.C.
-                st.markdown("#### 🏗️ Ranking de concentração por C.C")
+                st.markdown("**Distribuição de Efetivo por Centro de Custo**")
                 
                 cc_contagem = df_cc_aba["C.C"].value_counts().reset_index()
                 cc_contagem.columns = ["Centro de Custo", "Quantidade"]
                 cc_contagem["Nome C.C"] = cc_contagem["Centro de Custo"].apply(format_cc)
-                cc_contagem["Participação"] = (cc_contagem["Quantidade"] / max(len(df_cc_aba), 1) * 100).round(1)
-                cc_contagem["Texto"] = cc_contagem.apply(lambda r: f"{int(r['Quantidade'])} | {r['Participação']:.1f}%", axis=1)
                 
                 if len(cc_contagem) > 0:
-                    fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale=[(0, "#12345a"), (0.55, "#2f81f7"), (1, "#8b5cf6")], text="Texto")
+                    fig_cc = px.bar(cc_contagem, x="Quantidade", y="Nome C.C", orientation="h", color="Quantidade", color_continuous_scale=[(0, "#0f172a"), (1, "#8b5cf6")], text="Quantidade")
                     fig_cc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=max(300, len(cc_contagem) * 35))
                     fig_cc.update_yaxes(categoryorder="total ascending")
                     fig_cc.update_xaxes(visible=False)
@@ -7434,13 +7423,6 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             st.markdown("---")
             
-            st.markdown("#### 🎯 Concentração e criticidade")
-            if not cc_contagem.empty:
-                df_concentracao = cc_contagem.copy()
-                df_concentracao["Situação"] = df_concentracao["Participação"].apply(lambda p: "🔴 Alta concentração" if p >= 15 else ("🟡 Atenção" if p >= 8 else "🟢 Normal"))
-                df_concentracao["Participação"] = df_concentracao["Participação"].map(lambda x: f"{x:.1f}%")
-                st.dataframe(df_concentracao[["Nome C.C", "Quantidade", "Participação", "Situação"]].head(15), hide_index=True, use_container_width=True)
-
             # --- Seção de Histórico (Máquina do Tempo) ---
             if os.path.exists(caminho_hist_cc):
                 try:
@@ -7502,8 +7484,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             st.markdown("---")
             
             # Filtros por C.C. e Equipe
-            st.markdown("#### 🔎 Raio-X do Centro de Custo")
-            st.caption("Selecione um C.C e/ou uma liderança para visualizar composição, funções e colaboradores.")
+            st.markdown("**Consulta Detalhada**")
             
             # Filtramos a lista de encarregados para exibir APENAS quem realmente é encarregado da lista oficial
             lista_encarregados_detalhada = sorted([str(e) for e in df_cc_aba["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
@@ -7523,13 +7504,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                 df_cc_filtrado = df_cc_filtrado[df_cc_filtrado["ENCARREGADO"] == enc_selecionado]
             
             if len(df_cc_filtrado) > 0:
-                qtd_det = len(df_cc_filtrado)
-                mod_det = int((df_cc_filtrado["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD").sum()) if "MÃO DE OBRA" in df_cc_filtrado.columns else 0
-                moi_det = int((df_cc_filtrado["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI").sum()) if "MÃO DE OBRA" in df_cc_filtrado.columns else 0
-                enc_det = df_cc_filtrado["ENCARREGADO"].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
-                fun_det = df_cc_filtrado["FUNÇÃO"].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
-                d1,d2,d3,d4,d5 = st.columns(5)
-                d1.metric("Efetivo", qtd_det); d2.metric("MOD", mod_det); d3.metric("MOI", moi_det); d4.metric("Encarregados", enc_det); d5.metric("Funções", fun_det)
                 # Resumo de funções no C.C. selecionado
                 st.markdown(f"**Funções no C.C. selecionado** ({len(df_cc_filtrado)} colaboradores)")
                 func_cc = df_cc_filtrado["FUNÇÃO"].value_counts().reset_index()
