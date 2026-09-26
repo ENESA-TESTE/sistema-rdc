@@ -5200,26 +5200,60 @@ Retorne apenas o JSON sem crases ou markdown."""
                 entregas_por_dia["Dia"] = entregas_por_dia["Data"].dt.strftime("%a %d/%m").replace({"Mon":"Seg", "Tue":"Ter", "Wed":"Qua", "Thu":"Qui", "Fri":"Sex", "Sat":"Sáb", "Sun":"Dom"}, regex=True)
 
                 total_semana_rdc = int(entregas_por_dia["Qtd Entregue"].sum())
-                media_semana_rdc = round(total_semana_rdc / 7, 1)
+                dias_com_entrega = int((entregas_por_dia["Qtd Entregue"] > 0).sum())
+                media_semana_rdc = round(total_semana_rdc / max(dias_com_entrega, 1), 1)
                 pico_row = entregas_por_dia.loc[entregas_por_dia["Qtd Entregue"].idxmax()]
                 pico_semana_rdc = int(pico_row["Qtd Entregue"])
-                pico_dia_rdc = str(pico_row["Dia"])
-                sm1, sm2, sm3 = st.columns(3)
-                sm1.metric("RDCs na semana", total_semana_rdc)
-                sm2.metric("Média diária", media_semana_rdc)
-                sm3.metric("Maior dia", f"{pico_semana_rdc} · {pico_dia_rdc}")
+                pico_data = pd.Timestamp(pico_row["Data"])
+                pico_data_txt = pico_data.strftime("%d/%m/%Y")
 
-                fig_evolucao = px.line(entregas_por_dia, x="Dia", y="Qtd Entregue", markers=True,
-                                       title="", line_shape="spline", color_discrete_sequence=["#0ea5e9"], text="Qtd Entregue")
+                sm1, sm2, sm3 = st.columns(3)
+                sm1.metric("RDCs entregues", total_semana_rdc)
+                sm2.metric("Média por dia com entrega", media_semana_rdc)
+                sm3.metric("Melhor dia", pico_data_txt, delta=f"{pico_semana_rdc} RDCs entregues", delta_color="off")
+
+                import plotly.graph_objects as go
+                fig_evolucao = go.Figure()
+                fig_evolucao.add_trace(go.Bar(
+                    x=entregas_por_dia["Dia"], y=entregas_por_dia["Qtd Entregue"],
+                    marker=dict(color="rgba(14,165,233,.20)", line=dict(color="#0ea5e9", width=1.2)),
+                    text=entregas_por_dia["Qtd Entregue"], textposition="outside",
+                    hovertemplate="%{x}<br><b>%{y} RDCs entregues</b><extra></extra>"
+                ))
+                fig_evolucao.add_trace(go.Scatter(
+                    x=entregas_por_dia["Dia"], y=entregas_por_dia["Qtd Entregue"],
+                    mode="lines+markers", line=dict(color="#38bdf8", width=3, shape="spline"),
+                    marker=dict(size=9, color="#38bdf8", line=dict(color="#e0f2fe", width=1.4)),
+                    hovertemplate="%{x}<br><b>%{y} RDCs</b><extra></extra>"
+                ))
                 fig_evolucao.update_layout(
-                    xaxis_title="Dia da semana", yaxis_title="RDCs Entregues",
-                    yaxis=dict(dtick=1, rangemode="tozero"),
-                    margin=dict(l=0, r=20, t=10, b=0),
-                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#e0e4ea"), height=270
+                    xaxis_title="Dia da semana", yaxis_title="RDCs entregues",
+                    yaxis=dict(rangemode="tozero", gridcolor="rgba(148,163,184,.12)"),
+                    xaxis=dict(gridcolor="rgba(148,163,184,.04)"),
+                    margin=dict(l=10, r=20, t=18, b=5), showlegend=False,
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(8,19,34,.28)",
+                    font=dict(color="#e0e4ea"), height=325, bargap=.42
                 )
-                fig_evolucao.update_traces(line=dict(width=3), marker=dict(size=9), textposition="top center")
-                st.plotly_chart(fig_evolucao, use_container_width=True, config={"displayModeBar": False, "responsive": True})
+                st.plotly_chart(fig_evolucao, use_container_width=True, config={"displayModeBar":False, "responsive":True})
+
+                hoje_ref = datetime.date.today()
+                dias_referencia = (hoje_ref - inicio_semana.date()).days + 1 if inicio_semana.date() <= hoje_ref <= fim_semana.date() else 7
+                meta_semana = len(lista_completa_encarregados) * max(dias_referencia, 1)
+                atingimento = round(total_semana_rdc / meta_semana * 100, 1) if meta_semana else 0
+                valor_gauge = min(atingimento, 100)
+                cor_gauge = "#10b981" if atingimento >= 90 else ("#f59e0b" if atingimento >= 70 else "#ef4444")
+                fig_velocimetro = go.Figure(go.Indicator(
+                    mode="gauge+number", value=valor_gauge,
+                    number={"suffix":"%", "font":{"size":36, "color":"#f8fafc"}},
+                    title={"text":f"Atingimento semanal<br><span style='font-size:12px;color:#94a3b8'>{total_semana_rdc} entregues de {meta_semana} esperados até a data</span>"},
+                    gauge={"axis":{"range":[0,100], "tickwidth":1, "tickcolor":"#64748b"},
+                           "bar":{"color":cor_gauge, "thickness":.28}, "bgcolor":"rgba(15,23,42,.25)", "borderwidth":0,
+                           "steps":[{"range":[0,70],"color":"rgba(239,68,68,.18)"},{"range":[70,90],"color":"rgba(245,158,11,.18)"},{"range":[90,100],"color":"rgba(16,185,129,.18)"}],
+                           "threshold":{"line":{"color":"#f8fafc","width":3},"thickness":.75,"value":90}}
+                ))
+                fig_velocimetro.update_layout(height=265, margin=dict(l=45,r=45,t=65,b=10), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
+                st.plotly_chart(fig_velocimetro, use_container_width=True, config={"displayModeBar":False, "responsive":True})
+                st.caption("🔴 abaixo de 70% · 🟡 70% a 89,9% · 🟢 90% ou mais")
             else:
                 st.info("Sem histórico de F1.")
                 
