@@ -5308,6 +5308,38 @@ Retorne apenas o JSON sem crases ou markdown."""
         # --- FIX: Filtro de data para ver o resumo de qualquer dia ---
         data_resumo = st.date_input("Selecione a Data do Resumo:", datetime.date.today())
         data_filtro_str = data_resumo.strftime("%Y-%m-%d")
+
+        # Ferramenta administrativa para remover todos os RDCs do dia selecionado.
+        with st.expander("🗑️ Limpar todas as entregas do dia", expanded=False):
+            qtd_dia_limpeza = 0
+            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
+                _df_limpeza = st.session_state.df_historico_f1.copy()
+                _datas_limpeza = pd.to_datetime(_df_limpeza["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
+                qtd_dia_limpeza = int((_datas_limpeza == data_filtro_str).sum())
+            st.warning("Use esta função somente para corrigir um dia lançado por engano.")
+            st.info(f"📅 **{data_resumo.strftime('%d/%m/%Y')}** · **{qtd_dia_limpeza} entrega(s)** encontrada(s).")
+            confirmar_limpeza = st.checkbox(
+                f"Confirmo a exclusão de TODAS as {qtd_dia_limpeza} entregas desta data",
+                key=f"confirmar_limpeza_{data_filtro_str}"
+            )
+            if st.button("🗑️ APAGAR TODAS AS ENTREGAS DESTE DIA", type="primary", use_container_width=True,
+                         disabled=(qtd_dia_limpeza == 0 or not confirmar_limpeza), key=f"limpar_dia_{data_filtro_str}"):
+                try:
+                    _df_original = st.session_state.df_historico_f1.copy()
+                    _datas_original = pd.to_datetime(_df_original["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
+                    _mask_apagar = _datas_original == data_filtro_str
+                    _qtd_apagada = int(_mask_apagar.sum())
+                    _df_novo = _df_original.loc[~_mask_apagar].copy().reset_index(drop=True)
+                    _df_novo.to_csv(caminho_historico_f1_csv, index=False)
+                    st.session_state.df_historico_f1 = _df_novo
+                    if conn is not None:
+                        salvar_f1_seguro(conn, _df_novo, caminho_historico_f1_csv)
+                    st.success(f"✅ {_qtd_apagada} entrega(s) removida(s) de {data_resumo.strftime('%d/%m/%Y')}.")
+                    st.toast("Dia limpo. O gráfico semanal foi atualizado.", icon="✅")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Falha ao limpar o dia: {e}")
         
         st.markdown("<br>", unsafe_allow_html=True)
         
