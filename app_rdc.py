@@ -1446,7 +1446,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.6.3 ESTAVEL
+# PALETA CORPORATIVA SGO v9.6.4 F1 CONFERENCIA
 # ================================================================
 st.markdown("""
 <style>
@@ -2756,7 +2756,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.6.3 ESTAVEL</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.6.4 F1 CONFERENCIA</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2911,7 +2911,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.6.3 ESTAVEL</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.6.4 F1 CONFERENCIA</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -3066,52 +3066,91 @@ if st.session_state.df is not None:
     caminho_f1_excecoes = os.path.join(os.path.dirname(__file__), "f1_excecoes.csv")
     
     encarregados_f1_padrao = [
-        "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
-        "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
-        "SANDRO LIMA DE SOUZA", "ALOISIO FERREIRA SOUZA", "ARLINDO PEREIRA DA SILVA", "FAUZE CELIS RODRIGUES COSTA",
-        "FRANCISCO PEREIRA LIMA", "JOAO PAULO DA COSTA QUARESMA", "JOSE ORLANDO DAS NEVES MADEIRA",
-        "JOSE TARCISIO ARAUJO DA SILVA", "LEANDRO DA CRUZ DE SOUZA", "CLAUDIO LUCIANO ARGELINO",
-        "EDVALDO CARVALHO ANGELIM", "ELDER MENDES JUNIOR", "MANOEL MARIA SARGES SOARES", "CLAUDIO CRUZ SOUSA",
-        "CLIDENILDO GOMES DE ALMEIDA", "GRACINEI PEREIRA DOS SANTOS", "JAILSON MENDES DE OLIVEIRA",
-        "JARBAS DA ROCHA GOMES", "JOSE MAURICIO RODRIGUES DA SILVA", "JOSE SARAIVA LOPES NETO",
-        "JOSMAEL RODRIGUES PEREIRA", "ALEX PANTOJA DE OLIVEIRA", "ARILSON DIAS DO PRADO", "ELTON GOMES DOS SANTOS",
-        "RICARDO SARMENTO FERREIRA", "WENISON DA SILVA CUNHA CORREIA", "FRANCISCO ALVES DA PENHA",
-        "IVAN DO NASCIMENTO RAMOS", "ELDER MENDES", "GEAN LENO JOSE DE FREITAS", "JOSE EDUARDO FARIAS FERREIRA",
-        "EDIMILSON NUNES VASCONCELOS", "LOURISVALDO AMARAL ARAUJO", "VALDEMIR BARBOSA REIS",
-        "LUZINALDO AMARAL DE ARAUJO", "MAURO DE QUEIROZ ANDRADE", "ELIAS SOUSA DA COSTA", "ISAIAS SOUSA LISBOA",
-        "ISMAEL CARLOS GOMES DA SILVA", "RAIMUNDO DA SILVA DOS SANTOS", "RAIMUNDO EUDE DA SILVA FREITAS",
-        "RODOLFO DOS SANTOS COSTA", "ELISEU DA SILVA BISPO", "IRON MARQUES MOREIRA", "LUIZ CARLOS DE SOUZA",
-        "ANTONIO TEIXEIRA BORBA", "JOSE FRANCIVAN MONTEIRO SANTOS", "JOSE WALKER CARNEIRO OLIVEIRA",
-        "LEANDRO DA SILVA QUEIROZ", "SILVIO MANOEL DE ANDRADE", "EVERALDO DOS SANTOS SOARES",
-        "FRANCISCO GRACIEL DE SOUSA MARTINS", "JAILSON SILVA DE GOIS", "JORGINALDO NUNES DA SILVA",
-        "CLAUDIVAN OLIVEIRA DOS SANTOS", "GUILHERME HENRIQUE DE ARAUJO SOUSA", "LEANDRO MARTINS DA SILVA BORGES",
-        "WEVERTON FERNANDES MARIANO", "JORGE DA COSTA SILVA", "RAIMUNDO FRAZAO DOS SANTOS",
-        "JOSE RIBEIRO DO NASCIMENTO JUNIOR", "JOSE ROBERTO SALVADOR FILHO", "MARCUS ANTONIO DE SOUZA",
-        "RAIMUNDO ROGERIO LEITE", "ROUBERVAL SANTOS DOS SANTOS", "CARLOS ALBERTO DA COSTA MOREIRA",
-        "JOSE FELIPE DOS SANTOS", "JOSE GERIARDI FONSECA DE SENA", "JOSE HENRIQUE SILVA VIEIRA",
-        "ODAIR MENEZES DA SILVA", "SIDNALDO SANTOS DE JESUS", "ANDERSON VICTALINO",
-        "FRANCISCO AUGUSTO DE SOUSA BARROS", "GENILSON PEREIRA DE SOUSA", "HELENO MARQUES DE SOUZA NETO",
-        "HEMERSON MONTEIRO DE OLIVEIRA", "JACKSON DEIBSON FELICIANO DA SILVA", "JARDELINO PEREIRA DA COSTA",
-        "JOAO TIAGO OLIVEIRA DE AMORIM", "JOSE MARIA DA SILVA PESSOA", "LUCIO FABIO DA SILVA LEANDRO",
-        "RAIMUNDO GONCALVES DOS SANTOS", "FABRICIO FIGUEIREDO", "RHOKSONY FERREIRA SILVEIRA",
-        "FERNANDO DA CONCEIÇÃO", "ROGERIO BARROS DOS SANTOS", "SIQUEU SANTOS SOLEDADE",
-        "SEBASTIAO CARLOS DE OLIVEIRA", "MANOEL NEPOMUCENO DOS SANTOS", "LUIZ RAMOS DE LIMA",
-        "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
+        'IRANILSON SOUSA DA COSTA',
+        'SANDRO LIMA DE SOUZA',
+        'JOSE DE ALMEIDA SANTANA',
+        'ADRIANO JOSE DOS SANTOS',
+        'EDUARDO ALVES DOS SANTOS',
+        'JORGE LUIS LOPES',
+        'LUIZ RAMOS DE LIMA',
+        'VALDINEI GOMES OLIVEIRA',
+        'MARCIO DOCILIO SANTOS',
+        'MAURO DE QUEIROZ ANDRADE',
+        'JOSE SARAIVA LOPES NETO',
+        'IZAIAS BAIA BELO',
+        'EVERALDO DOS SANTOS SOARES',
+        'JOSE GERIARDI FONSECA DE SENA',
+        'JORGINALDO NUNES DA SILVA',
+        'SEBASTIAO QUARESMA FERREIRA',
+        'ROBSON DA COSTA QUARESMA',
+        'EDIMILSON NUNES VASCONCELOS',
+        'JOAO PAULO DA COSTA QUARESMA',
+        'ALEX PANTOJA DE OLIVEIRA',
+        'WALDINEI FARIAS DA SILVA',
+        'GILDO GONCALVES DA SILVA',
+        'FERNANDO DA CONCEICAO',
+        'LEANDRO MARTINS DA SILVA BORGES',
+        'WENISON DA SILVA CUNHA CORREIA',
+        'ANANIAS DE SOUSA NETO',
+        'ADEMIR DE SOUSA',
+        'CLAUDIVAN OLIVEIRA DOS SANTOS',
+        'EDINALDO SOUSA CARDOSO',
+        'FRANCISCO GRACIEL DE SOUSA MARTINS',
+        'GILDO NEVES DOS SANTOS',
+        'GUILHERME HENRIQUE DE ARAUJO SOUSA',
+        'ISMAEL FERNANDO CAMPELO',
+        'JOSE ORLANDO DAS NEVES MADEIRA',
+        'JOSE TARCISIO ARAUJO DA SILVA',
+        'LUZINALDO AMARAL DE ARAUJO',
+        'LOURISMAR PEREIRA DE SOUSA',
+        'NELSON ANDERSON FERREIRA BARBOSA',
+        'UELSON MANOEL MARCOS',
+        'CLESSIO DOS SANTOS ARAUJO',
+        'RHOKSONY FERREIRA SILVEIRA',
+        'JORGE DA COSTA SILVA',
+        'SIDNEY MANOEL DE CARVALHO',
+        'FRANCISCO DAS CHAGAS RAMOS FILHO',
+        'LUIZ ALEX RAMOS DE CARVALHO',
+        'FABIO GOMES DE SA',
+        'CLAUDIO LUCIANO ARGELINO',
+        'JOSE ADILSON FERREIRA',
+        'SILVIO MANOEL DE ANDRADE',
+        'RICARDO SARMENTO FERREIRA',
+        'LEANDRO DA CRUZ DE SOUZA',
+        'ANTONIO MARCIO RODRIGUES BESERRA',
+        'CARLOS DA SILVA OLIVEIRA',
+        'FAUZE CELIS RODRIGUES COSTA',
+        'WALDEMILSON SA',
+        'SAULO DE MOURA ROCHA',
+        'CLAUDIO CRUZ SOUSA',
     ]
-    
-    # Carregar ou criar o JSON
-    if os.path.exists(caminho_f1_json):
-        try:
-            with open(caminho_f1_json, "r", encoding="utf-8") as f:
-                encarregados_f1_oficial = json.load(f)
-        except Exception:
-            encarregados_f1_oficial = encarregados_f1_padrao
-    else:
-        encarregados_f1_oficial = encarregados_f1_padrao
+
+    # Cadastro central: lista oficial informada + encarregados ativos encontrados no PDE.
+    # Somente DEMITIDO, DESLIGADO ou INATIVO ficam fora das telas e dos cálculos.
+    def _status_enc_ativo(valor):
+        status = str(valor or "").strip().upper()
+        return not any(t in status for t in ["DEMITIDO", "DESLIGADO", "INATIVO"])
+
+    lista_pde_ativos = []
+    if "ENCARREGADO" in df_atual.columns:
+        for enc in df_atual["ENCARREGADO"].dropna().astype(str).unique():
+            if not eh_encarregado_valido(enc):
+                continue
+            linhas_enc = df_atual[df_atual["ENCARREGADO"].astype(str).str.strip().str.upper() == enc.strip().upper()]
+            ativo = True
+            if "STATUS" in linhas_enc.columns and not linhas_enc.empty:
+                status_validos = linhas_enc["STATUS"].apply(_status_enc_ativo)
+                ativo = bool(status_validos.any())
+            if ativo:
+                lista_pde_ativos.append(enc.strip().upper())
+
+    encarregados_f1_oficial = sorted(set([n.strip().upper() for n in encarregados_f1_padrao] + lista_pde_ativos))
+    try:
         with open(caminho_f1_json, "w", encoding="utf-8") as f:
-            json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
-    
-    lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if eh_encarregado_valido(e)])
+            json.dump(encarregados_f1_oficial, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    lista_completa_encarregados = encarregados_f1_oficial
     
     # Carregar exceções (Abonos)
     if "df_f1_excecoes" not in st.session_state:
@@ -4070,7 +4109,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.6.3 ESTAVEL)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.6.4 F1 CONFERENCIA)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4198,7 +4237,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.6.3 ESTAVEL · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.6.4 F1 CONFERENCIA · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -7168,9 +7207,30 @@ Retorne apenas o JSON sem crases ou markdown."""
             if not st.session_state.df_ia.empty:
                 st.markdown("#### Dados Extraídos")
                 
-                lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
-                df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
-                
+                # Nunca ocultar RDC extraído só porque o encarregado não estava na lista antiga.
+                df_filtrado = st.session_state.df_ia.copy()
+                df_filtrado["ENCARREGADO"] = df_filtrado["ENCARREGADO"].astype(str).str.strip().str.upper()
+                df_filtrado = df_filtrado[df_filtrado["ENCARREGADO"].apply(eh_encarregado_valido)]
+
+                total_rdcs_lote = len(df_filtrado)
+                encarregados_distintos_lote = df_filtrado["ENCARREGADO"].nunique()
+                contagem_enc_lote = df_filtrado["ENCARREGADO"].value_counts()
+                repetidos_lote = contagem_enc_lote[contagem_enc_lote > 1]
+                nao_cadastrados_lote = sorted(set(df_filtrado["ENCARREGADO"]) - set(lista_completa_encarregados))
+
+                r1, r2, r3, r4 = st.columns(4)
+                r1.metric("RDCs identificados", total_rdcs_lote)
+                r2.metric("Encarregados distintos", encarregados_distintos_lote)
+                r3.metric("Com mais de 1 RDC", len(repetidos_lote))
+                r4.metric("Não cadastrados", len(nao_cadastrados_lote))
+
+                if not repetidos_lote.empty:
+                    with st.expander("🔁 Ver encarregados repetidos no PDF", expanded=True):
+                        df_repetidos = repetidos_lote.rename_axis("ENCARREGADO").reset_index(name="RDCs no lote")
+                        st.dataframe(df_repetidos, hide_index=True, use_container_width=True)
+                if nao_cadastrados_lote:
+                    st.warning("⚠️ Encarregados extraídos que ainda não constam no cadastro oficial: " + ", ".join(nao_cadastrados_lote))
+
                 # --- NOVO FILTRO DE DATA ---
                 datas_disponiveis = df_filtrado['DATA'].dropna().unique().tolist()
                 if datas_disponiveis:
@@ -7315,7 +7375,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if ok:
                                     st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
-                                st.toast(f"{len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!", icon="✅")
+                                st.toast(f"{len(df_filtrado)} RDCs lidos; {len(novos_registros)} encarregados distintos contabilizados no F1.", icon="✅")
                             except Exception as e:
                                 st.error(f"Erro ao salvar na nuvem: {e}")
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -7323,7 +7383,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         else:
                             st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                             st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.toast(f"{len(novos_registros)} RDCs registrados localmente no Resumo Diário!", icon="✅")
+                            st.toast(f"{len(df_filtrado)} RDCs lidos; {len(novos_registros)} encarregados distintos contabilizados localmente no F1.", icon="✅")
                     else:
                         st.info("ℹ️ Os dados foram processados, mas os Encarregados dessa lista já haviam sido contabilizados.")
 
