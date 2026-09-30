@@ -13,6 +13,24 @@ import time
 import tempfile
 import plotly.express as px
 
+# Leitura protegida da nuvem: evita que uma falha de rede deixe o app carregando para sempre.
+def ler_gsheets_com_timeout(conexao, worksheet, ttl=0, timeout=12):
+    import threading
+    caixa = {}
+    def _executar():
+        try:
+            caixa["dados"] = conexao.read(worksheet=worksheet, ttl=ttl)
+        except Exception as exc:
+            caixa["erro"] = exc
+    tarefa = threading.Thread(target=_executar, daemon=True)
+    tarefa.start()
+    tarefa.join(timeout)
+    if tarefa.is_alive():
+        raise TimeoutError(f"Tempo limite excedido ao carregar {worksheet} da nuvem")
+    if "erro" in caixa:
+        raise caixa["erro"]
+    return caixa.get("dados")
+
 # Hora local oficial do SGO (Mato Grosso do Sul).
 def agora_local_sgo():
     try:
@@ -133,14 +151,8 @@ def t(texto):
 from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-# Força a criação do arquivo de tema Escuro automaticamente
-config_dir = ".streamlit"
-os.makedirs(config_dir, exist_ok=True)
-config_path = os.path.join(config_dir, "config.toml")
-if not os.path.exists(config_path):
-    with open(config_path, "w", encoding="utf-8") as f:
-        f.write('[theme]\nbase="dark"\nprimaryColor="#f39c12"\nbackgroundColor="#1e1e1e"\nsecondaryBackgroundColor="#2b2b2b"\ntextColor="#e0e4ea"\n')
-
+# Tema do Streamlit: nao criar nem alterar .streamlit/config.toml durante a execucao.
+# Alterar arquivos observados pelo Streamlit no boot pode provocar reinicializacoes sucessivas.
 caminho_nome_site = "nome_empresa.txt"
 if os.path.exists(caminho_nome_site):
     with open(caminho_nome_site, "r", encoding="utf-8") as f:
@@ -1434,7 +1446,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.2
+# PALETA CORPORATIVA SGO v9.6.3 ESTAVEL
 # ================================================================
 st.markdown("""
 <style>
@@ -2355,7 +2367,7 @@ if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1
     # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
     try:
         _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
-        _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=0)
+        _df_f1_nuvem = ler_gsheets_com_timeout(_conn_f1, "Historico_F1", ttl=0, timeout=12)
         if _df_f1_nuvem is not None:
             _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
             # SÓ aceitar se tiver dados reais (pelo menos 1 linha com DATA e ENCARREGADO)
@@ -2744,7 +2756,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.6.3 ESTAVEL</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2899,7 +2911,7 @@ with st.sidebar:
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.6.3 ESTAVEL</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2958,7 +2970,7 @@ elif st.session_state.df is None:
     if not st.session_state.get('force_use_local', False):
         if conn:
             try:
-                df_gsheets = conn.read(worksheet="PDE", ttl=300)
+                df_gsheets = ler_gsheets_com_timeout(conn, "PDE", ttl=300, timeout=15)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
@@ -2991,7 +3003,7 @@ elif st.session_state.df is None:
 # =================================================================
 if conn and not st.session_state.get('force_use_local', False):
     try:
-        df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
+        df_f1 = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=180, timeout=12)
         if df_f1 is not None:
             df_f1 = df_f1.dropna(how='all')
             # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
@@ -4058,7 +4070,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.6.3 ESTAVEL)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4186,7 +4198,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.6.3 ESTAVEL · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -5474,7 +5486,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                df_fresco = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -6147,7 +6159,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                df_fresco = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -6462,7 +6474,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 if st.button("☁️ Puxar Histórico F1 da Nuvem", key="btn_puxar_f1_nuvem", use_container_width=True):
                     try:
                         if conn:
-                            df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
+                            df_nuvem = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
                             df_nuvem = df_nuvem.dropna(how='all')
                             if not df_nuvem.empty:
                                 st.session_state.df_historico_f1 = df_nuvem
@@ -7292,7 +7304,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                df_fresco = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
