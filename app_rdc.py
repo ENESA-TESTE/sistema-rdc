@@ -2830,32 +2830,10 @@ elif st.session_state.df is None:
                 st.session_state.df = df_carregado
 
 # =================================================================
-# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
+# HISTÓRICO F1 (BANCO ULTRARRÁPIDO + PERSISTÊNCIA)
 # =================================================================
-if conn and not st.session_state.get('force_use_local', False):
-    try:
-        df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
-        if df_f1 is not None:
-            df_f1 = df_f1.dropna(how='all')
-            # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
-            if not df_f1.empty and 'ENCARREGADO' in df_f1.columns:
-                df_f1 = df_f1[df_f1['ENCARREGADO'].apply(eh_encarregado_valido)]
-            
-            qtd_nuvem = len(df_f1) if not df_f1.empty else 0
-            qtd_local = len(st.session_state.df_historico_f1) if not st.session_state.df_historico_f1.empty else 0
-            
-            # SÓ ATUALIZAR SE: nuvem tem dados E (nuvem tem MAIS dados OU local está vazio)
-            # Isso IMPEDE que uma leitura vazia da nuvem apague dados bons
-            if qtd_nuvem > 0 and (qtd_nuvem >= qtd_local or qtd_local == 0):
-                st.session_state.df_historico_f1 = df_f1
-                df_f1.to_csv(caminho_historico_f1_csv, index=False)
-            elif qtd_nuvem == 0 and qtd_local > 0:
-                # Nuvem está vazia mas local tem dados - REENVIAR para a nuvem!
-                ok, msg = salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                if ok:
-                    st.sidebar.caption(f"☁️ F1: {qtd_local} registros reenviados à nuvem (estava vazia).")
-    except Exception:
-        pass
+if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1 is None or st.session_state.df_historico_f1.empty:
+    st.session_state.df_historico_f1 = carregar_f1_db()
 
 # =================================================================
 # CONTEUDO PRINCIPAL
@@ -5792,22 +5770,8 @@ Retorne apenas o JSON sem crases ou markdown."""
         st.markdown("### 🏎️ Competição F1 — Entrega de RDC")
         st.markdown("Acompanhamento mensal, ranking de pontualidade e assiduidade dos Encarregados na entrega dos Relatórios Diários de Campo.")
 
-        # === SINCRONIZAÇÃO AUTOMÁTICA DO HISTÓRICO COM BANCO DE RDC ===
-        if os.path.exists(caminho_rdc_registros_csv):
-            try:
-                df_banco_rdc = pd.read_csv(caminho_rdc_registros_csv)
-                if not df_banco_rdc.empty and "DATA" in df_banco_rdc.columns and "ENCARREGADO" in df_banco_rdc.columns:
-                    df_banco_val = df_banco_rdc[["DATA", "ENCARREGADO"]].dropna().copy()
-                    df_banco_val["ENCARREGADO"] = df_banco_val["ENCARREGADO"].astype(str).str.strip().str.upper()
-                    df_banco_val = df_banco_val[df_banco_val["ENCARREGADO"].apply(eh_encarregado_valido)]
-                    
-                    if not df_banco_val.empty:
-                        if st.session_state.df_historico_f1.empty:
-                            st.session_state.df_historico_f1 = df_banco_val.drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                        else:
-                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_banco_val], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-            except Exception:
-                pass
+        # === HISTÓRICO F1 ATUALIZADO DO BANCO ===
+        st.session_state.df_historico_f1 = carregar_f1_db()
 
         # === MAPEAMENTO DE DISCIPLINAS POR ENCARREGADO ===
         dict_enc_disciplina = {}
