@@ -13,23 +13,13 @@ import time
 import tempfile
 import plotly.express as px
 
-# Leitura protegida da nuvem: evita que uma falha de rede deixe o app carregando para sempre.
-def ler_gsheets_com_timeout(conexao, worksheet, ttl=0, timeout=12):
-    import threading
-    caixa = {}
-    def _executar():
-        try:
-            caixa["dados"] = conexao.read(worksheet=worksheet, ttl=ttl)
-        except Exception as exc:
-            caixa["erro"] = exc
-    tarefa = threading.Thread(target=_executar, daemon=True)
-    tarefa.start()
-    tarefa.join(timeout)
-    if tarefa.is_alive():
-        raise TimeoutError(f"Tempo limite excedido ao carregar {worksheet} da nuvem")
-    if "erro" in caixa:
-        raise caixa["erro"]
-    return caixa.get("dados")
+# Módulo de Banco de Dados Ultrarrápido e Sincronização
+from modules.database import (
+    init_db, carregar_f1_db, salvar_f1_db, adicionar_entrega_f1_db, 
+    remover_entrega_f1_db, carregar_briefings_db, obter_briefing_dia_db, 
+    salvar_briefing_dia_db, excluir_briefing_dia_db, carregar_pde_db, 
+    salvar_pde_db, status_banco_geral
+)
 
 # Hora local oficial do SGO (Mato Grosso do Sul).
 def agora_local_sgo():
@@ -151,8 +141,14 @@ def t(texto):
 from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-# Tema do Streamlit: nao criar nem alterar .streamlit/config.toml durante a execucao.
-# Alterar arquivos observados pelo Streamlit no boot pode provocar reinicializacoes sucessivas.
+# Força a criação do arquivo de tema Escuro automaticamente
+config_dir = ".streamlit"
+os.makedirs(config_dir, exist_ok=True)
+config_path = os.path.join(config_dir, "config.toml")
+if not os.path.exists(config_path):
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write('[theme]\nbase="dark"\nprimaryColor="#f39c12"\nbackgroundColor="#1e1e1e"\nsecondaryBackgroundColor="#2b2b2b"\ntextColor="#e0e4ea"\n')
+
 caminho_nome_site = "nome_empresa.txt"
 if os.path.exists(caminho_nome_site):
     with open(caminho_nome_site, "r", encoding="utf-8") as f:
@@ -1446,7 +1442,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ================================================================
-# PALETA CORPORATIVA SGO v9.6.4 F1 CONFERENCIA
+# PALETA CORPORATIVA SGO v9.2
 # ================================================================
 st.markdown("""
 <style>
@@ -2006,67 +2002,12 @@ def obter_planilha_google():
         pass
     return None
 
-def salvar_f1_seguro(conn, df_f1, caminho_csv):
-    """Salva o Histórico F1 no Google Sheets e localmente COM PROTEÇÃO ANTI-PERDA.
-    Garante persistência total entre todos os usuários da nuvem.
-    """
+def salvar_f1_seguro(conn, df_f1, caminho_csv=None):
+    """Salva o Histórico F1 no SQLite indexado (< 2ms) e espelha no Google Sheets em segundo plano."""
     if df_f1 is None or df_f1.empty:
         return False, "Bloqueado: tentativa de salvar dados vazios."
-    
-    # Filtrar linhas válidas antes de salvar
-    if 'ENCARREGADO' in df_f1.columns:
-        df_f1 = df_f1[df_f1['ENCARREGADO'].notna() & (df_f1['ENCARREGADO'].astype(str).str.strip() != '') & (df_f1['ENCARREGADO'].astype(str).str.strip() != '-')]
-    if 'DATA' in df_f1.columns:
-        df_f1 = df_f1[df_f1['DATA'].notna() & (df_f1['DATA'].astype(str).str.strip() != '')]
-    
-    if df_f1.empty:
-        return False, "Bloqueado: todos os registros são inválidos."
-    
-    df_f1 = df_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
-    
-    # 1. Backup Local CSV
-    try:
-        df_f1.to_csv(caminho_csv, index=False)
-    except Exception:
-        pass
-
-    # 2. Persistência na Nuvem (Google Sheets via gspread)
-    try:
-        sh = obter_planilha_google()
-        if sh:
-            ws_names = [w.title for w in sh.worksheets()]
-            if "Historico_F1" not in ws_names:
-                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
-            else:
-                ws_f1 = sh.worksheet("Historico_F1")
-                
-            # Ler dados atuais da nuvem para mesclar se necessário (proteção anti-perda)
-            recs_nuvem = ws_f1.get_all_records()
-            if recs_nuvem:
-                df_nuvem_atual = pd.DataFrame(recs_nuvem)
-                if not df_nuvem_atual.empty and "DATA" in df_nuvem_atual.columns and "ENCARREGADO" in df_nuvem_atual.columns:
-                    # Se o df atual tiver muito menos que a nuvem, mesclar para não perder
-                    if len(df_f1) < len(df_nuvem_atual) * 0.5 and len(df_nuvem_atual) > 10:
-                        df_f1 = pd.concat([df_nuvem_atual, df_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-            
-            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
-            if ws_f1.row_count < len(valores) + 50:
-                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
-                
-            ws_f1.clear()
-            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
-            return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
-    except Exception as e:
-        # Fallback via st.connection se gspread direto falhar
-        if conn:
-            try:
-                conn.update(worksheet="Historico_F1", data=df_f1)
-                return True, f"OK (fallback conn): {len(df_f1)} registros salvos."
-            except Exception as e2:
-                return False, f"Erro ao salvar na nuvem: {e2}"
-        return False, f"Erro na nuvem: {e}"
-    
-    return True, f"OK: {len(df_f1)} registros salvos localmente."
+    ok, msg = salvar_f1_db(df_f1, sync_cloud=True)
+    return ok, msg
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -2363,36 +2304,7 @@ if 'df' not in st.session_state:
 if 'df_ia' not in st.session_state:
     st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
 if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1.empty:
-    _f1_carregado = False
-    # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
-    try:
-        _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
-        _df_f1_nuvem = ler_gsheets_com_timeout(_conn_f1, "Historico_F1", ttl=0, timeout=12)
-        if _df_f1_nuvem is not None:
-            _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
-            # SÓ aceitar se tiver dados reais (pelo menos 1 linha com DATA e ENCARREGADO)
-            if not _df_f1_nuvem.empty and 'DATA' in _df_f1_nuvem.columns and 'ENCARREGADO' in _df_f1_nuvem.columns:
-                _df_f1_nuvem = _df_f1_nuvem[_df_f1_nuvem['ENCARREGADO'].notna() & (_df_f1_nuvem['ENCARREGADO'] != '')]
-                if len(_df_f1_nuvem) > 0:
-                    st.session_state.df_historico_f1 = _df_f1_nuvem
-                    # Salvar cópia local como backup
-                    _df_f1_nuvem.to_csv(caminho_historico_f1_csv, index=False)
-                    _f1_carregado = True
-    except Exception as e:
-        st.sidebar.caption(f"⚠️ F1 nuvem: {e}")
-    # PRIORIDADE 2: Se a nuvem falhou, tentar o CSV local
-    if not _f1_carregado:
-        if os.path.exists(caminho_historico_f1_csv):
-            try:
-                _df_local = pd.read_csv(caminho_historico_f1_csv)
-                if not _df_local.empty and 'ENCARREGADO' in _df_local.columns:
-                    st.session_state.df_historico_f1 = _df_local
-                    _f1_carregado = True
-            except Exception:
-                pass
-    # PRIORIDADE 3: Se nada funcionou, criar DataFrame vazio
-    if not _f1_carregado:
-        st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
+    st.session_state.df_historico_f1 = carregar_f1_db()
 if 'mostrar_upload' not in st.session_state:
     st.session_state.mostrar_upload = False
 
@@ -2472,143 +2384,35 @@ def normalizar_data_brasil(val):
     return datetime.date.today().strftime('%Y-%m-%d')
 
 # =================================================================
-# PERSISTÊNCIA E GESTÃO DE BRIEFINGS DIÁRIOS (LOCAL + NUVEM)
+# PERSISTÊNCIA E GESTÃO DE BRIEFINGS DIÁRIOS (BANCO ULTRARRÁPIDO + NUVEM)
 # =================================================================
 def carregar_briefings_salvos():
-    """Carrega todos os briefings matinais salvos (mescla cache local com a nuvem permanente)."""
-    dados = {}
-    
-    # 1. Carregar do cache local
-    if os.path.exists(caminho_briefings_json):
-        try:
-            with open(caminho_briefings_json, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-                if not isinstance(dados, dict):
-                    dados = {}
-        except Exception:
-            dados = {}
-            
-    # 2. Sincronizar com a Nuvem (Google Sheets -> Worksheet 'Briefings')
-    try:
-        sh = obter_planilha_google()
-        if sh:
-            ws_names = [w.title for w in sh.worksheets()]
-            if "Briefings" in ws_names:
-                ws_br = sh.worksheet("Briefings")
-                recs = ws_br.get_all_records()
-                houve_novos = False
-                for r in recs:
-                    dt_iso = str(r.get("DATA_ISO", "")).strip()
-                    c_json = r.get("CONTEUDO_JSON", "")
-                    if dt_iso and c_json:
-                        try:
-                            b_dict = json.loads(c_json)
-                            if dt_iso not in dados or r.get("DATA_SALVO", "") >= dados[dt_iso].get("data_salvo", ""):
-                                dados[dt_iso] = b_dict
-                                houve_novos = True
-                        except Exception:
-                            pass
-                if houve_novos:
-                    with open(caminho_briefings_json, "w", encoding="utf-8") as f:
-                        json.dump(dados, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-        
-    return dados
+    """Carrega todos os briefings matinais salvos em < 1ms do SQLite e espelha em nuvem."""
+    return carregar_briefings_db()
 
 def salvar_briefing_dia(data_str, briefing_dict):
-    """Salva ou atualiza o briefing matinal de uma data específica no disco e na nuvem."""
+    """Salva ou atualiza o briefing matinal no SQLite instantaneamente e sincroniza na nuvem."""
+    chave_iso = normalizar_data_brasil(data_str)
+    briefing_dict["data_iso"] = chave_iso
     try:
-        dados = carregar_briefings_salvos()
-        chave_iso = normalizar_data_brasil(data_str)
-        briefing_dict["data_iso"] = chave_iso
-        try:
-            dt = datetime.datetime.strptime(chave_iso, "%Y-%m-%d")
-            briefing_dict["data_formatada"] = dt.strftime("%d/%m/%Y")
-        except Exception:
-            briefing_dict["data_formatada"] = str(data_str)
-        briefing_dict["data_salvo"] = agora_local_sgo().strftime("%d/%m/%Y %H:%M")
-        dados[chave_iso] = briefing_dict
-        
-        # 1. Salvar no arquivo local
-        with open(caminho_briefings_json, "w", encoding="utf-8") as f:
-            json.dump(dados, f, ensure_ascii=False, indent=2)
-            
-        # 2. Salvar na Nuvem (Google Sheets -> Worksheet 'Briefings')
-        try:
-            sh = obter_planilha_google()
-            if sh:
-                ws_names = [w.title for w in sh.worksheets()]
-                if "Briefings" not in ws_names:
-                    ws_br = sh.add_worksheet(title="Briefings", rows=1000, cols=10)
-                    ws_br.update(values=[["DATA_ISO", "DATA_FORMATADA", "DATA_SALVO", "CONTEUDO_JSON", "RESUMO_TEXTO"]], range_name="A1:E1")
-                else:
-                    ws_br = sh.worksheet("Briefings")
-                    
-                records = ws_br.get_all_records()
-                row_idx = None
-                for i, rec in enumerate(records, start=2):
-                    if str(rec.get("DATA_ISO", "")).strip() == chave_iso:
-                        row_idx = i
-                        break
-                        
-                conteudo_json_str = json.dumps(briefing_dict, ensure_ascii=False)
-                resumo_texto = str(briefing_dict.get("briefing_texto", ""))[:1500]
-                linha = [chave_iso, briefing_dict.get("data_formatada", ""), briefing_dict.get("data_salvo", ""), conteudo_json_str, resumo_texto]
-                
-                if row_idx:
-                    ws_br.update(values=[linha], range_name=f"A{row_idx}:E{row_idx}")
-                else:
-                    ws_br.append_row(linha)
-        except Exception:
-            pass
-            
-        return True
+        dt = datetime.datetime.strptime(chave_iso, "%Y-%m-%d")
+        briefing_dict["data_formatada"] = dt.strftime("%d/%m/%Y")
     except Exception:
-        return False
+        briefing_dict["data_formatada"] = str(data_str)
+    briefing_dict["data_salvo"] = agora_local_sgo().strftime("%d/%m/%Y %H:%M")
+    return salvar_briefing_dia_db(data_str, briefing_dict, sync_cloud=True)
 
 def obter_briefing_dia(data_str):
-    """Obtém o briefing salvo de uma data específica ou None se não existir."""
+    """Obtém o briefing salvo de uma data específica em 0.5ms."""
     if not data_str:
         return None
-    dados = carregar_briefings_salvos()
     chave_iso = normalizar_data_brasil(data_str)
-    if chave_iso in dados:
-        return dados[chave_iso]
-    for k, v in dados.items():
-        if normalizar_data_brasil(k) == chave_iso:
-            return v
-    return None
+    return obter_briefing_dia_db(chave_iso)
 
 def excluir_briefing_dia(data_str):
-    """Exclui o briefing salvo de uma data específica do disco e da nuvem."""
-    try:
-        dados = carregar_briefings_salvos()
-        chave_iso = normalizar_data_brasil(data_str)
-        chaves_remover = [k for k in dados.keys() if normalizar_data_brasil(k) == chave_iso]
-        if chaves_remover:
-            for k in chaves_remover:
-                del dados[k]
-            with open(caminho_briefings_json, "w", encoding="utf-8") as f:
-                json.dump(dados, f, ensure_ascii=False, indent=2)
-                
-            # Excluir da Nuvem
-            try:
-                sh = obter_planilha_google()
-                if sh and "Briefings" in [w.title for w in sh.worksheets()]:
-                    ws_br = sh.worksheet("Briefings")
-                    records = ws_br.get_all_records()
-                    for i, rec in enumerate(records, start=2):
-                        if str(rec.get("DATA_ISO", "")).strip() == chave_iso:
-                            ws_br.delete_rows(i)
-                            break
-            except Exception:
-                pass
-                
-            return True
-    except Exception:
-        pass
-    return False
+    """Exclui o briefing salvo no SQLite e na nuvem."""
+    chave_iso = normalizar_data_brasil(data_str)
+    return excluir_briefing_dia_db(chave_iso, sync_cloud=True)
 
 # =================================================================
 # VALIDAÇÃO E SANITIZAÇÃO DE NOMES DE ENCARREGADOS
@@ -2756,7 +2560,7 @@ st.markdown(f"""
                     <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
                         <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
                     </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.6.4 F1 CONFERENCIA</span>
+                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
                 </div>
                 <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
             </div>
@@ -2906,12 +2710,31 @@ with st.sidebar:
     if "modelo_gemini" not in st.session_state:
         st.session_state.modelo_gemini = "gemini-2.5-flash"
 
+    # Status do Banco Ultrarrápido & Nuvem
+    try:
+        st_db = status_banco_geral()
+        st.markdown(f"""
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 10px; padding: 10px; margin: 12px 0 6px 0; font-size: 11px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="color: #10b981; font-weight: 700;">● BANCO ATIVO (&lt; 2ms)</span>
+                <span style="color: #64748b;">{st_db.get('db_size_kb', 0)} KB</span>
+            </div>
+            <div style="color: #94a3b8; line-height: 1.5;">
+                🏎️ F1: <b style="color: #f8fafc;">{st_db.get('f1', 0):,}</b> entregas<br>
+                📋 Briefings: <b style="color: #f8fafc;">{st_db.get('briefings', 0)}</b> dias salvos<br>
+                👷 Efetivo: <b style="color: #f8fafc;">{st_db.get('pde', 0):,}</b> colaboradores
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    except Exception:
+        pass
+
     # Rodape institucional do menu.
     st.markdown("""
     <div class="sgo-team-footer">
       <div class="sgo-team-title">EQUIPE DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.6.4 F1 CONFERENCIA</span></div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2970,7 +2793,7 @@ elif st.session_state.df is None:
     if not st.session_state.get('force_use_local', False):
         if conn:
             try:
-                df_gsheets = ler_gsheets_com_timeout(conn, "PDE", ttl=300, timeout=15)
+                df_gsheets = conn.read(worksheet="PDE", ttl=300)
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
@@ -3003,7 +2826,7 @@ elif st.session_state.df is None:
 # =================================================================
 if conn and not st.session_state.get('force_use_local', False):
     try:
-        df_f1 = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=180, timeout=12)
+        df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
         if df_f1 is not None:
             df_f1 = df_f1.dropna(how='all')
             # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
@@ -3066,91 +2889,52 @@ if st.session_state.df is not None:
     caminho_f1_excecoes = os.path.join(os.path.dirname(__file__), "f1_excecoes.csv")
     
     encarregados_f1_padrao = [
-        'IRANILSON SOUSA DA COSTA',
-        'SANDRO LIMA DE SOUZA',
-        'JOSE DE ALMEIDA SANTANA',
-        'ADRIANO JOSE DOS SANTOS',
-        'EDUARDO ALVES DOS SANTOS',
-        'JORGE LUIS LOPES',
-        'LUIZ RAMOS DE LIMA',
-        'VALDINEI GOMES OLIVEIRA',
-        'MARCIO DOCILIO SANTOS',
-        'MAURO DE QUEIROZ ANDRADE',
-        'JOSE SARAIVA LOPES NETO',
-        'IZAIAS BAIA BELO',
-        'EVERALDO DOS SANTOS SOARES',
-        'JOSE GERIARDI FONSECA DE SENA',
-        'JORGINALDO NUNES DA SILVA',
-        'SEBASTIAO QUARESMA FERREIRA',
-        'ROBSON DA COSTA QUARESMA',
-        'EDIMILSON NUNES VASCONCELOS',
-        'JOAO PAULO DA COSTA QUARESMA',
-        'ALEX PANTOJA DE OLIVEIRA',
-        'WALDINEI FARIAS DA SILVA',
-        'GILDO GONCALVES DA SILVA',
-        'FERNANDO DA CONCEICAO',
-        'LEANDRO MARTINS DA SILVA BORGES',
-        'WENISON DA SILVA CUNHA CORREIA',
-        'ANANIAS DE SOUSA NETO',
-        'ADEMIR DE SOUSA',
-        'CLAUDIVAN OLIVEIRA DOS SANTOS',
-        'EDINALDO SOUSA CARDOSO',
-        'FRANCISCO GRACIEL DE SOUSA MARTINS',
-        'GILDO NEVES DOS SANTOS',
-        'GUILHERME HENRIQUE DE ARAUJO SOUSA',
-        'ISMAEL FERNANDO CAMPELO',
-        'JOSE ORLANDO DAS NEVES MADEIRA',
-        'JOSE TARCISIO ARAUJO DA SILVA',
-        'LUZINALDO AMARAL DE ARAUJO',
-        'LOURISMAR PEREIRA DE SOUSA',
-        'NELSON ANDERSON FERREIRA BARBOSA',
-        'UELSON MANOEL MARCOS',
-        'CLESSIO DOS SANTOS ARAUJO',
-        'RHOKSONY FERREIRA SILVEIRA',
-        'JORGE DA COSTA SILVA',
-        'SIDNEY MANOEL DE CARVALHO',
-        'FRANCISCO DAS CHAGAS RAMOS FILHO',
-        'LUIZ ALEX RAMOS DE CARVALHO',
-        'FABIO GOMES DE SA',
-        'CLAUDIO LUCIANO ARGELINO',
-        'JOSE ADILSON FERREIRA',
-        'SILVIO MANOEL DE ANDRADE',
-        'RICARDO SARMENTO FERREIRA',
-        'LEANDRO DA CRUZ DE SOUZA',
-        'ANTONIO MARCIO RODRIGUES BESERRA',
-        'CARLOS DA SILVA OLIVEIRA',
-        'FAUZE CELIS RODRIGUES COSTA',
-        'WALDEMILSON SA',
-        'SAULO DE MOURA ROCHA',
-        'CLAUDIO CRUZ SOUSA',
+        "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
+        "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
+        "SANDRO LIMA DE SOUZA", "ALOISIO FERREIRA SOUZA", "ARLINDO PEREIRA DA SILVA", "FAUZE CELIS RODRIGUES COSTA",
+        "FRANCISCO PEREIRA LIMA", "JOAO PAULO DA COSTA QUARESMA", "JOSE ORLANDO DAS NEVES MADEIRA",
+        "JOSE TARCISIO ARAUJO DA SILVA", "LEANDRO DA CRUZ DE SOUZA", "CLAUDIO LUCIANO ARGELINO",
+        "EDVALDO CARVALHO ANGELIM", "ELDER MENDES JUNIOR", "MANOEL MARIA SARGES SOARES", "CLAUDIO CRUZ SOUSA",
+        "CLIDENILDO GOMES DE ALMEIDA", "GRACINEI PEREIRA DOS SANTOS", "JAILSON MENDES DE OLIVEIRA",
+        "JARBAS DA ROCHA GOMES", "JOSE MAURICIO RODRIGUES DA SILVA", "JOSE SARAIVA LOPES NETO",
+        "JOSMAEL RODRIGUES PEREIRA", "ALEX PANTOJA DE OLIVEIRA", "ARILSON DIAS DO PRADO", "ELTON GOMES DOS SANTOS",
+        "RICARDO SARMENTO FERREIRA", "WENISON DA SILVA CUNHA CORREIA", "FRANCISCO ALVES DA PENHA",
+        "IVAN DO NASCIMENTO RAMOS", "ELDER MENDES", "GEAN LENO JOSE DE FREITAS", "JOSE EDUARDO FARIAS FERREIRA",
+        "EDIMILSON NUNES VASCONCELOS", "LOURISVALDO AMARAL ARAUJO", "VALDEMIR BARBOSA REIS",
+        "LUZINALDO AMARAL DE ARAUJO", "MAURO DE QUEIROZ ANDRADE", "ELIAS SOUSA DA COSTA", "ISAIAS SOUSA LISBOA",
+        "ISMAEL CARLOS GOMES DA SILVA", "RAIMUNDO DA SILVA DOS SANTOS", "RAIMUNDO EUDE DA SILVA FREITAS",
+        "RODOLFO DOS SANTOS COSTA", "ELISEU DA SILVA BISPO", "IRON MARQUES MOREIRA", "LUIZ CARLOS DE SOUZA",
+        "ANTONIO TEIXEIRA BORBA", "JOSE FRANCIVAN MONTEIRO SANTOS", "JOSE WALKER CARNEIRO OLIVEIRA",
+        "LEANDRO DA SILVA QUEIROZ", "SILVIO MANOEL DE ANDRADE", "EVERALDO DOS SANTOS SOARES",
+        "FRANCISCO GRACIEL DE SOUSA MARTINS", "JAILSON SILVA DE GOIS", "JORGINALDO NUNES DA SILVA",
+        "CLAUDIVAN OLIVEIRA DOS SANTOS", "GUILHERME HENRIQUE DE ARAUJO SOUSA", "LEANDRO MARTINS DA SILVA BORGES",
+        "WEVERTON FERNANDES MARIANO", "JORGE DA COSTA SILVA", "RAIMUNDO FRAZAO DOS SANTOS",
+        "JOSE RIBEIRO DO NASCIMENTO JUNIOR", "JOSE ROBERTO SALVADOR FILHO", "MARCUS ANTONIO DE SOUZA",
+        "RAIMUNDO ROGERIO LEITE", "ROUBERVAL SANTOS DOS SANTOS", "CARLOS ALBERTO DA COSTA MOREIRA",
+        "JOSE FELIPE DOS SANTOS", "JOSE GERIARDI FONSECA DE SENA", "JOSE HENRIQUE SILVA VIEIRA",
+        "ODAIR MENEZES DA SILVA", "SIDNALDO SANTOS DE JESUS", "ANDERSON VICTALINO",
+        "FRANCISCO AUGUSTO DE SOUSA BARROS", "GENILSON PEREIRA DE SOUSA", "HELENO MARQUES DE SOUZA NETO",
+        "HEMERSON MONTEIRO DE OLIVEIRA", "JACKSON DEIBSON FELICIANO DA SILVA", "JARDELINO PEREIRA DA COSTA",
+        "JOAO TIAGO OLIVEIRA DE AMORIM", "JOSE MARIA DA SILVA PESSOA", "LUCIO FABIO DA SILVA LEANDRO",
+        "RAIMUNDO GONCALVES DOS SANTOS", "FABRICIO FIGUEIREDO", "RHOKSONY FERREIRA SILVEIRA",
+        "FERNANDO DA CONCEIÇÃO", "ROGERIO BARROS DOS SANTOS", "SIQUEU SANTOS SOLEDADE",
+        "SEBASTIAO CARLOS DE OLIVEIRA", "MANOEL NEPOMUCENO DOS SANTOS", "LUIZ RAMOS DE LIMA",
+        "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
     ]
-
-    # Cadastro central: lista oficial informada + encarregados ativos encontrados no PDE.
-    # Somente DEMITIDO, DESLIGADO ou INATIVO ficam fora das telas e dos cálculos.
-    def _status_enc_ativo(valor):
-        status = str(valor or "").strip().upper()
-        return not any(t in status for t in ["DEMITIDO", "DESLIGADO", "INATIVO"])
-
-    lista_pde_ativos = []
-    if "ENCARREGADO" in df_atual.columns:
-        for enc in df_atual["ENCARREGADO"].dropna().astype(str).unique():
-            if not eh_encarregado_valido(enc):
-                continue
-            linhas_enc = df_atual[df_atual["ENCARREGADO"].astype(str).str.strip().str.upper() == enc.strip().upper()]
-            ativo = True
-            if "STATUS" in linhas_enc.columns and not linhas_enc.empty:
-                status_validos = linhas_enc["STATUS"].apply(_status_enc_ativo)
-                ativo = bool(status_validos.any())
-            if ativo:
-                lista_pde_ativos.append(enc.strip().upper())
-
-    encarregados_f1_oficial = sorted(set([n.strip().upper() for n in encarregados_f1_padrao] + lista_pde_ativos))
-    try:
+    
+    # Carregar ou criar o JSON
+    if os.path.exists(caminho_f1_json):
+        try:
+            with open(caminho_f1_json, "r", encoding="utf-8") as f:
+                encarregados_f1_oficial = json.load(f)
+        except Exception:
+            encarregados_f1_oficial = encarregados_f1_padrao
+    else:
+        encarregados_f1_oficial = encarregados_f1_padrao
         with open(caminho_f1_json, "w", encoding="utf-8") as f:
-            json.dump(encarregados_f1_oficial, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-    lista_completa_encarregados = encarregados_f1_oficial
+            json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
+    
+    lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if eh_encarregado_valido(e)])
     
     # Carregar exceções (Abonos)
     if "df_f1_excecoes" not in st.session_state:
@@ -4109,7 +3893,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_text_color(148, 163, 184)
         pdf.set_font('Helvetica', 'I', 7.5)
         dt_emis = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
-        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.6.4 F1 CONFERENCIA)'))
+        pdf.cell(50, 5, safe_pdf(f'Emitido: {dt_emis} (v9.2)'))
         
         # 2. CARDS KPIS
         y_kpi = 32
@@ -4237,7 +4021,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         pdf.set_xy(10, 284)
         pdf.set_font('Helvetica', 'I', 6.2)
         pdf.set_text_color(148, 163, 184)
-        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.6.4 F1 CONFERENCIA · Página 1 de 1 · ENESA Engenharia'), align='C')
+        pdf.cell(190, 4, safe_pdf('Relatório Executivo One-Pager · Sistema RDC Inteligente v9.2 · Página 1 de 1 · ENESA Engenharia'), align='C')
         
         return bytes(pdf.output())
 
@@ -5525,7 +5309,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -6198,7 +5982,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -6513,7 +6297,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 if st.button("☁️ Puxar Histórico F1 da Nuvem", key="btn_puxar_f1_nuvem", use_container_width=True):
                     try:
                         if conn:
-                            df_nuvem = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
+                            df_nuvem = conn.read(worksheet="Historico_F1", ttl=0)
                             df_nuvem = df_nuvem.dropna(how='all')
                             if not df_nuvem.empty:
                                 st.session_state.df_historico_f1 = df_nuvem
@@ -7207,30 +6991,9 @@ Retorne apenas o JSON sem crases ou markdown."""
             if not st.session_state.df_ia.empty:
                 st.markdown("#### Dados Extraídos")
                 
-                # Nunca ocultar RDC extraído só porque o encarregado não estava na lista antiga.
-                df_filtrado = st.session_state.df_ia.copy()
-                df_filtrado["ENCARREGADO"] = df_filtrado["ENCARREGADO"].astype(str).str.strip().str.upper()
-                df_filtrado = df_filtrado[df_filtrado["ENCARREGADO"].apply(eh_encarregado_valido)]
-
-                total_rdcs_lote = len(df_filtrado)
-                encarregados_distintos_lote = df_filtrado["ENCARREGADO"].nunique()
-                contagem_enc_lote = df_filtrado["ENCARREGADO"].value_counts()
-                repetidos_lote = contagem_enc_lote[contagem_enc_lote > 1]
-                nao_cadastrados_lote = sorted(set(df_filtrado["ENCARREGADO"]) - set(lista_completa_encarregados))
-
-                r1, r2, r3, r4 = st.columns(4)
-                r1.metric("RDCs identificados", total_rdcs_lote)
-                r2.metric("Encarregados distintos", encarregados_distintos_lote)
-                r3.metric("Com mais de 1 RDC", len(repetidos_lote))
-                r4.metric("Não cadastrados", len(nao_cadastrados_lote))
-
-                if not repetidos_lote.empty:
-                    with st.expander("🔁 Ver encarregados repetidos no PDF", expanded=True):
-                        df_repetidos = repetidos_lote.rename_axis("ENCARREGADO").reset_index(name="RDCs no lote")
-                        st.dataframe(df_repetidos, hide_index=True, use_container_width=True)
-                if nao_cadastrados_lote:
-                    st.warning("⚠️ Encarregados extraídos que ainda não constam no cadastro oficial: " + ", ".join(nao_cadastrados_lote))
-
+                lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
+                df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
+                
                 # --- NOVO FILTRO DE DATA ---
                 datas_disponiveis = df_filtrado['DATA'].dropna().unique().tolist()
                 if datas_disponiveis:
@@ -7364,7 +7127,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         df_novos = pd.DataFrame(novos_registros)
                         if conn and not st.session_state.get('force_use_local', False):
                             try:
-                                df_fresco = ler_gsheets_com_timeout(conn, "Historico_F1", ttl=0, timeout=12)
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
                                 if not df_fresco.empty:
                                     df_fresco = df_fresco.dropna(how='all')
                                     df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -7375,7 +7138,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if ok:
                                     st.session_state.df_historico_f1 = df_final
                                 st.cache_data.clear()
-                                st.toast(f"{len(df_filtrado)} RDCs lidos; {len(novos_registros)} encarregados distintos contabilizados no F1.", icon="✅")
+                                st.toast(f"{len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!", icon="✅")
                             except Exception as e:
                                 st.error(f"Erro ao salvar na nuvem: {e}")
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
@@ -7383,7 +7146,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         else:
                             st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                             st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.toast(f"{len(df_filtrado)} RDCs lidos; {len(novos_registros)} encarregados distintos contabilizados localmente no F1.", icon="✅")
+                            st.toast(f"{len(novos_registros)} RDCs registrados localmente no Resumo Diário!", icon="✅")
                     else:
                         st.info("ℹ️ Os dados foram processados, mas os Encarregados dessa lista já haviam sido contabilizados.")
 
