@@ -2680,20 +2680,8 @@ def sincronizar_dados_globais():
     elif "df_historico_f1" not in st.session_state:
         st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
         
-    # 2. SINCRONIZAR BASE DE EFETIVO (PDE)
-    if st.session_state.get("df") is None:
-        if os.path.exists(caminho_base_salva_xlsx):
-            _df = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
-            if _df is not None:
-                st.session_state.df = preparar_dataframe(_df)
-        elif os.path.exists(caminho_base_salva_csv):
-            _df = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
-            if _df is not None:
-                st.session_state.df = preparar_dataframe(_df)
-        elif os.path.exists(caminho_pde_padrao):
-            _df = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
-            if _df is not None:
-                st.session_state.df = preparar_dataframe(_df)
+    # 2. BASE DE EFETIVO (PDE) - Carregada exclusivamente do Google Sheets
+    pass
 
 sincronizar_dados_globais()
 
@@ -2953,40 +2941,25 @@ if arquivo_pde is not None:
             except Exception as e:
                 st.sidebar.error(f"Erro Nuvem: {e}")
 
-elif st.session_state.df is None:
-    carregado_nuvem = False
-    
-    # 1. LER DA NOVA PLANILHA MESTRE DO GOOGLE SHEETS
-    if not st.session_state.get('force_use_local', False):
-        if conn:
+# =================================================================
+# CARREGAMENTO EXCLUSIVO DO GOOGLE SHEETS (NUVEM OFICIAL)
+# =================================================================
+if conn:
+    try:
+        df_gsheets = None
+        for ws_name in ["PDE", "Página1", "Base", "EFETIVO"]:
             try:
-                df_gsheets = conn.read(worksheet="PDE", ttl=300)
-                df_gsheets = df_gsheets.dropna(how='all')
-                if not df_gsheets.empty:
-                    st.session_state.df = preparar_dataframe(df_gsheets)
-                    carregado_nuvem = True
-                    st.toast(f"PDE Mestre carregado! {len(df_gsheets)} funcionários.", icon="☁️")
-            except Exception as e:
-                st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre autenticado: {e}")
-            
-    # Resetar a flag (dentro do elif st.session_state.df is None)
-    if st.session_state.get('force_use_local', False):
-        carregado_nuvem = True
-        st.session_state.force_use_local = False
-            
-    if not carregado_nuvem:
-        if os.path.exists(caminho_base_salva_xlsx):
-            df_carregado = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
-            if df_carregado is not None and not df_carregado.empty:
-                st.session_state.df = preparar_dataframe(df_carregado)
-        elif os.path.exists(caminho_base_salva_csv):
-            df_carregado = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
-            if df_carregado is not None and not df_carregado.empty:
-                st.session_state.df = preparar_dataframe(df_carregado)
-        elif os.path.exists(caminho_pde_padrao):
-            df_carregado = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
-            if df_carregado is not None and not df_carregado.empty:
-                st.session_state.df = preparar_dataframe(df_carregado)
+                df_gsheets = conn.read(worksheet=ws_name, ttl=0)
+                if df_gsheets is not None and not df_gsheets.empty and len(df_gsheets.columns) >= 3:
+                    break
+            except Exception:
+                pass
+        if df_gsheets is not None and not df_gsheets.empty:
+            df_gsheets = df_gsheets.dropna(how='all')
+            st.session_state.df = preparar_dataframe(df_gsheets)
+            st.toast(f"☁️ PDE carregado 100% do Google Sheets! ({len(df_gsheets)} registros)", icon="☁️")
+    except Exception as e:
+        st.sidebar.error(f"⚠️ Erro ao ler Google Sheets: {e}")
 
 # =================================================================
 # SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
