@@ -2779,6 +2779,7 @@ if arquivo_pde is not None:
                     pass
         
         st.session_state.df = df_carregado
+        salvar_pde_db(st.session_state.df, sync_cloud=False)
         if conn and not st.session_state.get('force_use_local', False):
             try:
                 conn.update(worksheet="PDE", data=st.session_state.df)
@@ -2797,6 +2798,7 @@ elif st.session_state.df is None:
                 df_gsheets = df_gsheets.dropna(how='all')
                 if not df_gsheets.empty:
                     st.session_state.df = preparar_dataframe(df_gsheets)
+                    salvar_pde_db(st.session_state.df, sync_cloud=False)
                     carregado_nuvem = True
                     st.toast(f"PDE Mestre carregado! {len(df_gsheets)} funcionários.", icon="☁️")
             except Exception as e:
