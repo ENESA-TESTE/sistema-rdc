@@ -1,3 +1,4 @@
+import sys
 import os
 import re
 import datetime
@@ -12,6 +13,11 @@ import json
 import time
 import tempfile
 import plotly.express as px
+
+# Garantir path raiz no Linux (Streamlit Cloud)
+DIRETORIO_RAIZ = os.path.dirname(os.path.abspath(__file__))
+if DIRETORIO_RAIZ not in sys.path:
+    sys.path.insert(0, DIRETORIO_RAIZ)
 
 # Módulo de Banco de Dados Ultrarrápido e Sincronização
 from modules.database import (
@@ -6033,13 +6039,36 @@ Retorne apenas o JSON sem crases ou markdown."""
             df_hist["DATA"] = pd.to_datetime(df_hist["DATA_ISO"], errors="coerce")
             df_hist = df_hist.dropna(subset=["DATA"])
             df_hist["MES_ANO"] = df_hist["DATA"].dt.strftime("%Y-%m")
-            meses_disponiveis = sorted(df_hist["MES_ANO"].unique(), reverse=True)
-        else:
-            meses_disponiveis = [datetime.date.today().strftime("%Y-%m")]
             
+            # Gerar todos os meses do ano atual e ano anterior + meses do banco
+            hoje_dt = datetime.date.today()
+            meses_set = set(df_hist["MES_ANO"].unique().tolist())
+            for y_i in [hoje_dt.year, hoje_dt.year - 1]:
+                for m_i in range(1, 13):
+                    meses_set.add(f"{y_i}-{m_i:02d}")
+                    
+            mes_limite = f"{hoje_dt.year}-{hoje_dt.month:02d}"
+            meses_disponiveis = sorted([m for m in meses_set if m <= mes_limite], reverse=True)
+        else:
+            hoje_dt = datetime.date.today()
+            meses_disponiveis = [f"{hoje_dt.year}-{m:02d}" for m in range(hoje_dt.month, 0, -1)]
+            
+        def formatar_mes_legivel(m_cod):
+            try:
+                y, m = m_cod.split("-")
+                nomes_m = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+                return f"{nomes_m[int(m)-1]} de {y} ({m_cod})"
+            except:
+                return m_cod
+
         col_f1_mes, col_f1_disc = st.columns([1, 1])
         with col_f1_mes:
-            mes_selecionado = st.selectbox("📅 Selecione o Mês para Análise:", meses_disponiveis)
+            mes_selecionado = st.selectbox(
+                "📅 Selecione o Mês para Análise (Atual ou Passados):", 
+                options=meses_disponiveis,
+                format_func=formatar_mes_legivel,
+                key="sel_mes_f1_historico"
+            )
         with col_f1_disc:
             disciplinas_disponiveis = sorted(list(set([d for d in dict_enc_disciplina.values() if d and d != "GERAL"])))
             filtro_f1_disc = st.selectbox("🎯 Filtrar por Disciplina:", ["Todas as Disciplinas"] + disciplinas_disponiveis)
@@ -6222,63 +6251,60 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
             st.dataframe(matriz_estilizada, use_container_width=True)
 
-            # === MARCAR / DESMARCAR ENTREGA MANUALMENTE ===
-            if st.toggle("✏️ Marcar ou Desmarcar Entrega de um Dia", key="toggle_marcar_dia_f1"):
+            # === MARCAR / DESMARCAR ENTREGA MANUALMENTE (ALTA VELOCIDADE + MESES PASSADOS) ===
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+            with st.expander("✏️ Ajustar Entregas — Marcar (✅) ou Desmarcar (❌) Dias (Mês Atual ou Passados)", expanded=False):
                 st.markdown("""
-                <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 15px;">
-                    <p style="margin: 0; color: #94a3b8; font-size: 14px;">Selecione os encarregados e o dia para colocar <b style="color: #10b981;">✅</b> ou tirar (voltar para <b style="color: #ef4444;">❌</b>).</p>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 10px; padding: 12px; margin-bottom: 12px;">
+                    <span style="color: #38bdf8; font-weight: 600;">💡 Como funciona:</span>
+                    <span style="color: #94a3b8; font-size: 13px;">Você pode ajustar qualquer dia do <b>mês atual</b> ou de <b>qualquer mês passado</b>. Selecione os encarregados, defina a data e marque ou desmarque.</span>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                col_mk1, col_mk2, col_mk3 = st.columns([3, 1, 1])
-                with col_mk1:
-                    encs_marcar = st.multiselect("Encarregado(s):", todos_encarregados_matriz, key="encs_marcar_dia")
-                with col_mk2:
-                    dia_marcar = st.selectbox("Dia:", [int(d) for d in dias_uteis], key="dia_marcar_sel")
-                with col_mk3:
-                    acao_marcar = st.selectbox("Ação:", ["✅ Marcar Entregue", "❌ Desmarcar"], key="acao_marcar_sel")
+                col_tp_data, col_encs = st.columns([1.5, 3])
+                with col_tp_data:
+                    tipo_data_sel = st.radio("Origem da Data:", [f"Mês Visualizado ({mes_selecionado})", "🗓️ Outra Data / Mês Passado"], key="radio_tipo_data_f1")
+                with col_encs:
+                    encs_marcar = st.multiselect("👷 Selecione o(s) Encarregado(s):", options=todos_encarregados_matriz, key="encs_marcar_dia", placeholder="Escolha um ou vários encarregados...")
                 
-                if st.button("Aplicar", type="primary", use_container_width=True, key="btn_aplicar_marcar"):
-                    if encs_marcar:
-                        data_str = f"{ano}-{str(mes).zfill(2)}-{str(dia_marcar).zfill(2)}"
+                col_mk_dia, col_mk_acao, col_mk_btn = st.columns([1.5, 2, 1.2])
+                with col_mk_dia:
+                    if "Mês Visualizado" in tipo_data_sel:
+                        dias_opcoes = [int(d) for d in dias_str]
+                        dia_num = st.selectbox("📅 Dia do Mês:", options=dias_opcoes, key="dia_marcar_sel")
+                        data_final_str = f"{ano}-{str(mes).zfill(2)}-{str(dia_num).zfill(2)}"
+                    else:
+                        data_passada = st.date_input("📅 Escolha a Data Específica:", value=datetime.date.today(), key="data_passada_f1_input")
+                        data_final_str = data_passada.strftime("%Y-%m-%d")
+                        
+                with col_mk_acao:
+                    acao_marcar = st.radio("Ação Desejada:", ["✅ Marcar Entregue", "❌ Desmarcar (Remover Entrega)"], horizontal=True, key="acao_marcar_sel")
+                with col_mk_btn:
+                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                    btn_aplicar = st.button("🚀 Aplicar", type="primary", use_container_width=True, key="btn_aplicar_marcar")
+                
+                if btn_aplicar:
+                    if not encs_marcar:
+                        st.warning("⚠️ Selecione pelo menos um encarregado.")
+                    else:
+                        dt_obj = pd.to_datetime(data_final_str)
+                        dt_formatada = dt_obj.strftime("%d/%m/%Y")
                         if "✅" in acao_marcar:
-                            novos = []
+                            qtd_add = 0
                             for enc_mk in encs_marcar:
-                                ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_mk)).any()
-                                if not ja_existe:
-                                    novos.append({"DATA": data_str, "ENCARREGADO": enc_mk})
-                            if novos:
-                                df_novos_mk = pd.DataFrame(novos)
-                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos_mk], ignore_index=True)
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                                if conn and not st.session_state.get('force_use_local', False):
-                                    try:
-                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                                        st.cache_data.clear()
-                                    except Exception:
-                                        pass
-                                st.success(f"✅ {len(novos)} entrega(s) marcada(s) no dia {dia_marcar}!")
-                            else:
-                                st.info("ℹ️ Todos já estavam marcados nesse dia.")
+                                if adicionar_entrega_f1_db(data_final_str, enc_mk, sync_cloud=True):
+                                    qtd_add += 1
+                            st.session_state.df_historico_f1 = carregar_f1_db()
+                            st.toast(f"✅ {qtd_add} entrega(s) marcada(s) com sucesso para o dia {dt_formatada}!", icon="🟢")
                         else:
-                            removidos = 0
+                            qtd_rem = 0
                             for enc_mk in encs_marcar:
-                                mask = (st.session_state.df_historico_f1["DATA"] == data_str) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_mk)
-                                if mask.any():
-                                    st.session_state.df_historico_f1 = st.session_state.df_historico_f1[~mask]
-                                    st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                                    removidos += 1
-                            if removidos > 0:
-                                if conn and not st.session_state.get('force_use_local', False):
-                                    try:
-                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                                        st.cache_data.clear()
-                                    except Exception:
-                                        pass
-                                st.success(f"❌ {removidos} entrega(s) desmarcada(s) no dia {dia_marcar}!")
-                            else:
-                                st.info("ℹ️ Nenhum deles estava marcado nesse dia.")
-                        time.sleep(2)
+                                if remover_entrega_f1_db(data_final_str, enc_mk, sync_cloud=True):
+                                    qtd_rem += 1
+                            st.session_state.df_historico_f1 = carregar_f1_db()
+                            st.toast(f"❌ {qtd_rem} entrega(s) desmarcada(s) / removida(s) no dia {dt_formatada}!", icon="🗑️")
+                        
+                        time.sleep(1)
                         st.rerun()
 
             # --- EXPORTAÇÃO E NUVEM ---
