@@ -1931,25 +1931,27 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
 @st.cache_data(show_spinner=False)
 def ler_arquivo_seguro(arquivo, nome_arquivo=""):
     try:
-        if nome_arquivo.endswith(".xlsx") or nome_arquivo.endswith(".xls"):
+        nome_str = str(nome_arquivo).lower() if nome_arquivo else (str(getattr(arquivo, 'name', '')).lower())
+        if nome_str.endswith(".xlsx") or nome_str.endswith(".xls"):
+            if hasattr(arquivo, 'seek'):
+                arquivo.seek(0)
             return pd.read_excel(arquivo)
         else:
-            try:
-                return pd.read_csv(arquivo, sep=";", encoding="latin-1")
-            except Exception:
-                pass
-            try:
-                if hasattr(arquivo, 'seek'):
-                    arquivo.seek(0)
-                return pd.read_csv(arquivo, sep=",", encoding="latin-1")
-            except Exception:
-                pass
-            try:
-                if hasattr(arquivo, 'seek'):
-                    arquivo.seek(0)
-                return pd.read_csv(arquivo, sep=";", encoding="utf-8")
-            except Exception:
-                pass
+            melhor_df = None
+            max_cols = 0
+            for enc in ["utf-8-sig", "utf-8", "latin-1", "cp1252"]:
+                for sep in [",", ";", "\t", "|"]:
+                    try:
+                        if hasattr(arquivo, 'seek'):
+                            arquivo.seek(0)
+                        df_t = pd.read_csv(arquivo, sep=sep, encoding=enc)
+                        if df_t is not None and not df_t.empty and len(df_t.columns) > max_cols:
+                            max_cols = len(df_t.columns)
+                            melhor_df = df_t
+                    except Exception:
+                        pass
+            if melhor_df is not None and max_cols >= 2:
+                return melhor_df
             if hasattr(arquivo, 'seek'):
                 arquivo.seek(0)
             return pd.read_csv(arquivo)
@@ -2975,16 +2977,16 @@ elif st.session_state.df is None:
     if not carregado_nuvem:
         if os.path.exists(caminho_base_salva_xlsx):
             df_carregado = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
-            if df_carregado is not None:
-                st.session_state.df = df_carregado
+            if df_carregado is not None and not df_carregado.empty:
+                st.session_state.df = preparar_dataframe(df_carregado)
         elif os.path.exists(caminho_base_salva_csv):
             df_carregado = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
-            if df_carregado is not None:
-                st.session_state.df = df_carregado
+            if df_carregado is not None and not df_carregado.empty:
+                st.session_state.df = preparar_dataframe(df_carregado)
         elif os.path.exists(caminho_pde_padrao):
             df_carregado = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
-            if df_carregado is not None:
-                st.session_state.df = df_carregado
+            if df_carregado is not None and not df_carregado.empty:
+                st.session_state.df = preparar_dataframe(df_carregado)
 
 # =================================================================
 # SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
