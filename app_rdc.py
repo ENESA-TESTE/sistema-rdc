@@ -2305,8 +2305,8 @@ def backup_google_drive(file_path, mime_type, file_name):
 # =================================================================
 # SESSION STATE
 # =================================================================
-if 'df' not in st.session_state:
-    st.session_state.df = None
+if 'df' not in st.session_state or st.session_state.df is None or (isinstance(st.session_state.df, pd.DataFrame) and st.session_state.df.empty):
+    st.session_state.df = carregar_pde_db()
 if 'df_ia' not in st.session_state:
     st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
 if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1.empty:
