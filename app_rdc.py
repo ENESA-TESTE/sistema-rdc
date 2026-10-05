@@ -2878,6 +2878,26 @@ with st.sidebar:
         if st.button("❔   Ajuda e Suporte", key="nav_ajuda", use_container_width=True, type="secondary"):
             st.info("Para suporte, registre o erro, a tela e o horário da ocorrência.")
 
+
+    # Injeção de PWA (Instalação no Celular / Desktop)
+    st.markdown("""
+        <head>
+            <link rel="manifest" href="/app/static/manifest.json">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+            <meta name="apple-mobile-web-app-title" content="SGO RDC">
+            <meta name="theme-color" content="#07111f">
+        </head>
+        <script>
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/app/static/sw.js').catch(function(err) {
+                    console.log('Service Worker setup', err);
+                });
+            }
+        </script>
+    """, unsafe_allow_html=True)
+
     # Configuracoes tecnicas internas.
     if "idioma" not in st.session_state:
         st.session_state.idioma = "Português"
@@ -2944,12 +2964,12 @@ if arquivo_pde is not None:
 # =================================================================
 # CARREGAMENTO EXCLUSIVO DO GOOGLE SHEETS (NUVEM OFICIAL)
 # =================================================================
-if conn:
+if conn and st.session_state.df is None:
     try:
         df_gsheets = None
         for ws_name in ["PDE", "Página1", "Base", "EFETIVO"]:
             try:
-                df_gsheets = conn.read(worksheet=ws_name, ttl=0)
+                df_gsheets = conn.read(worksheet=ws_name, ttl=300)
                 if df_gsheets is not None and not df_gsheets.empty and len(df_gsheets.columns) >= 3:
                     break
             except Exception:
@@ -2957,35 +2977,21 @@ if conn:
         if df_gsheets is not None and not df_gsheets.empty:
             df_gsheets = df_gsheets.dropna(how='all')
             st.session_state.df = preparar_dataframe(df_gsheets)
-            st.toast(f"☁️ PDE carregado 100% do Google Sheets! ({len(df_gsheets)} registros)", icon="☁️")
+            st.toast(f"☁️ PDE carregado do Google Sheets! ({len(df_gsheets)} registros)", icon="☁️")
     except Exception as e:
         st.sidebar.error(f"⚠️ Erro ao ler Google Sheets: {e}")
 
 # =================================================================
-# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
+# HISTÓRICO F1 NA NUVEM (GOOGLE SHEETS)
 # =================================================================
-if conn and not st.session_state.get('force_use_local', False):
+if conn and ("df_historico_f1" not in st.session_state or st.session_state.df_historico_f1.empty):
     try:
         df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
-        if df_f1 is not None:
+        if df_f1 is not None and not df_f1.empty:
             df_f1 = df_f1.dropna(how='all')
-            # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
-            if not df_f1.empty and 'ENCARREGADO' in df_f1.columns:
+            if 'ENCARREGADO' in df_f1.columns:
                 df_f1 = df_f1[df_f1['ENCARREGADO'].apply(eh_encarregado_valido)]
-            
-            qtd_nuvem = len(df_f1) if not df_f1.empty else 0
-            qtd_local = len(st.session_state.df_historico_f1) if not st.session_state.df_historico_f1.empty else 0
-            
-            # SÓ ATUALIZAR SE: nuvem tem dados E (nuvem tem MAIS dados OU local está vazio)
-            # Isso IMPEDE que uma leitura vazia da nuvem apague dados bons
-            if qtd_nuvem > 0 and (qtd_nuvem >= qtd_local or qtd_local == 0):
-                st.session_state.df_historico_f1 = df_f1
-                df_f1.to_csv(caminho_historico_f1_csv, index=False)
-            elif qtd_nuvem == 0 and qtd_local > 0:
-                # Nuvem está vazia mas local tem dados - REENVIAR para a nuvem!
-                ok, msg = salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                if ok:
-                    st.sidebar.caption(f"☁️ F1: {qtd_local} registros reenviados à nuvem (estava vazia).")
+            st.session_state.df_historico_f1 = df_f1
     except Exception:
         pass
 
