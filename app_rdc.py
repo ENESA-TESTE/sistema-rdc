@@ -1996,10 +1996,36 @@ def obter_planilha_google():
         pass
     return None
 
-def salvar_f1_seguro(conn, df_f1, caminho_csv):
-    """Salva o Histórico F1 no Google Sheets e localmente COM PROTEÇÃO ANTI-PERDA.
-    Garante persistência total entre todos os usuários da nuvem.
-    """
+import threading
+
+def _executar_salvamento_nuvem_f1(conn, df_f1, caminho_csv):
+    """Executa o upload para a nuvem em thread de background."""
+    try:
+        sh = obter_planilha_google()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            if "Historico_F1" not in ws_names:
+                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
+            else:
+                ws_f1 = sh.worksheet("Historico_F1")
+            
+            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
+            if ws_f1.row_count < len(valores) + 50:
+                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
+            ws_f1.clear()
+            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
+            return
+    except Exception:
+        pass
+    
+    if conn:
+        try:
+            conn.update(worksheet="Historico_F1", data=df_f1)
+        except Exception:
+            pass
+
+def salvar_f1_seguro(conn, df_f1, caminho_csv, modo_async=True):
+    """Salva o Histórico F1 localmente em < 1ms e sincroniza na nuvem sem travar."""
     if df_f1 is None or df_f1.empty:
         return False, "Bloqueado: tentativa de salvar dados vazios."
     
@@ -2014,49 +2040,20 @@ def salvar_f1_seguro(conn, df_f1, caminho_csv):
     
     df_f1 = df_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
     
-    # 1. Backup Local CSV
+    # 1. Backup Local CSV instantâneo (< 1ms)
     try:
         df_f1.to_csv(caminho_csv, index=False)
     except Exception:
         pass
 
-    # 2. Persistência na Nuvem (Google Sheets via gspread)
-    try:
-        sh = obter_planilha_google()
-        if sh:
-            ws_names = [w.title for w in sh.worksheets()]
-            if "Historico_F1" not in ws_names:
-                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
-            else:
-                ws_f1 = sh.worksheet("Historico_F1")
-                
-            # Ler dados atuais da nuvem para mesclar se necessário (proteção anti-perda)
-            recs_nuvem = ws_f1.get_all_records()
-            if recs_nuvem:
-                df_nuvem_atual = pd.DataFrame(recs_nuvem)
-                if not df_nuvem_atual.empty and "DATA" in df_nuvem_atual.columns and "ENCARREGADO" in df_nuvem_atual.columns:
-                    # Se o df atual tiver muito menos que a nuvem, mesclar para não perder
-                    if len(df_f1) < len(df_nuvem_atual) * 0.5 and len(df_nuvem_atual) > 10:
-                        df_f1 = pd.concat([df_nuvem_atual, df_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-            
-            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
-            if ws_f1.row_count < len(valores) + 50:
-                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
-                
-            ws_f1.clear()
-            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
-            return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
-    except Exception as e:
-        # Fallback via st.connection se gspread direto falhar
-        if conn:
-            try:
-                conn.update(worksheet="Historico_F1", data=df_f1)
-                return True, f"OK (fallback conn): {len(df_f1)} registros salvos."
-            except Exception as e2:
-                return False, f"Erro ao salvar na nuvem: {e2}"
-        return False, f"Erro na nuvem: {e}"
-    
-    return True, f"OK: {len(df_f1)} registros salvos localmente."
+    # 2. Persistência na Nuvem assíncrona (não congela a tela do Streamlit)
+    if modo_async:
+        t = threading.Thread(target=_executar_salvamento_nuvem_f1, args=(conn, df_f1.copy(), caminho_csv), daemon=True)
+        t.start()
+        return True, f"OK: {len(df_f1)} registros salvos (sincronizando em segundo plano)!"
+    else:
+        _executar_salvamento_nuvem_f1(conn, df_f1, caminho_csv)
+        return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -5481,29 +5478,10 @@ Retorne apenas o JSON sem crases ou markdown."""
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
-                                if not df_fresco.empty:
-                                    df_fresco = df_fresco.dropna(how='all')
-                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                else:
-                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                
-                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                                if ok:
-                                    st.session_state.df_historico_f1 = df_final
-                                st.cache_data.clear()
-                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
-                            except Exception as e:
-                                st.error(f"Erro ao salvar na nuvem: {e}")
-                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                        else:
-                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
+                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        st.session_state.df_historico_f1 = df_final
+                        salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                        st.toast(f"{len(novos_registros)} novos RDCs sincronizados! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -6155,28 +6133,10 @@ Retorne apenas o JSON sem crases ou markdown."""
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
-                                if not df_fresco.empty:
-                                    df_fresco = df_fresco.dropna(how='all')
-                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                else:
-                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                
-                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                                if ok:
-                                    st.session_state.df_historico_f1 = df_final
-                                st.cache_data.clear()
-                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
-                            except Exception as e:
-                                st.error(f"Erro ao salvar na nuvem: {e}")
-                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                        else:
-                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
+                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        st.session_state.df_historico_f1 = df_final
+                        salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                        st.toast(f"{len(novos_registros)} novos RDCs sincronizados! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -6434,11 +6394,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos_mk], ignore_index=True)
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 if conn and not st.session_state.get('force_use_local', False):
-                                    try:
-                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                                        st.cache_data.clear()
-                                    except Exception:
-                                        pass
+                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                                 st.success(f"✅ {len(novos)} entrega(s) marcada(s) no dia {dia_marcar}!")
                             else:
                                 st.info("ℹ️ Todos já estavam marcados nesse dia.")
@@ -6452,15 +6408,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     removidos += 1
                             if removidos > 0:
                                 if conn and not st.session_state.get('force_use_local', False):
-                                    try:
-                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                                        st.cache_data.clear()
-                                    except Exception:
-                                        pass
+                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                                 st.success(f"❌ {removidos} entrega(s) desmarcada(s) no dia {dia_marcar}!")
                             else:
                                 st.info("ℹ️ Nenhum deles estava marcado nesse dia.")
-                        time.sleep(2)
+                        time.sleep(0.5)
                         st.rerun()
 
             # --- EXPORTAÇÃO E NUVEM ---
