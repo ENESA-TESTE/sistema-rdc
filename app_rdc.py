@@ -6940,8 +6940,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     time.sleep(1.5)
                                     tempo_espera += 1.5
                                 
-                                # Modelos oficiais e válidos na API Google GenAI
-                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.0-flash']
+                                # Modelos oficiais e ativos na API Google GenAI
+                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.5-pro']
                                 
                                 resposta = None
                                 ultimo_err_mod = None
@@ -6960,7 +6960,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             break
                                     except Exception as err_gen:
                                         ultimo_err_mod = err_gen
-                                        time.sleep(2.0)
+                                        err_str = str(err_gen)
+                                        if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
+                                            # Se for limite de taxa, propaga para o retry esperar
+                                            raise err_gen
+                                        time.sleep(3.0)
                                         continue
                                 
                                 if not resposta or not resposta.text:
