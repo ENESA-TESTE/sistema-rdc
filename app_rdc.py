@@ -2899,7 +2899,7 @@ with st.sidebar:
     if "idioma" not in st.session_state:
         st.session_state.idioma = "Português"
     if "modelo_gemini" not in st.session_state:
-        st.session_state.modelo_gemini = "gemini-2.5-flash"
+        st.session_state.modelo_gemini = "gemini-3.8-flash"
 
     # Rodape institucional do menu.
     st.markdown("""
@@ -3791,13 +3791,13 @@ Retorne ESTRITAMENTE um JSON puro válido:
 }}
 Retorne apenas o JSON sem crases ou markdown."""
                 
-                modelos_brief = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-                m_pref = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
+                modelos_brief = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest', 'gemini-2.5-flash']
+                m_pref = st.session_state.get('modelo_gemini', 'gemini-3.8-flash')
                 if m_pref and m_pref not in modelos_brief:
-                    modelos_brief.append(m_pref)
+                    modelos_brief.insert(0, m_pref)
                 
                 resp = None
-                modelo_brief = 'gemini-2.5-flash'
+                modelo_brief = 'gemini-3.8-flash'
                 for mb in modelos_brief:
                     try:
                         resp = client.models.generate_content(
@@ -6941,7 +6941,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     tempo_espera += 1.5
                                 
                                 # Modelos oficiais e ativos na API Google GenAI
-                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.5-pro']
+                                modelos_tentativa = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest', 'gemini-2.5-flash']
                                 
                                 resposta = None
                                 ultimo_err_mod = None
