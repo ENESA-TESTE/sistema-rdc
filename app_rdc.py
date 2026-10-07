@@ -2904,8 +2904,8 @@ with st.sidebar:
     # Rodape institucional do menu.
     st.markdown("""
     <div class="sgo-team-footer">
-      <div class="sgo-team-title">EQUIPE DO PROJETO</div>
-      <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
+      <div class="sgo-team-title">DESENVOLVEDOR DO PROJETO</div>
+      <div class="sgo-team-names">Edson Garcia</div>
       <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
     </div>
     """, unsafe_allow_html=True)
@@ -3791,12 +3791,10 @@ Retorne ESTRITAMENTE um JSON puro válido:
 }}
 Retorne apenas o JSON sem crases ou markdown."""
                 
-                modelos_brief = []
+                modelos_brief = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
                 m_pref = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
-                if m_pref: modelos_brief.append(m_pref)
-                for mb_f in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
-                    if mb_f not in modelos_brief:
-                        modelos_brief.append(mb_f)
+                if m_pref and m_pref not in modelos_brief:
+                    modelos_brief.append(m_pref)
                 
                 resp = None
                 modelo_brief = 'gemini-2.5-flash'
@@ -6917,7 +6915,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         from google import genai
                         
                         tmp_path = arquivo_dict['tmp_path']
-                        max_tentativas = 2
+                        max_tentativas = 4
                         idx_chave_atual_local = 0
                         client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
                         
@@ -6942,13 +6940,10 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     time.sleep(1.5)
                                     tempo_espera += 1.5
                                 
-                                # Lista de modelos em ordem de tentativa para máxima resiliência
-                                modelos_tentativa = []
-                                if modelo_gemini:
+                                # Modelos estáveis com alta cota de requisições no Free Tier
+                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+                                if modelo_gemini and modelo_gemini not in modelos_tentativa:
                                     modelos_tentativa.append(modelo_gemini)
-                                for m_fb in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
-                                    if m_fb not in modelos_tentativa:
-                                        modelos_tentativa.append(m_fb)
                                 
                                 resposta = None
                                 ultimo_err_mod = None
@@ -6967,7 +6962,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             break
                                     except Exception as err_gen:
                                         ultimo_err_mod = err_gen
-                                        # Tenta o próximo modelo imediatamente em caso de 503, 404, 429
+                                        time.sleep(2.0)
                                         continue
                                 
                                 if not resposta or not resposta.text:
@@ -7026,7 +7021,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
 
-                                # Se o nome do arquivo contem data (ex: 07-09.pdf -> 2026-09-07), ela tem prioridade absoluta com o ano atual
                                 data_do_nome = arquivo_dict.get('data_extraida')
                                 if data_do_nome:
                                     data_norm = normalizar_data_brasil(data_do_nome)
@@ -7064,11 +7058,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             time.sleep(2)
                                             continue
                                         else:
-                                            time.sleep(15)
+                                            time.sleep(12)
                                             continue
-                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
+                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str or 'high demand' in erro_str.lower():
                                     if tentativa < max_tentativas - 1:
-                                        time.sleep(2)
+                                        time.sleep(3 + (tentativa * 3))
                                         continue
                                 raise Exception(f"Erro na IA: {inner_e}")
                             finally:
@@ -7079,9 +7073,9 @@ Retorne apenas o JSON sem crases ou markdown."""
                                         pass
 
                     import concurrent.futures
-                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-3.7-flash')
+                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
                     
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                         future_to_chunk = {
                             executor.submit(processar_chunk_ia, chunk, lista_chaves, modelo_usado, prompt_ia, RDC_Schema, old_cred): chunk
                             for chunk in arquivos_processar
