@@ -6864,8 +6864,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     # Se nem o PIL abrir, o arquivo está realmente quebrado
                                     st.error(f"❌ O arquivo {nome} está corrompido ou o scanner falhou ao gerar o PDF (0 páginas válidas).")
                                     continue
-                            elif num_pages > 15:
-                                chunk_size = 15
+                            elif num_pages > 10:
+                                chunk_size = 10
                                 for start_idx in range(0, num_pages, chunk_size):
                                     chunk_doc = fitz.open()
                                     chunk_doc.insert_pdf(doc, from_page=start_idx, to_page=min(start_idx + chunk_size - 1, num_pages - 1))
@@ -6915,7 +6915,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         from google import genai
                         
                         tmp_path = arquivo_dict['tmp_path']
-                        max_tentativas = 4
+                        max_tentativas = 6
                         idx_chave_atual_local = 0
                         client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
                         
@@ -6941,7 +6941,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     tempo_espera += 1.5
                                 
                                 # Modelos oficiais e válidos na API Google GenAI
-                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
+                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.0-flash']
                                 
                                 resposta = None
                                 ultimo_err_mod = None
@@ -7053,14 +7053,14 @@ Retorne apenas o JSON sem crases ou markdown."""
                                         if idx_chave_atual_local < len(chaves_api) - 1:
                                             idx_chave_atual_local += 1
                                             client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
-                                            time.sleep(2)
+                                            time.sleep(3)
                                             continue
                                         else:
-                                            time.sleep(12)
+                                            time.sleep(20 + (tentativa * 10))
                                             continue
                                 elif '503' in erro_str or 'UNAVAILABLE' in erro_str or 'high demand' in erro_str.lower():
                                     if tentativa < max_tentativas - 1:
-                                        time.sleep(3 + (tentativa * 3))
+                                        time.sleep(5 + (tentativa * 5))
                                         continue
                                 raise Exception(f"Erro na IA: {inner_e}")
                             finally:
