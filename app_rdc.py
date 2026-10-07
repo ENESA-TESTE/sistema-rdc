@@ -2620,6 +2620,73 @@ def eh_encarregado_valido(nome):
         return False
     return True
 
+def obter_todos_encarregados_pde(df_base):
+    """
+    Extrai todos os encarregados oficiais diretamente da base do PDE,
+    unificando a coluna ENCARREGADO com colaboradores que possuem função de ENCARREGADO/LÍDER.
+    """
+    if df_base is None or df_base.empty:
+        return []
+    encs = set()
+    if "ENCARREGADO" in df_base.columns:
+        for e in df_base["ENCARREGADO"].dropna().unique():
+            if eh_encarregado_valido(e):
+                encs.add(str(e).strip().upper())
+    if "FUNÇÃO" in df_base.columns and "NOME" in df_base.columns:
+        mask = df_base["FUNÇÃO"].astype(str).str.upper().str.contains(r"ENCARREGAD|ENC\b|LIDER|LÍDER|SUPERVISOR", na=False)
+        for n in df_base[mask]["NOME"].dropna().unique():
+            if eh_encarregado_valido(n):
+                encs.add(str(n).strip().upper())
+    return sorted(list(encs))
+
+def resolver_encarregado(nome_lido, lista_referencia=None):
+    """
+    Normaliza e faz correspondência inteligente (fuzzy/tokens) do nome do encarregado
+    lido no RDC contra a lista oficial do PDE, evitando perdas por grafia ou abreviação.
+    """
+    if not eh_encarregado_valido(nome_lido):
+        return str(nome_lido).strip().upper() if nome_lido else ""
+    
+    n_limpo = str(nome_lido).strip().upper()
+    if not lista_referencia:
+        return n_limpo
+        
+    if n_limpo in lista_referencia:
+        return n_limpo
+        
+    import unicodedata, re
+    def _norm_str(s):
+        if not s: return ""
+        s = unicodedata.normalize('NFKD', str(s)).encode('ASCII', 'ignore').decode('utf-8')
+        s = re.sub(r'[^A-Z0-9\s]', ' ', s.upper())
+        return ' '.join(s.split())
+        
+    n_norm = _norm_str(n_limpo)
+    mapa_norm = {_norm_str(r): r for r in lista_referencia}
+    
+    if n_norm in mapa_norm:
+        return mapa_norm[n_norm]
+        
+    tokens_lido = set(n_norm.split())
+    melhor_match = None
+    max_tokens = 0
+    
+    for norm_ref, original_ref in mapa_norm.items():
+        tokens_ref = set(norm_ref.split())
+        inter = tokens_lido.intersection(tokens_ref)
+        if len(inter) >= 2 and len(inter) > max_tokens:
+            max_tokens = len(inter)
+            melhor_match = original_ref
+            
+    if melhor_match:
+        return melhor_match
+        
+    for norm_ref, original_ref in mapa_norm.items():
+        if len(n_norm) > 5 and (n_norm in norm_ref or norm_ref in n_norm):
+            return original_ref
+            
+    return n_limpo
+
 # =================================================================
 # SINCRONIZAÇÃO GLOBAL EM TEMPO REAL (MULTI-DISPOSITIVO / TV / MOBILE)
 # =================================================================
@@ -2997,7 +3064,9 @@ if conn and ("df_historico_f1" not in st.session_state or st.session_state.df_hi
 # =================================================================
 if st.session_state.df is not None:
     df_atual = preparar_dataframe(st.session_state.df.copy())
-    lista_encarregados_base = sorted([str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
+    lista_encarregados_base = obter_todos_encarregados_pde(df_atual)
+    if not lista_encarregados_base:
+        lista_encarregados_base = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if eh_encarregado_valido(e)])
 
     # ====== HISTÓRICO DE C.C (FOTOGRAFIA DIÁRIA) ======
     try:
@@ -3031,54 +3100,14 @@ if st.session_state.df is not None:
     caminho_f1_json = os.path.join(os.path.dirname(__file__), "encarregados_f1.json")
     caminho_f1_excecoes = os.path.join(os.path.dirname(__file__), "f1_excecoes.csv")
     
-    encarregados_f1_padrao = [
-        "ABMAEL PEREIRA PAIVA", "JEAN PEDRO", "ANANIAS DE SOUSA NETO", "GILDO GONCALVES DA SILVA",
-        "SIDNEI FERNANDES DA SILVA", "BARTOLOMEU FERNANDES", "FRANCINALDO DE SOUSA", "IZAIAS BAIA BELO",
-        "SANDRO LIMA DE SOUZA", "ALOISIO FERREIRA SOUZA", "ARLINDO PEREIRA DA SILVA", "FAUZE CELIS RODRIGUES COSTA",
-        "FRANCISCO PEREIRA LIMA", "JOAO PAULO DA COSTA QUARESMA", "JOSE ORLANDO DAS NEVES MADEIRA",
-        "JOSE TARCISIO ARAUJO DA SILVA", "LEANDRO DA CRUZ DE SOUZA", "CLAUDIO LUCIANO ARGELINO",
-        "EDVALDO CARVALHO ANGELIM", "ELDER MENDES JUNIOR", "MANOEL MARIA SARGES SOARES", "CLAUDIO CRUZ SOUSA",
-        "CLIDENILDO GOMES DE ALMEIDA", "GRACINEI PEREIRA DOS SANTOS", "JAILSON MENDES DE OLIVEIRA",
-        "JARBAS DA ROCHA GOMES", "JOSE MAURICIO RODRIGUES DA SILVA", "JOSE SARAIVA LOPES NETO",
-        "JOSMAEL RODRIGUES PEREIRA", "ALEX PANTOJA DE OLIVEIRA", "ARILSON DIAS DO PRADO", "ELTON GOMES DOS SANTOS",
-        "RICARDO SARMENTO FERREIRA", "WENISON DA SILVA CUNHA CORREIA", "FRANCISCO ALVES DA PENHA",
-        "IVAN DO NASCIMENTO RAMOS", "ELDER MENDES", "GEAN LENO JOSE DE FREITAS", "JOSE EDUARDO FARIAS FERREIRA",
-        "EDIMILSON NUNES VASCONCELOS", "LOURISVALDO AMARAL ARAUJO", "VALDEMIR BARBOSA REIS",
-        "LUZINALDO AMARAL DE ARAUJO", "MAURO DE QUEIROZ ANDRADE", "ELIAS SOUSA DA COSTA", "ISAIAS SOUSA LISBOA",
-        "ISMAEL CARLOS GOMES DA SILVA", "RAIMUNDO DA SILVA DOS SANTOS", "RAIMUNDO EUDE DA SILVA FREITAS",
-        "RODOLFO DOS SANTOS COSTA", "ELISEU DA SILVA BISPO", "IRON MARQUES MOREIRA", "LUIZ CARLOS DE SOUZA",
-        "ANTONIO TEIXEIRA BORBA", "JOSE FRANCIVAN MONTEIRO SANTOS", "JOSE WALKER CARNEIRO OLIVEIRA",
-        "LEANDRO DA SILVA QUEIROZ", "SILVIO MANOEL DE ANDRADE", "EVERALDO DOS SANTOS SOARES",
-        "FRANCISCO GRACIEL DE SOUSA MARTINS", "JAILSON SILVA DE GOIS", "JORGINALDO NUNES DA SILVA",
-        "CLAUDIVAN OLIVEIRA DOS SANTOS", "GUILHERME HENRIQUE DE ARAUJO SOUSA", "LEANDRO MARTINS DA SILVA BORGES",
-        "WEVERTON FERNANDES MARIANO", "JORGE DA COSTA SILVA", "RAIMUNDO FRAZAO DOS SANTOS",
-        "JOSE RIBEIRO DO NASCIMENTO JUNIOR", "JOSE ROBERTO SALVADOR FILHO", "MARCUS ANTONIO DE SOUZA",
-        "RAIMUNDO ROGERIO LEITE", "ROUBERVAL SANTOS DOS SANTOS", "CARLOS ALBERTO DA COSTA MOREIRA",
-        "JOSE FELIPE DOS SANTOS", "JOSE GERIARDI FONSECA DE SENA", "JOSE HENRIQUE SILVA VIEIRA",
-        "ODAIR MENEZES DA SILVA", "SIDNALDO SANTOS DE JESUS", "ANDERSON VICTALINO",
-        "FRANCISCO AUGUSTO DE SOUSA BARROS", "GENILSON PEREIRA DE SOUSA", "HELENO MARQUES DE SOUZA NETO",
-        "HEMERSON MONTEIRO DE OLIVEIRA", "JACKSON DEIBSON FELICIANO DA SILVA", "JARDELINO PEREIRA DA COSTA",
-        "JOAO TIAGO OLIVEIRA DE AMORIM", "JOSE MARIA DA SILVA PESSOA", "LUCIO FABIO DA SILVA LEANDRO",
-        "RAIMUNDO GONCALVES DOS SANTOS", "FABRICIO FIGUEIREDO", "RHOKSONY FERREIRA SILVEIRA",
-        "FERNANDO DA CONCEIÇÃO", "ROGERIO BARROS DOS SANTOS", "SIQUEU SANTOS SOLEDADE",
-        "SEBASTIAO CARLOS DE OLIVEIRA", "MANOEL NEPOMUCENO DOS SANTOS", "LUIZ RAMOS DE LIMA",
-        "JORGE LUIS LOPES", "VALDINEI GOMES OLIVEIRA", "CARLOS DA SILVA OLIVEIRA"
-    ]
+    lista_completa_encarregados = lista_encarregados_base
+    encarregados_f1_oficial = lista_encarregados_base
     
-    # Carregar ou criar o JSON
-    if os.path.exists(caminho_f1_json):
-        try:
-            with open(caminho_f1_json, "r", encoding="utf-8") as f:
-                encarregados_f1_oficial = json.load(f)
-        except Exception:
-            encarregados_f1_oficial = encarregados_f1_padrao
-    else:
-        encarregados_f1_oficial = encarregados_f1_padrao
+    try:
         with open(caminho_f1_json, "w", encoding="utf-8") as f:
-            json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
-    
-    lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if eh_encarregado_valido(e)])
-    encarregados_f1_oficial = lista_completa_encarregados
+            json.dump(lista_completa_encarregados, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
     
     # Carregar exceções (Abonos)
     if "df_f1_excecoes" not in st.session_state:
@@ -5941,7 +5970,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 df_banco_rdc = pd.read_csv(caminho_rdc_registros_csv)
                 if not df_banco_rdc.empty and "DATA" in df_banco_rdc.columns and "ENCARREGADO" in df_banco_rdc.columns:
                     df_banco_val = df_banco_rdc[["DATA", "ENCARREGADO"]].dropna().copy()
-                    df_banco_val["ENCARREGADO"] = df_banco_val["ENCARREGADO"].astype(str).str.strip().str.upper()
+                    df_banco_val["ENCARREGADO"] = df_banco_val["ENCARREGADO"].apply(lambda e: resolver_encarregado(e, lista_completa_encarregados))
                     df_banco_val = df_banco_val[df_banco_val["ENCARREGADO"].apply(eh_encarregado_valido)]
                     
                     if not df_banco_val.empty:
@@ -6226,7 +6255,7 @@ Retorne apenas o JSON sem crases ou markdown."""
             
             for _, row in df_mes.iterrows():
                 dia = str(row["DATA"].day)
-                enc = str(row["ENCARREGADO"]).strip().upper()
+                enc = resolver_encarregado(str(row["ENCARREGADO"]), list(matriz.index))
                 if enc in matriz.index and dia not in dias_fim_de_semana:
                     matriz.loc[enc, dia] = "✅"
             
@@ -6239,7 +6268,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
                 for _, row_exc in df_exc_mes.iterrows():
                     dia_exc = str(row_exc["DATA"].day)
-                    enc_exc = str(row_exc["ENCARREGADO"]).strip().upper()
+                    enc_exc = resolver_encarregado(str(row_exc["ENCARREGADO"]), list(matriz.index))
                     if enc_exc in matriz.index and dia_exc not in dias_fim_de_semana:
                         if matriz.loc[enc_exc, dia_exc] == "❌":
                             matriz.loc[enc_exc, dia_exc] = "⏸️"
@@ -6906,7 +6935,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             
                     total_arquivos = len(arquivos_processar)
                     
-                    def processar_chunk_ia(arquivo_dict, chaves_api, modelo_gemini, prompt_ia, schema, _old_cred):
+                    def processar_chunk_ia(arquivo_dict, chaves_api, modelo_gemini, prompt_ia, schema, _old_cred, lista_referencia_encs=None):
                         import time
                         import json
                         import os
@@ -7035,6 +7064,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             d["DATA"] = normalizar_data_brasil(d.get("DATA"))
 
                                 for dados in dados_extraidos_lista:
+                                    if 'ENCARREGADO' in dados and lista_referencia_encs:
+                                        dados['ENCARREGADO'] = resolver_encarregado(dados.get('ENCARREGADO', ''), lista_referencia_encs)
                                     if 'LOCAL' not in dados:
                                         dados['LOCAL'] = ''
                                     if 'AREA' not in dados:
@@ -7071,11 +7102,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                         pass
 
                     import concurrent.futures
-                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
+                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-3.5-flash-lite')
                     
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                         future_to_chunk = {
-                            executor.submit(processar_chunk_ia, chunk, lista_chaves, modelo_usado, prompt_ia, RDC_Schema, old_cred): chunk
+                            executor.submit(processar_chunk_ia, chunk, lista_chaves, modelo_usado, prompt_ia, RDC_Schema, old_cred, lista_encarregados_base): chunk
                             for chunk in arquivos_processar
                         }
                         
