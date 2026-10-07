@@ -2899,7 +2899,7 @@ with st.sidebar:
     if "idioma" not in st.session_state:
         st.session_state.idioma = "Português"
     if "modelo_gemini" not in st.session_state:
-        st.session_state.modelo_gemini = "gemini-3.8-flash"
+        st.session_state.modelo_gemini = "gemini-3.5-flash-lite"
 
     # Rodape institucional do menu.
     st.markdown("""
@@ -3791,13 +3791,13 @@ Retorne ESTRITAMENTE um JSON puro válido:
 }}
 Retorne apenas o JSON sem crases ou markdown."""
                 
-                modelos_brief = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest', 'gemini-2.5-flash']
-                m_pref = st.session_state.get('modelo_gemini', 'gemini-3.8-flash')
+                modelos_brief = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash']
+                m_pref = st.session_state.get('modelo_gemini', 'gemini-3.5-flash-lite')
                 if m_pref and m_pref not in modelos_brief:
                     modelos_brief.insert(0, m_pref)
                 
                 resp = None
-                modelo_brief = 'gemini-3.8-flash'
+                modelo_brief = 'gemini-3.5-flash-lite'
                 for mb in modelos_brief:
                     try:
                         resp = client.models.generate_content(
@@ -6864,8 +6864,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     # Se nem o PIL abrir, o arquivo está realmente quebrado
                                     st.error(f"❌ O arquivo {nome} está corrompido ou o scanner falhou ao gerar o PDF (0 páginas válidas).")
                                     continue
-                            elif num_pages > 10:
-                                chunk_size = 10
+                            elif num_pages > 5:
+                                chunk_size = 5
                                 for start_idx in range(0, num_pages, chunk_size):
                                     chunk_doc = fitz.open()
                                     chunk_doc.insert_pdf(doc, from_page=start_idx, to_page=min(start_idx + chunk_size - 1, num_pages - 1))
@@ -6940,8 +6940,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     time.sleep(1.5)
                                     tempo_espera += 1.5
                                 
-                                # Modelos oficiais e ativos na API Google GenAI
-                                modelos_tentativa = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest', 'gemini-2.5-flash']
+                                # Modelos oficiais de alta capacidade na API Google GenAI
+                                modelos_tentativa = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite']
                                 
                                 resposta = None
                                 ultimo_err_mod = None
@@ -6960,11 +6960,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             break
                                     except Exception as err_gen:
                                         ultimo_err_mod = err_gen
-                                        err_str = str(err_gen)
-                                        if '429' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
-                                            # Se for limite de taxa, propaga para o retry esperar
-                                            raise err_gen
-                                        time.sleep(3.0)
+                                        time.sleep(1.0)
                                         continue
                                 
                                 if not resposta or not resposta.text:
