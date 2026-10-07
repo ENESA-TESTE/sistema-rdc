@@ -6940,10 +6940,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     time.sleep(1.5)
                                     tempo_espera += 1.5
                                 
-                                # Modelos estáveis com alta cota de requisições no Free Tier
-                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-                                if modelo_gemini and modelo_gemini not in modelos_tentativa:
-                                    modelos_tentativa.append(modelo_gemini)
+                                # Modelos oficiais e válidos na API Google GenAI
+                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
                                 
                                 resposta = None
                                 ultimo_err_mod = None
@@ -7075,7 +7073,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     import concurrent.futures
                     modelo_usado = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
                     
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                         future_to_chunk = {
                             executor.submit(processar_chunk_ia, chunk, lista_chaves, modelo_usado, prompt_ia, RDC_Schema, old_cred): chunk
                             for chunk in arquivos_processar
