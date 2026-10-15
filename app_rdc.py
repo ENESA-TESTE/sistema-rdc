@@ -1931,27 +1931,25 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
 @st.cache_data(show_spinner=False)
 def ler_arquivo_seguro(arquivo, nome_arquivo=""):
     try:
-        nome_str = str(nome_arquivo).lower() if nome_arquivo else (str(getattr(arquivo, 'name', '')).lower())
-        if nome_str.endswith(".xlsx") or nome_str.endswith(".xls"):
-            if hasattr(arquivo, 'seek'):
-                arquivo.seek(0)
+        if nome_arquivo.endswith(".xlsx") or nome_arquivo.endswith(".xls"):
             return pd.read_excel(arquivo)
         else:
-            melhor_df = None
-            max_cols = 0
-            for enc in ["utf-8-sig", "utf-8", "latin-1", "cp1252"]:
-                for sep in [",", ";", "\t", "|"]:
-                    try:
-                        if hasattr(arquivo, 'seek'):
-                            arquivo.seek(0)
-                        df_t = pd.read_csv(arquivo, sep=sep, encoding=enc)
-                        if df_t is not None and not df_t.empty and len(df_t.columns) > max_cols:
-                            max_cols = len(df_t.columns)
-                            melhor_df = df_t
-                    except Exception:
-                        pass
-            if melhor_df is not None and max_cols >= 2:
-                return melhor_df
+            try:
+                return pd.read_csv(arquivo, sep=";", encoding="latin-1")
+            except Exception:
+                pass
+            try:
+                if hasattr(arquivo, 'seek'):
+                    arquivo.seek(0)
+                return pd.read_csv(arquivo, sep=",", encoding="latin-1")
+            except Exception:
+                pass
+            try:
+                if hasattr(arquivo, 'seek'):
+                    arquivo.seek(0)
+                return pd.read_csv(arquivo, sep=";", encoding="utf-8")
+            except Exception:
+                pass
             if hasattr(arquivo, 'seek'):
                 arquivo.seek(0)
             return pd.read_csv(arquivo)
@@ -1996,36 +1994,10 @@ def obter_planilha_google():
         pass
     return None
 
-import threading
-
-def _executar_salvamento_nuvem_f1(conn, df_f1, caminho_csv):
-    """Executa o upload para a nuvem em thread de background."""
-    try:
-        sh = obter_planilha_google()
-        if sh:
-            ws_names = [w.title for w in sh.worksheets()]
-            if "Historico_F1" not in ws_names:
-                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
-            else:
-                ws_f1 = sh.worksheet("Historico_F1")
-            
-            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
-            if ws_f1.row_count < len(valores) + 50:
-                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
-            ws_f1.clear()
-            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
-            return
-    except Exception:
-        pass
-    
-    if conn:
-        try:
-            conn.update(worksheet="Historico_F1", data=df_f1)
-        except Exception:
-            pass
-
-def salvar_f1_seguro(conn, df_f1, caminho_csv, modo_async=True):
-    """Salva o Histórico F1 localmente em < 1ms e sincroniza na nuvem sem travar."""
+def salvar_f1_seguro(conn, df_f1, caminho_csv):
+    """Salva o Histórico F1 no Google Sheets e localmente COM PROTEÇÃO ANTI-PERDA.
+    Garante persistência total entre todos os usuários da nuvem.
+    """
     if df_f1 is None or df_f1.empty:
         return False, "Bloqueado: tentativa de salvar dados vazios."
     
@@ -2040,20 +2012,49 @@ def salvar_f1_seguro(conn, df_f1, caminho_csv, modo_async=True):
     
     df_f1 = df_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
     
-    # 1. Backup Local CSV instantâneo (< 1ms)
+    # 1. Backup Local CSV
     try:
         df_f1.to_csv(caminho_csv, index=False)
     except Exception:
         pass
 
-    # 2. Persistência na Nuvem assíncrona (não congela a tela do Streamlit)
-    if modo_async:
-        t = threading.Thread(target=_executar_salvamento_nuvem_f1, args=(conn, df_f1.copy(), caminho_csv), daemon=True)
-        t.start()
-        return True, f"OK: {len(df_f1)} registros salvos (sincronizando em segundo plano)!"
-    else:
-        _executar_salvamento_nuvem_f1(conn, df_f1, caminho_csv)
-        return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
+    # 2. Persistência na Nuvem (Google Sheets via gspread)
+    try:
+        sh = obter_planilha_google()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            if "Historico_F1" not in ws_names:
+                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
+            else:
+                ws_f1 = sh.worksheet("Historico_F1")
+                
+            # Ler dados atuais da nuvem para mesclar se necessário (proteção anti-perda)
+            recs_nuvem = ws_f1.get_all_records()
+            if recs_nuvem:
+                df_nuvem_atual = pd.DataFrame(recs_nuvem)
+                if not df_nuvem_atual.empty and "DATA" in df_nuvem_atual.columns and "ENCARREGADO" in df_nuvem_atual.columns:
+                    # Se o df atual tiver muito menos que a nuvem, mesclar para não perder
+                    if len(df_f1) < len(df_nuvem_atual) * 0.5 and len(df_nuvem_atual) > 10:
+                        df_f1 = pd.concat([df_nuvem_atual, df_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+            
+            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
+            if ws_f1.row_count < len(valores) + 50:
+                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
+                
+            ws_f1.clear()
+            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
+            return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
+    except Exception as e:
+        # Fallback via st.connection se gspread direto falhar
+        if conn:
+            try:
+                conn.update(worksheet="Historico_F1", data=df_f1)
+                return True, f"OK (fallback conn): {len(df_f1)} registros salvos."
+            except Exception as e2:
+                return False, f"Erro ao salvar na nuvem: {e2}"
+        return False, f"Erro na nuvem: {e}"
+    
+    return True, f"OK: {len(df_f1)} registros salvos localmente."
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -2677,8 +2678,20 @@ def sincronizar_dados_globais():
     elif "df_historico_f1" not in st.session_state:
         st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
         
-    # 2. BASE DE EFETIVO (PDE) - Carregada exclusivamente do Google Sheets
-    pass
+    # 2. SINCRONIZAR BASE DE EFETIVO (PDE)
+    if st.session_state.get("df") is None:
+        if os.path.exists(caminho_base_salva_xlsx):
+            _df = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
+            if _df is not None:
+                st.session_state.df = preparar_dataframe(_df)
+        elif os.path.exists(caminho_base_salva_csv):
+            _df = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
+            if _df is not None:
+                st.session_state.df = preparar_dataframe(_df)
+        elif os.path.exists(caminho_pde_padrao):
+            _df = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
+            if _df is not None:
+                st.session_state.df = preparar_dataframe(_df)
 
 sincronizar_dados_globais()
 
@@ -2875,26 +2888,6 @@ with st.sidebar:
         if st.button("❔   Ajuda e Suporte", key="nav_ajuda", use_container_width=True, type="secondary"):
             st.info("Para suporte, registre o erro, a tela e o horário da ocorrência.")
 
-
-    # Injeção de PWA (Instalação no Celular / Desktop)
-    st.markdown("""
-        <head>
-            <link rel="manifest" href="/app/static/manifest.json">
-            <meta name="mobile-web-app-capable" content="yes">
-            <meta name="apple-mobile-web-app-capable" content="yes">
-            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-            <meta name="apple-mobile-web-app-title" content="SGO RDC">
-            <meta name="theme-color" content="#07111f">
-        </head>
-        <script>
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/app/static/sw.js').catch(function(err) {
-                    console.log('Service Worker setup', err);
-                });
-            }
-        </script>
-    """, unsafe_allow_html=True)
-
     # Configuracoes tecnicas internas.
     if "idioma" not in st.session_state:
         st.session_state.idioma = "Português"
@@ -2904,8 +2897,8 @@ with st.sidebar:
     # Rodape institucional do menu.
     st.markdown("""
     <div class="sgo-team-footer">
-      <div class="sgo-team-title">DESENVOLVEDOR DO PROJETO</div>
-      <div class="sgo-team-names">Edson Garcia</div>
+      <div class="sgo-team-title">EQUIPE DO PROJETO</div>
+      <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
       <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
     </div>
     """, unsafe_allow_html=True)
@@ -2958,37 +2951,66 @@ if arquivo_pde is not None:
             except Exception as e:
                 st.sidebar.error(f"Erro Nuvem: {e}")
 
-# =================================================================
-# CARREGAMENTO EXCLUSIVO DO GOOGLE SHEETS (NUVEM OFICIAL)
-# =================================================================
-if conn and st.session_state.df is None:
-    try:
-        df_gsheets = None
-        for ws_name in ["PDE", "Página1", "Base", "EFETIVO"]:
+elif st.session_state.df is None:
+    carregado_nuvem = False
+    
+    # 1. LER DA NOVA PLANILHA MESTRE DO GOOGLE SHEETS
+    if not st.session_state.get('force_use_local', False):
+        if conn:
             try:
-                df_gsheets = conn.read(worksheet=ws_name, ttl=300)
-                if df_gsheets is not None and not df_gsheets.empty and len(df_gsheets.columns) >= 3:
-                    break
-            except Exception:
-                pass
-        if df_gsheets is not None and not df_gsheets.empty:
-            df_gsheets = df_gsheets.dropna(how='all')
-            st.session_state.df = preparar_dataframe(df_gsheets)
-            st.toast(f"☁️ PDE carregado do Google Sheets! ({len(df_gsheets)} registros)", icon="☁️")
-    except Exception as e:
-        st.sidebar.error(f"⚠️ Erro ao ler Google Sheets: {e}")
+                df_gsheets = conn.read(worksheet="PDE", ttl=300)
+                df_gsheets = df_gsheets.dropna(how='all')
+                if not df_gsheets.empty:
+                    st.session_state.df = preparar_dataframe(df_gsheets)
+                    carregado_nuvem = True
+                    st.toast(f"PDE Mestre carregado! {len(df_gsheets)} funcionários.", icon="☁️")
+            except Exception as e:
+                st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre autenticado: {e}")
+            
+    # Resetar a flag (dentro do elif st.session_state.df is None)
+    if st.session_state.get('force_use_local', False):
+        carregado_nuvem = True
+        st.session_state.force_use_local = False
+            
+    if not carregado_nuvem:
+        if os.path.exists(caminho_base_salva_xlsx):
+            df_carregado = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
+            if df_carregado is not None:
+                st.session_state.df = df_carregado
+        elif os.path.exists(caminho_base_salva_csv):
+            df_carregado = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
+            if df_carregado is not None:
+                st.session_state.df = df_carregado
+        elif os.path.exists(caminho_pde_padrao):
+            df_carregado = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
+            if df_carregado is not None:
+                st.session_state.df = df_carregado
 
 # =================================================================
-# HISTÓRICO F1 NA NUVEM (GOOGLE SHEETS)
+# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
 # =================================================================
-if conn and ("df_historico_f1" not in st.session_state or st.session_state.df_historico_f1.empty):
+if conn and not st.session_state.get('force_use_local', False):
     try:
         df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
-        if df_f1 is not None and not df_f1.empty:
+        if df_f1 is not None:
             df_f1 = df_f1.dropna(how='all')
-            if 'ENCARREGADO' in df_f1.columns:
+            # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
+            if not df_f1.empty and 'ENCARREGADO' in df_f1.columns:
                 df_f1 = df_f1[df_f1['ENCARREGADO'].apply(eh_encarregado_valido)]
-            st.session_state.df_historico_f1 = df_f1
+            
+            qtd_nuvem = len(df_f1) if not df_f1.empty else 0
+            qtd_local = len(st.session_state.df_historico_f1) if not st.session_state.df_historico_f1.empty else 0
+            
+            # SÓ ATUALIZAR SE: nuvem tem dados E (nuvem tem MAIS dados OU local está vazio)
+            # Isso IMPEDE que uma leitura vazia da nuvem apague dados bons
+            if qtd_nuvem > 0 and (qtd_nuvem >= qtd_local or qtd_local == 0):
+                st.session_state.df_historico_f1 = df_f1
+                df_f1.to_csv(caminho_historico_f1_csv, index=False)
+            elif qtd_nuvem == 0 and qtd_local > 0:
+                # Nuvem está vazia mas local tem dados - REENVIAR para a nuvem!
+                ok, msg = salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                if ok:
+                    st.sidebar.caption(f"☁️ F1: {qtd_local} registros reenviados à nuvem (estava vazia).")
     except Exception:
         pass
 
@@ -3078,7 +3100,6 @@ if st.session_state.df is not None:
             json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
     
     lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if eh_encarregado_valido(e)])
-    encarregados_f1_oficial = lista_completa_encarregados
     
     # Carregar exceções (Abonos)
     if "df_f1_excecoes" not in st.session_state:
@@ -3791,10 +3812,12 @@ Retorne ESTRITAMENTE um JSON puro válido:
 }}
 Retorne apenas o JSON sem crases ou markdown."""
                 
-                modelos_brief = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+                modelos_brief = []
                 m_pref = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
-                if m_pref and m_pref not in modelos_brief:
-                    modelos_brief.append(m_pref)
+                if m_pref: modelos_brief.append(m_pref)
+                for mb_f in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
+                    if mb_f not in modelos_brief:
+                        modelos_brief.append(mb_f)
                 
                 resp = None
                 modelo_brief = 'gemini-2.5-flash'
@@ -5299,40 +5322,12 @@ Retorne apenas o JSON sem crases ou markdown."""
         st.markdown(f"**👥 Liderança: Resumo Geral de Encarregados ({filtro_dash_mo})**")
         df_enc_full = df_dash[(df_dash["ENCARREGADO"].str.strip() != "") & (df_dash["ENCARREGADO"].isin(lista_completa_encarregados))]
         if not df_enc_full.empty:
-            if "DISCIPLINA" in df_enc_full.columns:
-                resumo_enc = df_enc_full.groupby("ENCARREGADO").agg(
-                    Tamanho_da_Equipe=("MATRICULA", "count"),
-                    Disciplina=("DISCIPLINA", lambda x: x.mode().iloc[0] if not x.empty and not x.mode().empty else (x.iloc[0] if not x.empty else "-"))
-                ).reset_index()
-                resumo_enc.columns = ["Encarregado", "Tamanho da Equipe", "Disciplina"]
-            else:
-                resumo_enc = df_enc_full["ENCARREGADO"].value_counts().reset_index()
-                resumo_enc.columns = ["Encarregado", "Tamanho da Equipe"]
-                resumo_enc["Disciplina"] = "-"
-                
-            resumo_enc = resumo_enc.sort_values(by="Tamanho da Equipe", ascending=False)
+            resumo_enc = df_enc_full["ENCARREGADO"].value_counts().reset_index()
+            resumo_enc.columns = ["Encarregado", "Tamanho da Equipe"]
             
-            col_b_enc, col_d_enc = st.columns([3, 1])
-            with col_b_enc:
-                termo_enc = st.text_input("🔍 Procurar Encarregado específico:", key="busca_enc_dash_input")
-            with col_d_enc:
-                buf_enc = io.BytesIO()
-                with pd.ExcelWriter(buf_enc, engine="openpyxl") as writer_enc:
-                    resumo_enc.to_excel(writer_enc, index=False, sheet_name="Lideranca")
-                st.download_button(
-                    label="📥 Baixar Excel (.xlsx)",
-                    data=buf_enc.getvalue(),
-                    file_name=f"Resumo_Lideranca_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                    key="btn_down_enc_excel_main"
-                )
-                
+            termo_enc = st.text_input("🔍 Procurar Encarregado específico:")
             if termo_enc:
-                mask_enc = resumo_enc["Encarregado"].astype(str).str.contains(termo_enc, case=False, na=False)
-                if "Disciplina" in resumo_enc.columns:
-                    mask_enc = mask_enc | resumo_enc["Disciplina"].astype(str).str.contains(termo_enc, case=False, na=False)
-                resumo_enc = resumo_enc[mask_enc]
+                resumo_enc = resumo_enc[resumo_enc["Encarregado"].astype(str).str.contains(termo_enc, case=False, na=False)]
                 
             st.dataframe(resumo_enc, hide_index=True, use_container_width=True)
             
@@ -5476,10 +5471,29 @@ Retorne apenas o JSON sem crases ou markdown."""
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                        st.session_state.df_historico_f1 = df_final
-                        salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                        st.toast(f"{len(novos_registros)} novos RDCs sincronizados! ({nomes_ja_existentes} já constavam).", icon="✅")
+                        
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                if not df_fresco.empty:
+                                    df_fresco = df_fresco.dropna(how='all')
+                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                else:
+                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                                if ok:
+                                    st.session_state.df_historico_f1 = df_final
+                                st.cache_data.clear()
+                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar na nuvem: {e}")
+                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                        else:
+                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -5527,7 +5541,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             self.set_text_color(0, 0, 0)
                             self.cell(0, 10, 'Relatorio de Pendencias - RDC', 0, 1, 'C')
                             self.set_font('Helvetica', 'I', 10)
-                            self.cell(0, 10, f'Data Referencia: {data_resumo.strftime("%d/%m/%Y")} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
+                            self.cell(0, 10, f'Data Referencia: {data_filtro_str} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
                             self.ln(5)
                     
                     pdf = PDF()
@@ -6131,10 +6145,28 @@ Retorne apenas o JSON sem crases ou markdown."""
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                        st.session_state.df_historico_f1 = df_final
-                        salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                        st.toast(f"{len(novos_registros)} novos RDCs sincronizados! ({nomes_ja_existentes} já constavam).", icon="✅")
+                        if conn and not st.session_state.get('force_use_local', False):
+                            try:
+                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                if not df_fresco.empty:
+                                    df_fresco = df_fresco.dropna(how='all')
+                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                else:
+                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                
+                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                                if ok:
+                                    st.session_state.df_historico_f1 = df_final
+                                st.cache_data.clear()
+                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar na nuvem: {e}")
+                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                        else:
+                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -6164,18 +6196,9 @@ Retorne apenas o JSON sem crases ou markdown."""
             df_hist["DATA"] = pd.to_datetime(df_hist["DATA_ISO"], errors="coerce")
             df_hist = df_hist.dropna(subset=["DATA"])
             df_hist["MES_ANO"] = df_hist["DATA"].dt.strftime("%Y-%m")
-            
-        hoje_ref = datetime.date.today()
-        meses_gerados = []
-        for i_m in range(18):
-            ano_m = hoje_ref.year - ((hoje_ref.month - 1 - i_m) < 0 and 1 or 0)
-            mes_m = ((hoje_ref.month - 1 - i_m) % 12) + 1
-            meses_gerados.append(f"{ano_m:04d}-{mes_m:02d}")
-            
-        if not df_hist.empty and "MES_ANO" in df_hist.columns:
-            meses_disponiveis = sorted(list(set(meses_gerados + df_hist["MES_ANO"].unique().tolist())), reverse=True)
+            meses_disponiveis = sorted(df_hist["MES_ANO"].unique(), reverse=True)
         else:
-            meses_disponiveis = sorted(meses_gerados, reverse=True)
+            meses_disponiveis = [datetime.date.today().strftime("%Y-%m")]
             
         col_f1_mes, col_f1_disc = st.columns([1, 1])
         with col_f1_mes:
@@ -6392,7 +6415,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos_mk], ignore_index=True)
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 if conn and not st.session_state.get('force_use_local', False):
-                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                                    try:
+                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                                        st.cache_data.clear()
+                                    except Exception:
+                                        pass
                                 st.success(f"✅ {len(novos)} entrega(s) marcada(s) no dia {dia_marcar}!")
                             else:
                                 st.info("ℹ️ Todos já estavam marcados nesse dia.")
@@ -6406,11 +6433,15 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     removidos += 1
                             if removidos > 0:
                                 if conn and not st.session_state.get('force_use_local', False):
-                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                                    try:
+                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
+                                        st.cache_data.clear()
+                                    except Exception:
+                                        pass
                                 st.success(f"❌ {removidos} entrega(s) desmarcada(s) no dia {dia_marcar}!")
                             else:
                                 st.info("ℹ️ Nenhum deles estava marcado nesse dia.")
-                        time.sleep(0.5)
+                        time.sleep(2)
                         st.rerun()
 
             # --- EXPORTAÇÃO E NUVEM ---
@@ -6915,7 +6946,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         from google import genai
                         
                         tmp_path = arquivo_dict['tmp_path']
-                        max_tentativas = 4
+                        max_tentativas = 2
                         idx_chave_atual_local = 0
                         client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
                         
@@ -6940,10 +6971,13 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     time.sleep(1.5)
                                     tempo_espera += 1.5
                                 
-                                # Modelos estáveis com alta cota de requisições no Free Tier
-                                modelos_tentativa = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-                                if modelo_gemini and modelo_gemini not in modelos_tentativa:
+                                # Lista de modelos em ordem de tentativa para máxima resiliência
+                                modelos_tentativa = []
+                                if modelo_gemini:
                                     modelos_tentativa.append(modelo_gemini)
+                                for m_fb in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
+                                    if m_fb not in modelos_tentativa:
+                                        modelos_tentativa.append(m_fb)
                                 
                                 resposta = None
                                 ultimo_err_mod = None
@@ -6962,7 +6996,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             break
                                     except Exception as err_gen:
                                         ultimo_err_mod = err_gen
-                                        time.sleep(2.0)
+                                        # Tenta o próximo modelo imediatamente em caso de 503, 404, 429
                                         continue
                                 
                                 if not resposta or not resposta.text:
@@ -7021,6 +7055,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
 
+                                # Se o nome do arquivo contem data (ex: 07-09.pdf -> 2026-09-07), ela tem prioridade absoluta com o ano atual
                                 data_do_nome = arquivo_dict.get('data_extraida')
                                 if data_do_nome:
                                     data_norm = normalizar_data_brasil(data_do_nome)
@@ -7058,11 +7093,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             time.sleep(2)
                                             continue
                                         else:
-                                            time.sleep(12)
+                                            time.sleep(15)
                                             continue
-                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str or 'high demand' in erro_str.lower():
+                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
                                     if tentativa < max_tentativas - 1:
-                                        time.sleep(3 + (tentativa * 3))
+                                        time.sleep(2)
                                         continue
                                 raise Exception(f"Erro na IA: {inner_e}")
                             finally:
@@ -7073,9 +7108,9 @@ Retorne apenas o JSON sem crases ou markdown."""
                                         pass
 
                     import concurrent.futures
-                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
+                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-3.7-flash')
                     
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                         future_to_chunk = {
                             executor.submit(processar_chunk_ia, chunk, lista_chaves, modelo_usado, prompt_ia, RDC_Schema, old_cred): chunk
                             for chunk in arquivos_processar
