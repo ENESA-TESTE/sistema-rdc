@@ -174,23 +174,62 @@ with st.expander("📲 Como Instalar este App no Celular (Tela Cheia)", expanded
 # --- CARREGAR BASE PDE DO MOTOR ULTRA-RÁPIDO COM SUPORTE À NUVEM ---
 @st.cache_data(ttl=180)
 def obter_base_pde_otimizada():
-    """Lê a base PDE com cache inteligente de 3 minutos, buscando direto do Google Sheets ou SQLite local."""
+    """Lê a base PDE direto da nuvem (Google Sheets) ou fallback local."""
+    erro_cloud = None
+    
+    # 1. Tentar via pde_engine (obter_cliente_google_sheets direto)
+    try:
+        sh = pde_engine.obter_cliente_google_sheets()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            alvo_ws = "PDE" if "PDE" in ws_names else ("Página1" if "Página1" in ws_names else ws_names[0])
+            ws = sh.worksheet(alvo_ws)
+            valores = ws.get_all_values()
+            if valores and len(valores) > 1:
+                header = [str(c).strip() for c in valores[0]]
+                linhas = valores[1:]
+                df_cloud = pd.DataFrame(linhas, columns=header)
+                ok, msg = pde_engine.auditar_e_sincronizar_pde(df_cloud, fonte="GOOGLE_SHEETS")
+                if ok:
+                    df_res = pde_engine.carregar_pde_instantaneo()
+                    if df_res is not None and not df_res.empty:
+                        return df_res, None
+    except Exception as ex1:
+        erro_cloud = str(ex1)
+
+    # 2. Tentar via st.connection("gsheets")
     try:
         from streamlit_gsheets import GSheetsConnection
         conn_gs = st.connection("gsheets", type=GSheetsConnection)
         df_nuvem = conn_gs.read(worksheet="PDE", ttl=180)
         if df_nuvem is not None and not df_nuvem.empty and len(df_nuvem.columns) >= 3:
             df_nuvem = df_nuvem.dropna(how='all')
-            pde_engine.auditar_e_sincronizar_pde(df_nuvem, fonte="GOOGLE_SHEETS")
-            return pde_engine.carregar_pde_instantaneo()
-    except Exception:
-        pass
-    return pde_engine.carregar_pde_instantaneo()
+            ok, msg = pde_engine.auditar_e_sincronizar_pde(df_nuvem, fonte="GOOGLE_SHEETS")
+            if ok:
+                df_res = pde_engine.carregar_pde_instantaneo()
+                if df_res is not None and not df_res.empty:
+                    return df_res, None
+    except Exception as ex2:
+        if not erro_cloud:
+            erro_cloud = str(ex2)
 
-df_pde = obter_base_pde_otimizada()
+    # 3. Fallback: carregar instantâneo do SQLite ou CSV local
+    df_local = pde_engine.carregar_pde_instantaneo()
+    if df_local is not None and not df_local.empty:
+        return df_local, None
+        
+    return None, erro_cloud
+
+df_pde, erro_pde = obter_base_pde_otimizada()
 
 if df_pde is None or df_pde.empty:
-    st.error("⚠️ Banco de dados PDE não carregado. Verifique a sincronização.")
+    st.error("⚠️ Banco de dados PDE não carregado.")
+    if erro_pde:
+        st.warning(f"Detalhe: {erro_pde}")
+    st.info("💡 Cole as chaves de acesso no menu do Streamlit Cloud: **Settings ➔ Secrets**.")
+    if st.button("🔄 Tentar Novamente", type="primary"):
+        st.cache_data.clear()
+        st.rerun()
     st.stop()
 
 # Filtrar apenas ativos

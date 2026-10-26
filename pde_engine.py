@@ -722,9 +722,11 @@ def auditar_e_sincronizar_pde(df_bruto, fonte="GOOGLE_SHEETS"):
 def carregar_pde_instantaneo():
     """
     Retorna o DataFrame de funcionários com leitura instantânea (< 1ms).
-    Prioriza o SQLite otimizado. Se estiver vazio, lê PDE.csv ou BASE_ATUAL.csv.
+    Prioriza o SQLite otimizado. Se estiver vazio, sincroniza imediatamente com o Google Sheets Online.
+    Se a nuvem não responder, busca em PDE.csv ou BASE_ATUAL.csv.
     """
     inicializar_banco_pde()
+    # 1. Tentar SQLite local
     try:
         with get_db_connection() as conn:
             df = pd.read_sql_query("SELECT * FROM pde_funcionarios;", conn)
@@ -738,12 +740,39 @@ def carregar_pde_instantaneo():
     except Exception:
         pass
 
+    # 2. Se SQLite estiver vazio (ex: deploy novo no Streamlit Cloud), puxar do Google Sheets na hora!
+    try:
+        sh = obter_cliente_google_sheets()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            alvo_ws = "PDE" if "PDE" in ws_names else ("Página1" if "Página1" in ws_names else ws_names[0])
+            ws = sh.worksheet(alvo_ws)
+            dados = ws.get_all_values()
+            if dados and len(dados) > 1:
+                header = [str(c).strip() for c in dados[0]]
+                linhas = dados[1:]
+                df_cloud = pd.DataFrame(linhas, columns=header)
+                ok, _ = auditar_e_sincronizar_pde(df_cloud, fonte="GOOGLE_SHEETS")
+                if ok:
+                    with get_db_connection() as conn:
+                        df_s = pd.read_sql_query("SELECT * FROM pde_funcionarios;", conn)
+                        if not df_s.empty:
+                            return df_s.rename(columns={"CC": "C.C", "FUNCAO": "FUNÇÃO", "MAO_DE_OBRA": "MÃO DE OBRA"})
+    except Exception as e:
+        print(f"Aviso ao buscar Google Sheets em carregar_pde_instantaneo: {e}")
+
+    # 3. Fallback: ler CSVs locais
     for arq in ["PDE.csv", "BASE_ATUAL.csv"]:
         caminho = os.path.join(PASTA_BASE, arq)
         if os.path.exists(caminho):
             try:
                 df = pd.read_csv(caminho, encoding='latin1', low_memory=False)
-                return df
+                if not df.empty:
+                    try:
+                        auditar_e_sincronizar_pde(df, fonte="CSV_LOCAL")
+                    except Exception:
+                        pass
+                    return df
             except Exception:
                 pass
     return pd.DataFrame()
