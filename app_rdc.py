@@ -43,6 +43,11 @@ try:
         DISCIPLINA: str
         ENCARREGADO: str
         TURNO: str
+        EFETIVO_PREVISTO: str = ""
+        EFETIVO_PRESENTE: str = ""
+        FALTAS: str = ""
+        FOLGAS: str = ""
+        ATESTADOS: str = ""
         DDS: str
         TRANSCRICAO: str
         ATIVIDADE: str
@@ -1636,7 +1641,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     info_w = page_w - logo_w  # 172 mm
     h_row = 5.2  # altura confortável de cada linha do cabeçalho
     h_titulo = 6.8  # altura do título
-    header_h = h_titulo + (h_row * 4)  # 27.6 mm
+    header_h = h_titulo + (h_row * 5)  # 32.8 mm
     
     pdf.set_font("Helvetica", "B", 10)
     
@@ -1700,7 +1705,25 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     
     y += h_row
     
-    # --- LINHA 5: CONDICOES CLIMATICAS | EQUIPAMENTO | ELEVACAO ---
+    # --- LINHA 5: EFETIVO PREVISTO | PRESENTES | FALTAS | FOLGAS | ATESTADOS ---
+    pdf.set_xy(x_info, y)
+    pdf.set_font("Helvetica", "B", 5.5)
+    pdf.cell(24, h_row, "EFETIVO PREVISTO:", 1, 0, "R")
+    pdf.set_font("Helvetica", "B", 7)
+    pdf.cell(12, h_row, str(len(equipe)) if len(equipe) > 0 else "", 1, 0, "C")
+    pdf.set_font("Helvetica", "B", 5.5)
+    pdf.cell(18, h_row, "PRESENTES:", 1, 0, "R")
+    pdf.cell(12, h_row, "", 1, 0, "C")
+    pdf.cell(14, h_row, "FALTAS:", 1, 0, "R")
+    pdf.cell(10, h_row, "", 1, 0, "C")
+    pdf.cell(14, h_row, "FOLGAS:", 1, 0, "R")
+    pdf.cell(10, h_row, "", 1, 0, "C")
+    pdf.cell(18, h_row, "ATESTADOS:", 1, 0, "R")
+    pdf.cell(info_w - 24 - 12 - 18 - 12 - 14 - 10 - 14 - 10 - 18, h_row, "", 1, 1, "C")
+    
+    y += h_row
+    
+    # --- LINHA 6: CONDICOES CLIMATICAS | EQUIPAMENTO | ELEVACAO ---
     pdf.set_xy(x_info, y)
     pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(24, h_row, "COND. CLIMATICAS:", 1, 0, "L")
@@ -1931,25 +1954,27 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
 @st.cache_data(show_spinner=False)
 def ler_arquivo_seguro(arquivo, nome_arquivo=""):
     try:
-        if nome_arquivo.endswith(".xlsx") or nome_arquivo.endswith(".xls"):
+        nome_str = str(nome_arquivo).lower() if nome_arquivo else (str(getattr(arquivo, 'name', '')).lower())
+        if nome_str.endswith(".xlsx") or nome_str.endswith(".xls"):
+            if hasattr(arquivo, 'seek'):
+                arquivo.seek(0)
             return pd.read_excel(arquivo)
         else:
-            try:
-                return pd.read_csv(arquivo, sep=";", encoding="latin-1")
-            except Exception:
-                pass
-            try:
-                if hasattr(arquivo, 'seek'):
-                    arquivo.seek(0)
-                return pd.read_csv(arquivo, sep=",", encoding="latin-1")
-            except Exception:
-                pass
-            try:
-                if hasattr(arquivo, 'seek'):
-                    arquivo.seek(0)
-                return pd.read_csv(arquivo, sep=";", encoding="utf-8")
-            except Exception:
-                pass
+            melhor_df = None
+            max_cols = 0
+            for enc in ["utf-8-sig", "utf-8", "latin-1", "cp1252"]:
+                for sep in [",", ";", "\t", "|"]:
+                    try:
+                        if hasattr(arquivo, 'seek'):
+                            arquivo.seek(0)
+                        df_t = pd.read_csv(arquivo, sep=sep, encoding=enc)
+                        if df_t is not None and not df_t.empty and len(df_t.columns) > max_cols:
+                            max_cols = len(df_t.columns)
+                            melhor_df = df_t
+                    except Exception:
+                        pass
+            if melhor_df is not None and max_cols >= 2:
+                return melhor_df
             if hasattr(arquivo, 'seek'):
                 arquivo.seek(0)
             return pd.read_csv(arquivo)
@@ -1994,10 +2019,36 @@ def obter_planilha_google():
         pass
     return None
 
-def salvar_f1_seguro(conn, df_f1, caminho_csv):
-    """Salva o Histórico F1 no Google Sheets e localmente COM PROTEÇÃO ANTI-PERDA.
-    Garante persistência total entre todos os usuários da nuvem.
-    """
+import threading
+
+def _executar_salvamento_nuvem_f1(conn, df_f1, caminho_csv):
+    """Executa o upload para a nuvem em thread de background."""
+    try:
+        sh = obter_planilha_google()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            if "Historico_F1" not in ws_names:
+                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
+            else:
+                ws_f1 = sh.worksheet("Historico_F1")
+            
+            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
+            if ws_f1.row_count < len(valores) + 50:
+                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
+            ws_f1.clear()
+            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
+            return
+    except Exception:
+        pass
+    
+    if conn:
+        try:
+            conn.update(worksheet="Historico_F1", data=df_f1)
+        except Exception:
+            pass
+
+def salvar_f1_seguro(conn, df_f1, caminho_csv, modo_async=True):
+    """Salva o Histórico F1 localmente em < 1ms e sincroniza na nuvem sem travar."""
     if df_f1 is None or df_f1.empty:
         return False, "Bloqueado: tentativa de salvar dados vazios."
     
@@ -2012,49 +2063,20 @@ def salvar_f1_seguro(conn, df_f1, caminho_csv):
     
     df_f1 = df_f1.drop_duplicates(subset=["DATA", "ENCARREGADO"])
     
-    # 1. Backup Local CSV
+    # 1. Backup Local CSV instantâneo (< 1ms)
     try:
         df_f1.to_csv(caminho_csv, index=False)
     except Exception:
         pass
 
-    # 2. Persistência na Nuvem (Google Sheets via gspread)
-    try:
-        sh = obter_planilha_google()
-        if sh:
-            ws_names = [w.title for w in sh.worksheets()]
-            if "Historico_F1" not in ws_names:
-                ws_f1 = sh.add_worksheet(title="Historico_F1", rows=max(len(df_f1) + 500, 1000), cols=5)
-            else:
-                ws_f1 = sh.worksheet("Historico_F1")
-                
-            # Ler dados atuais da nuvem para mesclar se necessário (proteção anti-perda)
-            recs_nuvem = ws_f1.get_all_records()
-            if recs_nuvem:
-                df_nuvem_atual = pd.DataFrame(recs_nuvem)
-                if not df_nuvem_atual.empty and "DATA" in df_nuvem_atual.columns and "ENCARREGADO" in df_nuvem_atual.columns:
-                    # Se o df atual tiver muito menos que a nuvem, mesclar para não perder
-                    if len(df_f1) < len(df_nuvem_atual) * 0.5 and len(df_nuvem_atual) > 10:
-                        df_f1 = pd.concat([df_nuvem_atual, df_f1], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-            
-            valores = [["DATA", "ENCARREGADO"]] + df_f1[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
-            if ws_f1.row_count < len(valores) + 50:
-                ws_f1.add_rows(len(valores) + 500 - ws_f1.row_count)
-                
-            ws_f1.clear()
-            ws_f1.update(values=valores, range_name=f"A1:B{len(valores)}")
-            return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
-    except Exception as e:
-        # Fallback via st.connection se gspread direto falhar
-        if conn:
-            try:
-                conn.update(worksheet="Historico_F1", data=df_f1)
-                return True, f"OK (fallback conn): {len(df_f1)} registros salvos."
-            except Exception as e2:
-                return False, f"Erro ao salvar na nuvem: {e2}"
-        return False, f"Erro na nuvem: {e}"
-    
-    return True, f"OK: {len(df_f1)} registros salvos localmente."
+    # 2. Persistência na Nuvem assíncrona (não congela a tela do Streamlit)
+    if modo_async:
+        t = threading.Thread(target=_executar_salvamento_nuvem_f1, args=(conn, df_f1.copy(), caminho_csv), daemon=True)
+        t.start()
+        return True, f"OK: {len(df_f1)} registros salvos (sincronizando em segundo plano)!"
+    else:
+        _executar_salvamento_nuvem_f1(conn, df_f1, caminho_csv)
+        return True, f"OK: {len(df_f1)} registros sincronizados na nuvem!"
 
 @st.cache_data(show_spinner=False)
 def preparar_dataframe(df):
@@ -2071,39 +2093,29 @@ def preparar_dataframe(df):
     mapeamento = {}
     for col in df.columns:
         col_clean = str(col).strip().upper()
-        
-        # Ignorar matriculas de líderes/encarregados para não sobrescrever a matricula principal
-        if "MATRÍCULA" in col_clean or "MATRICULA" in col_clean or "MAT." in col_clean or "CHAPA" in col_clean or "CRACHÁ" in col_clean or "CRACHA" in col_clean or "RE " in col_clean or "RE" == col_clean:
-            if "LÍDER" in col_clean or "LIDER" in col_clean or "ENCARREGADO" in col_clean or "COORDENADOR" in col_clean or "SUPERVISOR" in col_clean:
-                continue
-            else:
-                mapeamento[col] = "MATRICULA"
-                
-        elif "COORDENADOR" in col_clean or "SUPERVISOR" in col_clean or "GERENTE" in col_clean:
-            mapeamento[col] = "COORDENADOR"
-            
+        if "MATR" in col_clean and ("ENCARREGADO" in col_clean or "LIDER" in col_clean or "LÍDER" in col_clean):
+            mapeamento[col] = "MATRICULA_ENCARREGADO"
+        elif "MATR" in col_clean and ("COORDENADOR" in col_clean or "SUPERVISOR" in col_clean):
+            mapeamento[col] = "MATRICULA_COORDENADOR"
+        elif "MATR" in col_clean or "CHAPA" in col_clean or "CRACH" in col_clean or "RE " in col_clean or "RE" == col_clean:
+            mapeamento[col] = "MATRICULA"
         elif "ENCARREGADO" in col_clean or "LÍDER" in col_clean or "LIDER" in col_clean:
             mapeamento[col] = "ENCARREGADO"
-            
-        elif "NOME" in col_clean or "COLABORADOR" in col_clean or "FUNCIONÁRIO" in col_clean or "FUNCIONARIO" in col_clean or "EMPREGADO" in col_clean:
+        elif "COORDENADOR" in col_clean or "SUPERVISOR" in col_clean or "GERENTE" in col_clean:
+            mapeamento[col] = "COORDENADOR"
+        elif "NOME" in col_clean or "COLABORADOR" in col_clean or "FUNCION" in col_clean or "EMPREGADO" in col_clean:
             mapeamento[col] = "NOME"
-            
-        elif "FUNÇÃO" in col_clean or "FUNCAO" in col_clean or "CARGO" in col_clean or "CBO" in col_clean:
+        elif "FUN" in col_clean or "CARGO" in col_clean or "CBO" in col_clean:
             mapeamento[col] = "FUNÇÃO"
-            
-        elif "CENTRO DE CUSTO" in col_clean or col_clean == "C.C" or col_clean == "CC" or col_clean == "CECO":
+        elif "CENTRO DE CUSTO" in col_clean or col_clean in ["C.C", "CC", "CECO"]:
             mapeamento[col] = "C.C"
-            
         elif "DISCIPLINA" in col_clean or "ÁREA" in col_clean or "AREA" in col_clean or "SETOR" in col_clean:
             mapeamento[col] = "DISCIPLINA"
-            
         elif "MÃO DE OBRA" in col_clean or "MAO DE OBRA" in col_clean or "TIPO" in col_clean:
             mapeamento[col] = "MÃO DE OBRA"
-            
-        elif "TURNO" in col_clean or "HORÁRIO" in col_clean or "HORARIO" in col_clean:
+        elif "TURNO" in col_clean or "HOR" in col_clean:
             mapeamento[col] = "TURNO"
-            
-        elif "STATUS" in col_clean or "SITUAÇÃO" in col_clean or "SITUACAO" in col_clean:
+        elif "STATUS" in col_clean or "SITUA" in col_clean:
             mapeamento[col] = "STATUS"
 
     df = df.rename(columns=mapeamento)
@@ -2349,7 +2361,7 @@ def backup_google_drive(file_path, mime_type, file_name):
 if 'df' not in st.session_state:
     st.session_state.df = None
 if 'df_ia' not in st.session_state:
-    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+    st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
 if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1.empty:
     _f1_carregado = False
     # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
@@ -2678,20 +2690,8 @@ def sincronizar_dados_globais():
     elif "df_historico_f1" not in st.session_state:
         st.session_state.df_historico_f1 = pd.DataFrame(columns=["DATA", "ENCARREGADO"])
         
-    # 2. SINCRONIZAR BASE DE EFETIVO (PDE)
-    if st.session_state.get("df") is None:
-        if os.path.exists(caminho_base_salva_xlsx):
-            _df = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
-            if _df is not None:
-                st.session_state.df = preparar_dataframe(_df)
-        elif os.path.exists(caminho_base_salva_csv):
-            _df = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
-            if _df is not None:
-                st.session_state.df = preparar_dataframe(_df)
-        elif os.path.exists(caminho_pde_padrao):
-            _df = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
-            if _df is not None:
-                st.session_state.df = preparar_dataframe(_df)
+    # 2. BASE DE EFETIVO (PDE) - Carregada exclusivamente do Google Sheets
+    pass
 
 sincronizar_dados_globais()
 
@@ -2872,6 +2872,7 @@ with st.sidebar:
     _nav_button("Dashboard", "⌂", "nav_dashboard")
     _nav_button("Resumo Diário", "▣", "nav_resumo")
     _nav_button("Competição F1", "🏆", "nav_f1")
+    _nav_button("RDC Digital", "📱", "nav_rdc_digital")
     _nav_button("Emissão de RDC", "▤", "nav_emissao")
     _nav_button("Leitor de RDC (IA)", "⌗", "nav_ia")
 
@@ -2888,17 +2889,37 @@ with st.sidebar:
         if st.button("❔   Ajuda e Suporte", key="nav_ajuda", use_container_width=True, type="secondary"):
             st.info("Para suporte, registre o erro, a tela e o horário da ocorrência.")
 
+
+    # Injeção de PWA (Instalação no Celular / Desktop)
+    st.markdown("""
+        <head>
+            <link rel="manifest" href="/app/static/manifest.json">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+            <meta name="apple-mobile-web-app-title" content="SGO RDC">
+            <meta name="theme-color" content="#07111f">
+        </head>
+        <script>
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/app/static/sw.js').catch(function(err) {
+                    console.log('Service Worker setup', err);
+                });
+            }
+        </script>
+    """, unsafe_allow_html=True)
+
     # Configuracoes tecnicas internas.
     if "idioma" not in st.session_state:
         st.session_state.idioma = "Português"
     if "modelo_gemini" not in st.session_state:
-        st.session_state.modelo_gemini = "gemini-2.5-flash"
+        st.session_state.modelo_gemini = "gemini-3.5-flash"
 
     # Rodape institucional do menu.
     st.markdown("""
     <div class="sgo-team-footer">
-      <div class="sgo-team-title">EQUIPE DO PROJETO</div>
-      <div class="sgo-team-names">Edson Garcia<br>Kevin Lopes<br>Pedro Lima</div>
+      <div class="sgo-team-title">DESENVOLVEDOR DO PROJETO</div>
+      <div class="sgo-team-names">Edson Garcia</div>
       <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
     </div>
     """, unsafe_allow_html=True)
@@ -2951,66 +2972,37 @@ if arquivo_pde is not None:
             except Exception as e:
                 st.sidebar.error(f"Erro Nuvem: {e}")
 
-elif st.session_state.df is None:
-    carregado_nuvem = False
-    
-    # 1. LER DA NOVA PLANILHA MESTRE DO GOOGLE SHEETS
-    if not st.session_state.get('force_use_local', False):
-        if conn:
+# =================================================================
+# CARREGAMENTO EXCLUSIVO DO GOOGLE SHEETS (NUVEM OFICIAL)
+# =================================================================
+if conn and st.session_state.df is None:
+    try:
+        df_gsheets = None
+        for ws_name in ["PDE", "Página1", "Base", "EFETIVO"]:
             try:
-                df_gsheets = conn.read(worksheet="PDE", ttl=300)
-                df_gsheets = df_gsheets.dropna(how='all')
-                if not df_gsheets.empty:
-                    st.session_state.df = preparar_dataframe(df_gsheets)
-                    carregado_nuvem = True
-                    st.toast(f"PDE Mestre carregado! {len(df_gsheets)} funcionários.", icon="☁️")
-            except Exception as e:
-                st.sidebar.warning(f"⚠️ Erro ao ler PDE Mestre autenticado: {e}")
-            
-    # Resetar a flag (dentro do elif st.session_state.df is None)
-    if st.session_state.get('force_use_local', False):
-        carregado_nuvem = True
-        st.session_state.force_use_local = False
-            
-    if not carregado_nuvem:
-        if os.path.exists(caminho_base_salva_xlsx):
-            df_carregado = ler_arquivo_seguro(caminho_base_salva_xlsx, "BASE_ATUAL.xlsx")
-            if df_carregado is not None:
-                st.session_state.df = df_carregado
-        elif os.path.exists(caminho_base_salva_csv):
-            df_carregado = ler_arquivo_seguro(caminho_base_salva_csv, "BASE_ATUAL.csv")
-            if df_carregado is not None:
-                st.session_state.df = df_carregado
-        elif os.path.exists(caminho_pde_padrao):
-            df_carregado = ler_arquivo_seguro(caminho_pde_padrao, "PDE.csv")
-            if df_carregado is not None:
-                st.session_state.df = df_carregado
+                df_gsheets = conn.read(worksheet=ws_name, ttl=300)
+                if df_gsheets is not None and not df_gsheets.empty and len(df_gsheets.columns) >= 3:
+                    break
+            except Exception:
+                pass
+        if df_gsheets is not None and not df_gsheets.empty:
+            df_gsheets = df_gsheets.dropna(how='all')
+            st.session_state.df = preparar_dataframe(df_gsheets)
+            st.toast(f"☁️ PDE carregado do Google Sheets! ({len(df_gsheets)} registros)", icon="☁️")
+    except Exception as e:
+        st.sidebar.error(f"⚠️ Erro ao ler Google Sheets: {e}")
 
 # =================================================================
-# SEMPRE VERIFICAR O HISTÓRICO F1 NA NUVEM (COM PROTEÇÃO ANTI-PERDA)
+# HISTÓRICO F1 NA NUVEM (GOOGLE SHEETS)
 # =================================================================
-if conn and not st.session_state.get('force_use_local', False):
+if conn and ("df_historico_f1" not in st.session_state or st.session_state.df_historico_f1.empty):
     try:
         df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
-        if df_f1 is not None:
+        if df_f1 is not None and not df_f1.empty:
             df_f1 = df_f1.dropna(how='all')
-            # Filtrar apenas registros válidos (com ENCARREGADO preenchido)
-            if not df_f1.empty and 'ENCARREGADO' in df_f1.columns:
+            if 'ENCARREGADO' in df_f1.columns:
                 df_f1 = df_f1[df_f1['ENCARREGADO'].apply(eh_encarregado_valido)]
-            
-            qtd_nuvem = len(df_f1) if not df_f1.empty else 0
-            qtd_local = len(st.session_state.df_historico_f1) if not st.session_state.df_historico_f1.empty else 0
-            
-            # SÓ ATUALIZAR SE: nuvem tem dados E (nuvem tem MAIS dados OU local está vazio)
-            # Isso IMPEDE que uma leitura vazia da nuvem apague dados bons
-            if qtd_nuvem > 0 and (qtd_nuvem >= qtd_local or qtd_local == 0):
-                st.session_state.df_historico_f1 = df_f1
-                df_f1.to_csv(caminho_historico_f1_csv, index=False)
-            elif qtd_nuvem == 0 and qtd_local > 0:
-                # Nuvem está vazia mas local tem dados - REENVIAR para a nuvem!
-                ok, msg = salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                if ok:
-                    st.sidebar.caption(f"☁️ F1: {qtd_local} registros reenviados à nuvem (estava vazia).")
+            st.session_state.df_historico_f1 = df_f1
     except Exception:
         pass
 
@@ -3100,6 +3092,7 @@ if st.session_state.df is not None:
             json.dump(encarregados_f1_padrao, f, ensure_ascii=False, indent=2)
     
     lista_completa_encarregados = sorted([str(e).upper().strip() for e in df_atual["ENCARREGADO"].unique() if eh_encarregado_valido(e)])
+    encarregados_f1_oficial = lista_completa_encarregados
     
     # Carregar exceções (Abonos)
     if "df_f1_excecoes" not in st.session_state:
@@ -3122,9 +3115,23 @@ if st.session_state.df is not None:
             tab_id, tab_local, tab_ativ = st.tabs(["1️⃣ Identificação", "2️⃣ Localização", "3️⃣ Atividades e Envio"])
             
             with tab_id:
-                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Quem é você e qual seu turno?</p>", unsafe_allow_html=True)
-                rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
-                rdc_turno = st.selectbox("Turno de Trabalho:", ["1º TURNO", "2º TURNO", "3º TURNO", "DIURNO", "NOTURNO", "MISTO"])
+                st.markdown("<p style='color: #94a3b8; font-size: 14px;'>Quem é você, seu turno e efetivo presente?</p>", unsafe_allow_html=True)
+                col_id1, col_id2 = st.columns(2)
+                with col_id1:
+                    rdc_encarregado = st.selectbox("Selecione seu Nome (Encarregado):", [""] + lista_completa_encarregados)
+                with col_id2:
+                    rdc_turno = st.selectbox("Turno de Trabalho:", ["1º TURNO", "2º TURNO", "3º TURNO", "DIURNO", "NOTURNO", "MISTO"])
+                
+                st.markdown("<div style='margin-top: 10px; font-weight: 600; color: #38bdf8; font-size: 13px;'>👥 Apontamento de Efetivo do Turno:</div>", unsafe_allow_html=True)
+                col_ef1, col_ef2, col_ef3, col_ef4 = st.columns(4)
+                with col_ef1:
+                    rdc_presentes = st.number_input("👥 Presentes Trabalhando:", min_value=0, value=0, step=1)
+                with col_ef2:
+                    rdc_faltas = st.number_input("❌ Faltas:", min_value=0, value=0, step=1)
+                with col_ef3:
+                    rdc_folgas = st.number_input("🏖️ Folgas:", min_value=0, value=0, step=1)
+                with col_ef4:
+                    rdc_atestados = st.number_input("🏥 Atestados:", min_value=0, value=0, step=1)
                 
             with tab_local:
                 import datetime
@@ -3176,6 +3183,10 @@ if st.session_state.df is not None:
                         "ENCARREGADO": rdc_encarregado,
                         "DATA": rdc_data.strftime("%Y/%m/%d"),
                         "TURNO": rdc_turno,
+                        "EFETIVO_PRESENTE": str(rdc_presentes),
+                        "FALTAS": str(rdc_faltas),
+                        "FOLGAS": str(rdc_folgas),
+                        "ATESTADOS": str(rdc_atestados),
                         "AREA": rdc_area.strip().upper(),
                         "DISCIPLINA": rdc_disciplina.strip().upper(),
                         "DDS": rdc_dds.strip(),
@@ -3812,15 +3823,13 @@ Retorne ESTRITAMENTE um JSON puro válido:
 }}
 Retorne apenas o JSON sem crases ou markdown."""
                 
-                modelos_brief = []
-                m_pref = st.session_state.get('modelo_gemini', 'gemini-2.5-flash')
-                if m_pref: modelos_brief.append(m_pref)
-                for mb_f in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
-                    if mb_f not in modelos_brief:
-                        modelos_brief.append(mb_f)
+                modelos_brief = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest']
+                m_pref = st.session_state.get('modelo_gemini', 'gemini-3.5-flash')
+                if m_pref and m_pref not in modelos_brief:
+                    modelos_brief.append(m_pref)
                 
                 resp = None
-                modelo_brief = 'gemini-2.5-flash'
+                modelo_brief = 'gemini-3.5-flash'
                 for mb in modelos_brief:
                     try:
                         resp = client.models.generate_content(
@@ -4837,6 +4846,206 @@ Retorne apenas o JSON sem crases ou markdown."""
         with m5: st.markdown(card_kpi(t("Span of Control"), span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
         
         # ==============================================================
+        # ⏱️ RADAR DE HOMEM-HORA (HH) & RASTREABILIDADE DE CAMPO
+        # ==============================================================
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.container(border=True):
+            # 1. Contagem real do PDE (Google Sheets) por encarregado ativo
+            df_ativos_pde = df_atual[df_atual["STATUS"].astype(str).str.upper() == "ATIVO"] if "STATUS" in df_atual.columns else df_atual.copy()
+            mapa_tamanho_equipes = df_ativos_pde["ENCARREGADO"].value_counts().to_dict() if "ENCARREGADO" in df_ativos_pde.columns else {}
+            
+            # Mapeamento da disciplina real de cada encarregado no PDE
+            if "DISCIPLINA" in df_ativos_pde.columns and "ENCARREGADO" in df_ativos_pde.columns:
+                mapa_disc_enc = df_ativos_pde.groupby("ENCARREGADO")["DISCIPLINA"].agg(lambda x: x.mode()[0] if len(x) > 0 else "GERAL").to_dict()
+            else:
+                mapa_disc_enc = {}
+            
+            # Apenas encarregados com equipe real (> 0 colaboradores)
+            encs_com_equipe = [
+                enc for enc in lista_completa_encarregados 
+                if mapa_tamanho_equipes.get(enc, 0) > 0 and str(enc).upper() not in ["NAN", "NONE", "-", "AJUSTAR NOME"]
+            ]
+            total_encs_ativos = len(encs_com_equipe)
+
+            # Data de análise do radar
+            hoje_radar = agora_local_sgo().date()
+            col_rad_h1, col_rad_h2 = st.columns([3, 1])
+            with col_rad_h1:
+                st.markdown("""
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 20px;">⏱️</span>
+                    <h4 style="margin: 0; color: #f8fafc; font-size: 16px; font-weight: 700;">
+                        Radar de Homem-Hora (HH) & Rastreabilidade de Campo
+                    </h4>
+                </div>
+                <p style="color: #94a3b8; font-size: 12px; margin: 4px 0 0 0;">
+                    Monitoramento em tempo real do HH comprovado via RDC vs. HH no escuro (equipes sem apontamento).
+                </p>
+                """, unsafe_allow_html=True)
+            with col_rad_h2:
+                data_radar_sel = st.date_input("Data de Análise:", value=hoje_radar, key="dt_radar_hh")
+            
+            data_radar_iso = data_radar_sel.strftime("%Y-%m-%d")
+
+            # 2. Verificar quem entregou RDC nessa data e capturar dados de efetivo da IA
+            df_f1_mem = st.session_state.df_historico_f1
+            entregues_no_dia = set()
+            if df_f1_mem is not None and not df_f1_mem.empty and "DATA" in df_f1_mem.columns and "ENCARREGADO" in df_f1_mem.columns:
+                entregues_no_dia = set(
+                    df_f1_mem[df_f1_mem["DATA"] == data_radar_iso]["ENCARREGADO"].dropna().unique()
+                )
+
+            # Buscar dados detalhados de efetivo presentes e faltas nos RDCs lidos
+            mapa_efetivo_ia = {}
+            mapa_faltas_ia = {}
+            mapa_folgas_ia = {}
+            mapa_atestados_ia = {}
+            if os.path.exists(caminho_rdc_registros_csv):
+                try:
+                    df_rdc_banco_temp = pd.read_csv(caminho_rdc_registros_csv)
+                    if not df_rdc_banco_temp.empty and "DATA" in df_rdc_banco_temp.columns and "ENCARREGADO" in df_rdc_banco_temp.columns:
+                        df_dia_rdc = df_rdc_banco_temp[df_rdc_banco_temp["DATA"] == data_radar_iso]
+                        for _, r_rdc in df_dia_rdc.iterrows():
+                            enc_r = str(r_rdc.get("ENCARREGADO", "")).strip()
+                            # Efetivo presente
+                            pres_str = str(r_rdc.get("EFETIVO_PRESENTE", "")).strip()
+                            if pres_str.isdigit() and int(pres_str) > 0:
+                                mapa_efetivo_ia[enc_r] = int(pres_str)
+                            # Faltas
+                            falt_str = str(r_rdc.get("FALTAS", "0")).strip()
+                            if falt_str.isdigit():
+                                mapa_faltas_ia[enc_r] = int(falt_str)
+                            # Folgas
+                            folg_str = str(r_rdc.get("FOLGAS", "0")).strip()
+                            if folg_str.isdigit():
+                                mapa_folgas_ia[enc_r] = int(folg_str)
+                            # Atestados
+                            atest_str = str(r_rdc.get("ATESTADOS", "0")).strip()
+                            if atest_str.isdigit():
+                                mapa_atestados_ia[enc_r] = int(atest_str)
+                except:
+                    pass
+
+            # Separar entregues vs pendentes (apenas entre quem tem equipe real)
+            encs_entregues = [e for e in encs_com_equipe if e in entregues_no_dia]
+            encs_pendentes = [e for e in encs_com_equipe if e not in entregues_no_dia]
+
+            # 3. Cálculos de HH (8.8 horas por colaborador)
+            HORAS_TURNO = 8.8
+            
+            # Efetivo real entregue: usa valor da IA se presente, senão usa PDE
+            colabs_entregues = sum([mapa_efetivo_ia.get(e, mapa_tamanho_equipes.get(e, 0)) for e in encs_entregues])
+            colabs_pendentes = sum([mapa_tamanho_equipes.get(e, 0) for e in encs_pendentes])
+            
+            total_faltas_dia = sum(mapa_faltas_ia.values())
+            total_folgas_dia = sum(mapa_folgas_ia.values())
+            total_atestados_dia = sum(mapa_atestados_ia.values())
+            total_ausencias = total_faltas_dia + total_folgas_dia + total_atestados_dia
+            hh_perdido_absenteismo = (total_faltas_dia + total_atestados_dia) * HORAS_TURNO
+            
+            hh_comprovado = colabs_entregues * HORAS_TURNO
+            hh_no_escuro = colabs_pendentes * HORAS_TURNO
+            hh_total_base = hh_comprovado + hh_no_escuro
+            pct_rastreabilidade = (hh_comprovado / hh_total_base * 100) if hh_total_base > 0 else 0
+
+            # 4. Disciplinas Prioritárias (Estrutura Metálica, Dutos, Tubulação & Pressão)
+            hh_pend_tub = sum([mapa_tamanho_equipes.get(e, 0) * HORAS_TURNO for e in encs_pendentes if "TUBULA" in str(mapa_disc_enc.get(e, '')).upper() or "PRESS" in str(mapa_disc_enc.get(e, '')).upper() or "SOLDA" in str(mapa_disc_enc.get(e, '')).upper()])
+            encs_pend_tub_count = len([e for e in encs_pendentes if "TUBULA" in str(mapa_disc_enc.get(e, '')).upper() or "PRESS" in str(mapa_disc_enc.get(e, '')).upper() or "SOLDA" in str(mapa_disc_enc.get(e, '')).upper()])
+
+            hh_pend_est = sum([mapa_tamanho_equipes.get(e, 0) * HORAS_TURNO for e in encs_pendentes if "ESTRUTURA" in str(mapa_disc_enc.get(e, '')).upper() or "METÁLICA" in str(mapa_disc_enc.get(e, '')).upper() or "METALICA" in str(mapa_disc_enc.get(e, '')).upper()])
+            encs_pend_est_count = len([e for e in encs_pendentes if "ESTRUTURA" in str(mapa_disc_enc.get(e, '')).upper() or "METÁLICA" in str(mapa_disc_enc.get(e, '')).upper() or "METALICA" in str(mapa_disc_enc.get(e, '')).upper()])
+
+            hh_pend_dut = sum([mapa_tamanho_equipes.get(e, 0) * HORAS_TURNO for e in encs_pendentes if "DUTO" in str(mapa_disc_enc.get(e, '')).upper()])
+            encs_pend_dut_count = len([e for e in encs_pendentes if "DUTO" in str(mapa_disc_enc.get(e, '')).upper()])
+
+            # Renderizar Cards de Impacto
+            st.markdown("<br>", unsafe_allow_html=True)
+            c_hh1, c_hh2, c_hh3, c_hh4 = st.columns([1.1, 1.1, 1.1, 1.4])
+            
+            with c_hh1:
+                st.markdown(f"""
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 14px; text-align: center;">
+                    <div style="font-size: 11px; font-weight: 700; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">✅ HH Comprovado</div>
+                    <div style="font-size: 24px; font-weight: 900; color: #34d399; margin: 4px 0;">{hh_comprovado:,.0f} <span style="font-size: 12px; font-weight: 600;">HH</span></div>
+                    <div style="font-size: 11px; color: #94a3b8;"><b>{len(encs_entregues)}</b> de {total_encs_ativos} líderes ({pct_rastreabilidade:.1f}%)</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with c_hh2:
+                cor_escuro = "#ef4444" if hh_no_escuro > 0 else "#10b981"
+                bg_escuro = "rgba(239, 68, 68, 0.08)" if hh_no_escuro > 0 else "rgba(16, 185, 129, 0.08)"
+                borda_escuro = "rgba(239, 68, 68, 0.3)" if hh_no_escuro > 0 else "rgba(16, 185, 129, 0.3)"
+                st.markdown(f"""
+                <div style="background: {bg_escuro}; border: 1px solid {borda_escuro}; border-radius: 12px; padding: 14px; text-align: center;">
+                    <div style="font-size: 11px; font-weight: 700; color: {cor_escuro}; letter-spacing: 0.5px; text-transform: uppercase;">⚠️ HH no Escuro</div>
+                    <div style="font-size: 24px; font-weight: 900; color: {cor_escuro}; margin: 4px 0;">{hh_no_escuro:,.0f} <span style="font-size: 12px; font-weight: 600;">HH</span></div>
+                    <div style="font-size: 11px; color: #94a3b8;"><b>{len(encs_pendentes)}</b> pendentes ({colabs_pendentes} pessoas)</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with c_hh3:
+                st.markdown(f"""
+                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 14px; text-align: center;">
+                    <div style="font-size: 11px; font-weight: 700; color: #f59e0b; letter-spacing: 0.5px; text-transform: uppercase;">📉 Ausências / Faltas</div>
+                    <div style="font-size: 24px; font-weight: 900; color: #fbbf24; margin: 4px 0;">{total_ausencias} <span style="font-size: 12px; font-weight: 600;">colabs</span></div>
+                    <div style="font-size: 11px; color: #94a3b8;">{hh_perdido_absenteismo:,.0f} HH perdidos ({total_faltas_dia} Faltas / {total_atestados_dia} Atest.)</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with c_hh4:
+                st.markdown(f"""
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 10px 12px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #38bdf8; text-transform: uppercase; margin-bottom: 4px;">🎯 Frentes Críticas no Escuro:</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <span style="color: #cbd5e1;">🔧 Tubulação:</span>
+                        <b style="color: #f87171;">{hh_pend_tub:,.0f} HH <span style="color: #94a3b8; font-weight: 400;">({encs_pend_tub_count})</span></b>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <span style="color: #cbd5e1;">🔩 Estrutura:</span>
+                        <b style="color: #f87171;">{hh_pend_est:,.0f} HH <span style="color: #94a3b8; font-weight: 400;">({encs_pend_est_count})</span></b>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0;">
+                        <span style="color: #cbd5e1;">💨 Dutos:</span>
+                        <b style="color: #f87171;">{hh_pend_dut:,.0f} HH <span style="color: #94a3b8; font-weight: 400;">({encs_pend_dut_count})</span></b>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Expander com lista nominal e botão de WhatsApp
+            if len(encs_pendentes) > 0:
+                with st.expander(f"📋 Ver Lista dos {len(encs_pendentes)} Encarregados Pendentes & Cobrar no WhatsApp", expanded=False):
+                    dados_tabela_pend = [
+                        {
+                            "Encarregado": enc,
+                            "Disciplina": mapa_disc_enc.get(enc, "GERAL"),
+                            "Efetivo (Pessoas)": mapa_tamanho_equipes.get(enc, 0),
+                            "HH no Escuro": f"{mapa_tamanho_equipes.get(enc, 0) * HORAS_TURNO:.1f} HH"
+                        }
+                        for enc in encs_pendentes
+                    ]
+                    df_tab_pend = pd.DataFrame(dados_tabela_pend).sort_values(by="Efetivo (Pessoas)", ascending=False)
+                    st.dataframe(df_tab_pend, hide_index=True, use_container_width=True)
+
+                    # Texto para WhatsApp
+                    texto_zap_cobranca = f"*⚠️ SGO RDC & PDE — COBRANÇA DE RDCS PENDENTES ({data_radar_sel.strftime('%d/%m/%Y')})*\n"
+                    texto_zap_cobranca += f"📊 *Status:* {len(encs_entregues)} entregues | {len(encs_pendentes)} pendentes ({hh_no_escuro:,.0f} HH no escuro)\n\n"
+                    texto_zap_cobranca += "*Frentes Críticas Pendentes:*\n"
+                    texto_zap_cobranca += f"• Tubulação: {hh_pend_tub:,.0f} HH ({encs_pend_tub_count} líderes)\n"
+                    texto_zap_cobranca += f"• Estrutura Metálica: {hh_pend_est:,.0f} HH ({encs_pend_est_count} líderes)\n"
+                    texto_zap_cobranca += f"• Dutos: {hh_pend_dut:,.0f} HH ({encs_pend_dut_count} líderes)\n\n"
+                    texto_zap_cobranca += "*Líderes que faltam entregar:*\n"
+                    for idx, enc in enumerate(encs_pendentes[:25], 1):
+                        d_enc = mapa_disc_enc.get(enc, 'GERAL')
+                        t_enc = mapa_tamanho_equipes.get(enc, 0)
+                        texto_zap_cobranca += f"{idx}. {enc} ({d_enc} - {t_enc} colabs)\n"
+                    if len(encs_pendentes) > 25:
+                        texto_zap_cobranca += f"... e mais {len(encs_pendentes) - 25} líderes.\n"
+                    texto_zap_cobranca += "\n_Favor enviar os RDCs com urgência para fechamento do dia!_"
+
+                    st.code(texto_zap_cobranca, language="text")
+                    st.caption("💡 Copie o texto acima e envie no grupo de WhatsApp da Obra/Coordenação.")
+        
+        # ==============================================================
         # BRIEFING MATINAL COM IA (PERSISTENTE POR DIA & EDITÁVEL)
         # ==============================================================
         st.markdown("<br>", unsafe_allow_html=True)
@@ -4918,7 +5127,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                 if st.button("🗑️ Limpar / Apagar RDCs", use_container_width=True, key="btn_reset_briefing_cache", help="Apaga todos os RDCs salvos e limpa a lista de datas para reprocessar do zero"):
                     try:
-                        df_vazio = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+                        df_vazio = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
                         df_vazio.to_csv(caminho_rdc_registros_csv, index=False)
                         for k in list(st.session_state.keys()):
                             if k.startswith("briefing_cache_"):
@@ -5322,12 +5531,40 @@ Retorne apenas o JSON sem crases ou markdown."""
         st.markdown(f"**👥 Liderança: Resumo Geral de Encarregados ({filtro_dash_mo})**")
         df_enc_full = df_dash[(df_dash["ENCARREGADO"].str.strip() != "") & (df_dash["ENCARREGADO"].isin(lista_completa_encarregados))]
         if not df_enc_full.empty:
-            resumo_enc = df_enc_full["ENCARREGADO"].value_counts().reset_index()
-            resumo_enc.columns = ["Encarregado", "Tamanho da Equipe"]
+            if "DISCIPLINA" in df_enc_full.columns:
+                resumo_enc = df_enc_full.groupby("ENCARREGADO").agg(
+                    Tamanho_da_Equipe=("MATRICULA", "count"),
+                    Disciplina=("DISCIPLINA", lambda x: x.mode().iloc[0] if not x.empty and not x.mode().empty else (x.iloc[0] if not x.empty else "-"))
+                ).reset_index()
+                resumo_enc.columns = ["Encarregado", "Tamanho da Equipe", "Disciplina"]
+            else:
+                resumo_enc = df_enc_full["ENCARREGADO"].value_counts().reset_index()
+                resumo_enc.columns = ["Encarregado", "Tamanho da Equipe"]
+                resumo_enc["Disciplina"] = "-"
+                
+            resumo_enc = resumo_enc.sort_values(by="Tamanho da Equipe", ascending=False)
             
-            termo_enc = st.text_input("🔍 Procurar Encarregado específico:")
+            col_b_enc, col_d_enc = st.columns([3, 1])
+            with col_b_enc:
+                termo_enc = st.text_input("🔍 Procurar Encarregado específico:", key="busca_enc_dash_input")
+            with col_d_enc:
+                buf_enc = io.BytesIO()
+                with pd.ExcelWriter(buf_enc, engine="openpyxl") as writer_enc:
+                    resumo_enc.to_excel(writer_enc, index=False, sheet_name="Lideranca")
+                st.download_button(
+                    label="📥 Baixar Excel (.xlsx)",
+                    data=buf_enc.getvalue(),
+                    file_name=f"Resumo_Lideranca_{datetime.date.today().strftime('%d_%m_%Y')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="btn_down_enc_excel_main"
+                )
+                
             if termo_enc:
-                resumo_enc = resumo_enc[resumo_enc["Encarregado"].astype(str).str.contains(termo_enc, case=False, na=False)]
+                mask_enc = resumo_enc["Encarregado"].astype(str).str.contains(termo_enc, case=False, na=False)
+                if "Disciplina" in resumo_enc.columns:
+                    mask_enc = mask_enc | resumo_enc["Disciplina"].astype(str).str.contains(termo_enc, case=False, na=False)
+                resumo_enc = resumo_enc[mask_enc]
                 
             st.dataframe(resumo_enc, hide_index=True, use_container_width=True)
             
@@ -5471,29 +5708,10 @@ Retorne apenas o JSON sem crases ou markdown."""
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
-                                if not df_fresco.empty:
-                                    df_fresco = df_fresco.dropna(how='all')
-                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                else:
-                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                
-                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                                if ok:
-                                    st.session_state.df_historico_f1 = df_final
-                                st.cache_data.clear()
-                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
-                            except Exception as e:
-                                st.error(f"Erro ao salvar na nuvem: {e}")
-                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                        else:
-                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
+                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        st.session_state.df_historico_f1 = df_final
+                        salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                        st.toast(f"{len(novos_registros)} novos RDCs sincronizados! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -5541,7 +5759,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                             self.set_text_color(0, 0, 0)
                             self.cell(0, 10, 'Relatorio de Pendencias - RDC', 0, 1, 'C')
                             self.set_font('Helvetica', 'I', 10)
-                            self.cell(0, 10, f'Data Referencia: {data_filtro_str} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
+                            self.cell(0, 10, f'Data Referencia: {data_resumo.strftime("%d/%m/%Y")} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
                             self.ln(5)
                     
                     pdf = PDF()
@@ -5583,6 +5801,278 @@ Retorne apenas o JSON sem crases ou markdown."""
             st.dataframe(df_pend, hide_index=True, use_container_width=True)
         else:
             st.success(f"🎉 Todos os RDCs desta data ({data_filtro_str}) já foram entregues!")
+
+        # 📸 Galeria de Fotos de Campo do Dia
+        pasta_fotos_dia = os.path.join(pasta_base, "fotos_rdc")
+        if os.path.exists(pasta_fotos_dia):
+            fotos_encontradas = [
+                f for f in os.listdir(pasta_fotos_dia) 
+                if f.startswith(data_filtro_str) and f.lower().endswith(('.jpg', '.jpeg', '.png'))
+            ]
+            if fotos_encontradas:
+                st.markdown("<br>", unsafe_allow_html=True)
+                with st.expander(f"📸 Evidências Fotográficas de Campo ({len(fotos_encontradas)} fotos)", expanded=True):
+                    cols_fotos = st.columns(min(3, len(fotos_encontradas)))
+                    for idx_f, f_nome in enumerate(fotos_encontradas):
+                        c_alvo = cols_fotos[idx_f % len(cols_fotos)]
+                        c_img = os.path.join(pasta_fotos_dia, f_nome)
+                        
+                        # Buscar informações do RDC
+                        info_rdc_foto = ""
+                        try:
+                            if os.path.exists(caminho_rdc_registros_csv):
+                                df_rdcs_temp = pd.read_csv(caminho_rdc_registros_csv)
+                                if "FOTO" in df_rdcs_temp.columns and f_nome in df_rdcs_temp["FOTO"].values:
+                                    row_f = df_rdcs_temp[df_rdcs_temp["FOTO"] == f_nome].iloc[0]
+                                    enc_f = row_f.get("ENCARREGADO", "")
+                                    disc_f = row_f.get("DISCIPLINA", "")
+                                    area_f = row_f.get("LOCAL", "")
+                                    info_rdc_foto = f"👤 {enc_f} · 📍 {area_f} ({disc_f})"
+                        except:
+                            pass
+                        
+                        if not info_rdc_foto:
+                            partes = f_nome.replace(data_filtro_str + "_", "").replace(".jpg", "").split("_")
+                            nome_p = " ".join([p for p in partes if not p.isdigit() or len(p) != 6])
+                            hora_p = [p for p in partes if p.isdigit() and len(p) == 6]
+                            hora_str = f" às {hora_p[0][:2]}:{hora_p[0][2:4]}" if hora_p else ""
+                            info_rdc_foto = f"👤 {nome_p}{hora_str}"
+                            
+                        with c_alvo:
+                            st.image(c_img, caption=info_rdc_foto, use_container_width=True)
+
+    # =================================================================
+    # 📱 RDC DIGITAL (LANÇAMENTO DE CAMPO INTEGRADO)
+    # =================================================================
+    if pagina_sgo == "RDC Digital":
+        st.markdown("### <span class='material-symbols-rounded' style='vertical-align: middle; color: #0ea5e9; font-size: 32px;'>phone_iphone</span> Lançamento de RDC Digital", unsafe_allow_html=True)
+        st.caption("Preenchimento rápido de Relatório Diário de Campo com chamada nominal da equipe, cálculo automático de HH e envio instantâneo.")
+        
+        caminho_presenca_csv = os.path.join(pasta_base, "presenca_diaria.csv")
+        
+        with st.container(border=True):
+            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">👤 1. Identificação & Frente de Serviço</h4>', unsafe_allow_html=True)
+            col_d1, col_d2 = st.columns([1.5, 1])
+            with col_d1:
+                rdc_dig_enc = st.selectbox(
+                    "Selecione o Encarregado:",
+                    [""] + lista_encarregados_base,
+                    key="rdc_dig_enc_sel",
+                    help="Escolha o encarregado para carregar a equipe dele automaticamente."
+                )
+            with col_d2:
+                rdc_dig_data = st.date_input("Data do Turno:", datetime.date.today(), key="rdc_dig_dt")
+                
+            col_d3, col_d4, col_d5 = st.columns(3)
+            with col_d3:
+                rdc_dig_turno = st.selectbox("Turno:", ["1º TURNO", "2º TURNO", "3º TURNO", "DIURNO", "NOTURNO", "MISTO"], key="rdc_dig_tur")
+            with col_d4:
+                rdc_dig_caldeira = st.selectbox("Caldeira / Área:", ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OFICINA", "GERAL / OUTRO"], key="rdc_dig_cald")
+            with col_d5:
+                disc_padrao = "TUBULAÇÃO"
+                if rdc_dig_enc and df_atual is not None and not df_atual.empty and "ENCARREGADO" in df_atual.columns and "DISCIPLINA" in df_atual.columns:
+                    m_d = df_atual[df_atual["ENCARREGADO"] == rdc_dig_enc]["DISCIPLINA"].mode()
+                    if len(m_d) > 0 and m_d[0]: disc_padrao = m_d[0]
+                opcs_disc = ["TUBULAÇÃO", "ESTRUTURA METÁLICA", "DUTOS", "SOLDA", "PRESSÃO - TUBULAÇÃO", "PRESSÃO - MECÂNICA", "PRESSÃO - FORNALHA", "ANDAIME", "EQUIPAMENTOS", "PRECIPITADOR", "PINTURA", "CIVIL", "MECÂNICA", "ELÉTRICA", "OUTRA"]
+                if disc_padrao not in opcs_disc: opcs_disc = [disc_padrao] + opcs_disc
+                rdc_dig_disc = st.selectbox("Disciplina Principal:", opcs_disc, index=opcs_disc.index(disc_padrao) if disc_padrao in opcs_disc else 0, key="rdc_dig_disc_sel")
+                
+            rdc_dig_elev = st.text_input("Local Específico / Elevação / Linha:", placeholder="Ex: Elevação +24.000m, Linha de Vapor 12\", Duto Superior...", key="rdc_dig_elev_input")
+
+        # 2. Chamada da Equipe
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">👥 2. Chamada da Equipe & Presença</h4>', unsafe_allow_html=True)
+            
+            if not rdc_dig_enc:
+                st.info("👆 Selecione um encarregado no Passo 1 para carregar a lista de colaboradores.")
+                eq_dig_colabs = pd.DataFrame()
+                status_chamada_dig = {}
+            else:
+                df_at_p = df_atual[df_atual["STATUS"].astype(str).str.upper() == "ATIVO"] if "STATUS" in df_atual.columns else df_atual
+                eq_dig_colabs = df_at_p[df_at_p["ENCARREGADO"] == rdc_dig_enc].copy().reset_index(drop=True)
+                
+                if eq_dig_colabs.empty:
+                    st.warning(f"Nenhum colaborador ATIVO no PDE para **{rdc_dig_enc}**.")
+                    c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+                    with c_m1: man_p = st.number_input("👥 Presentes:", min_value=0, value=1, step=1, key="man_p_dig")
+                    with c_m2: man_f = st.number_input("❌ Faltas:", min_value=0, value=0, step=1, key="man_f_dig")
+                    with c_m3: man_fo = st.number_input("🏖️ Folgas:", min_value=0, value=0, step=1, key="man_fo_dig")
+                    with c_m4: man_a = st.number_input("🏥 Atestados:", min_value=0, value=0, step=1, key="man_a_dig")
+                    status_chamada_dig = {}
+                else:
+                    st.caption(f"Equipe no PDE: **{len(eq_dig_colabs)} colaboradores**. Marque quem faltou ou folgou:")
+                    k_cham = f"dig_chamada_{rdc_dig_enc}_{rdc_dig_data}"
+                    if k_cham not in st.session_state:
+                        st.session_state[k_cham] = {str(row.get("MATRICULA", i)): "PRESENTE" for i, row in eq_dig_colabs.iterrows()}
+                    status_chamada_dig = st.session_state[k_cham]
+                    
+                    if st.button("✅ Marcar Todos como Presentes", key="btn_all_pres_dig"):
+                        for i, row in eq_dig_colabs.iterrows():
+                            status_chamada_dig[str(row.get("MATRICULA", i))] = "PRESENTE"
+                        st.session_state[k_cham] = status_chamada_dig
+                        st.rerun()
+                        
+                    for i, row in eq_dig_colabs.iterrows():
+                        m_k = str(row.get("MATRICULA", i))
+                        n_c = str(row.get("NOME", "Colaborador"))
+                        f_c = str(row.get("FUNÇÃO", "Mão de Obra"))
+                        
+                        col_i, col_s = st.columns([2.5, 1.2])
+                        with col_i:
+                            st.markdown(f"**{n_c}**  \n<span style='color: #94a3b8; font-size: 11px;'>Matrícula: {m_k} · {f_c}</span>", unsafe_allow_html=True)
+                        with col_s:
+                            v_st = status_chamada_dig.get(m_k, "PRESENTE")
+                            opcs_st = ["PRESENTE", "FALTA", "FOLGA", "ATESTADO"]
+                            idx_s = opcs_st.index(v_st) if v_st in opcs_st else 0
+                            novo_s = st.selectbox(f"St_{m_k}", opcs_st, index=idx_s, key=f"sel_st_dig_{m_k}_{rdc_dig_data}", label_visibility="collapsed")
+                            status_chamada_dig[m_k] = novo_s
+                            
+                    st.session_state[k_cham] = status_chamada_dig
+                    
+                    tot_p = sum([1 for v in status_chamada_dig.values() if v == "PRESENTE"])
+                    tot_f = sum([1 for v in status_chamada_dig.values() if v == "FALTA"])
+                    tot_fo = sum([1 for v in status_chamada_dig.values() if v == "FOLGA"])
+                    tot_at = sum([1 for v in status_chamada_dig.values() if v == "ATESTADO"])
+                    hh_calc = tot_p * 8.8
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    kp1, kp2, kp3, kp4, kp5 = st.columns(5)
+                    with kp1: st.metric("👥 Presentes", tot_p)
+                    with kp2: st.metric("❌ Faltas", tot_f)
+                    with kp3: st.metric("🏖️ Folgas", tot_fo)
+                    with kp4: st.metric("🏥 Atestados", tot_at)
+                    with kp5: st.metric("⏱️ HH Produção", f"{hh_calc:.1f} HH")
+
+        # 3. Atividades & Segurança
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">📝 3. Diálogo de Segurança (DDS) & Atividades</h4>', unsafe_allow_html=True)
+            rdc_dig_dds = st.text_input("Tópico do DDS (Segurança):", placeholder="Ex: Trabalho a Quente, Bloqueio de Válvulas...", key="rdc_dig_dds_in")
+            rdc_dig_ativ = st.text_area("Atividades Executadas no Turno (Obrigatório):", height=120, placeholder="Descreva os serviços realizados pela equipe...", key="rdc_dig_ativ_in")
+            
+            st.markdown('<h5 style="color: #f87171; margin-top: 15px;">⚠️ Problemas / Bloqueios (Se houver)</h5>', unsafe_allow_html=True)
+            rdc_dig_tags_prob = st.multiselect("Classificação de Bloqueio:", ["Falta de Material / Consumível", "Aguardando Liberação / Montagem de Andaime", "Interferência de Outra Equipe", "Chuva / Clima Adverso", "Problema com Guindaste / Içamento", "Falta de PT / Liberação", "Equipamento Danificado", "Outro"], key="rdc_dig_tags")
+            rdc_dig_prob_txt = st.text_area("Detalhes do Problema / Restrição Técnica:", height=65, placeholder="Explique o que travou a equipe e tempo parado...", key="rdc_dig_prob_in")
+
+        # 4. Foto de Evidência de Campo
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">📸 4. Foto de Evidência de Campo (Opcional)</h4>', unsafe_allow_html=True)
+            foto_dig_in = st.camera_input("Tire uma foto da frente de serviço:", key="cam_rdc_dig_main")
+            if not foto_dig_in:
+                foto_dig_in = st.file_uploader("Ou anexe uma foto da galeria:", type=["jpg", "jpeg", "png"], key="up_rdc_dig_main")
+            if foto_dig_in:
+                st.image(foto_dig_in, caption="Evidência Fotográfica Anexada", use_container_width=True)
+
+        # 5. Botão de Envio
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚀 SALVAR E TRANSMITIR RDC DIGITAL", type="primary", use_container_width=True, key="btn_submit_rdc_dig"):
+            if not rdc_dig_enc:
+                st.error("❌ Selecione o Encarregado.")
+            elif not rdc_dig_ativ.strip():
+                st.error("❌ Preencha as Atividades Executadas.")
+            else:
+                if not eq_dig_colabs.empty and status_chamada_dig:
+                    val_pres = sum([1 for v in status_chamada_dig.values() if v == "PRESENTE"])
+                    val_falt = sum([1 for v in status_chamada_dig.values() if v == "FALTA"])
+                    val_folg = sum([1 for v in status_chamada_dig.values() if v == "FOLGA"])
+                    val_ates = sum([1 for v in status_chamada_dig.values() if v == "ATESTADO"])
+                    val_prev = len(eq_dig_colabs)
+                else:
+                    val_pres = man_p if 'man_p' in locals() else 1
+                    val_falt = man_f if 'man_f' in locals() else 0
+                    val_folg = man_fo if 'man_fo' in locals() else 0
+                    val_ates = man_a if 'man_a' in locals() else 0
+                    val_prev = val_pres + val_falt + val_folg + val_ates
+
+                d_iso = rdc_dig_data.strftime("%Y-%m-%d")
+                d_br = rdc_dig_data.strftime("%d/%m/%Y")
+                
+                txt_prob = ""
+                if rdc_dig_tags_prob: txt_prob = f"[{', '.join(rdc_dig_tags_prob)}] "
+                if rdc_dig_prob_txt.strip(): txt_prob += rdc_dig_prob_txt.strip()
+                
+                # Salvar foto se houver
+                nome_foto_dig = ""
+                if foto_dig_in:
+                    try:
+                        import re
+                        pasta_fotos_sys = os.path.join(pasta_base, "fotos_rdc")
+                        os.makedirs(pasta_fotos_sys, exist_ok=True)
+                        enc_c = re.sub(r'[^a-zA-Z0-9]', '_', rdc_dig_enc)
+                        ts_c = datetime.datetime.now().strftime('%H%M%S')
+                        nome_foto_dig = f"{d_iso}_{enc_c}_{ts_c}.jpg"
+                        with open(os.path.join(pasta_fotos_sys, nome_foto_dig), "wb") as f_out:
+                            f_out.write(foto_dig_in.getvalue())
+                    except:
+                        pass
+                
+                novo_rdc_row = {
+                    "DATA": d_iso,
+                    "DISCIPLINA": rdc_dig_disc,
+                    "ENCARREGADO": rdc_dig_enc,
+                    "TURNO": rdc_dig_turno,
+                    "EFETIVO_PREVISTO": str(val_prev),
+                    "EFETIVO_PRESENTE": str(val_pres),
+                    "FALTAS": str(val_falt),
+                    "FOLGAS": str(val_folg),
+                    "ATESTADOS": str(val_ates),
+                    "DDS": rdc_dig_dds.strip() if rdc_dig_dds.strip() else "Não Informado",
+                    "TRANSCRICAO": rdc_dig_ativ.strip(),
+                    "ATIVIDADE": rdc_dig_ativ.strip()[:200].upper(),
+                    "PROBLEMAS": txt_prob,
+                    "LOCAL": rdc_dig_caldeira,
+                    "AREA": rdc_dig_disc,
+                    "CALDEIRA": rdc_dig_caldeira if rdc_dig_caldeira in ["PB", "RB", "ESP"] else "",
+                    "FOTO": nome_foto_dig,
+                    "CRIADO_EM": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                
+                try:
+                    df_novo_r = pd.DataFrame([novo_rdc_row])
+                    if os.path.exists(caminho_rdc_registros_csv):
+                        df_ex = pd.read_csv(caminho_rdc_registros_csv)
+                        df_s = pd.concat([df_ex, df_novo_r], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO", "ATIVIDADE"])
+                    else:
+                        df_s = df_novo_r
+                    df_s.to_csv(caminho_rdc_registros_csv, index=False)
+                except Exception as e_s_rdc:
+                    st.warning(f"Erro ao salvar RDC: {e_s_rdc}")
+                    
+                # Atualizar F1
+                try:
+                    f1_item = {"DATA": d_iso, "ENCARREGADO": rdc_dig_enc}
+                    if os.path.exists(caminho_historico_f1_csv):
+                        df_f1_loc = pd.read_csv(caminho_historico_f1_csv)
+                        if not ((df_f1_loc["DATA"] == d_iso) & (df_f1_loc["ENCARREGADO"] == rdc_dig_enc)).any():
+                            pd.concat([df_f1_loc, pd.DataFrame([f1_item])], ignore_index=True).to_csv(caminho_historico_f1_csv, index=False)
+                    else:
+                        pd.DataFrame([f1_item]).to_csv(caminho_historico_f1_csv, index=False)
+                    # Atualizar session_state da F1 para o Radar refletir na hora
+                    if st.session_state.df_historico_f1 is not None:
+                        if not ((st.session_state.df_historico_f1["DATA"] == d_iso) & (st.session_state.df_historico_f1["ENCARREGADO"] == rdc_dig_enc)).any():
+                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, pd.DataFrame([f1_item])], ignore_index=True)
+                except:
+                    pass
+                    
+                st.success(f"🎉 **RDC Digital de {rdc_dig_enc} transmitido e salvo com sucesso!**")
+                st.balloons()
+                
+                # Texto para WhatsApp
+                zap = f"*📋 COMPROVANTE DE RDC DIGITAL — ENESA*\n"
+                zap += f"👤 *Líder:* {rdc_dig_enc}\n"
+                zap += f"📅 *Data:* {d_br} | *Turno:* {rdc_dig_turno}\n"
+                zap += f"📍 *Área/Disciplina:* {rdc_dig_caldeira} · {rdc_dig_disc}\n"
+                zap += f"👥 *Efetivo:* {val_pres} Presentes | {val_falt} Faltas | {val_folg} Folgas | {val_ates} Atestados\n"
+                zap += f"⏱️ *HH Comprovado:* {val_pres * 8.8:.1f} HH\n\n"
+                zap += f"*📝 Atividades:*\n{rdc_dig_ativ.strip()}\n"
+                if txt_prob: zap += f"\n*⚠️ Bloqueios:*\n{txt_prob}\n"
+                zap += f"\n_Transmitido via SGO RDC Digital_"
+                
+                st.markdown("### 📲 Comprovante Formatado para WhatsApp:")
+                st.code(zap, language="text")
+                st.caption("💡 Copie o texto acima e envie no grupo da obra.")
 
     if pagina_sgo == "Emissão de RDC":
         st.markdown("### Emissão de RDC")
@@ -6145,28 +6635,10 @@ Retorne apenas o JSON sem crases ou markdown."""
                             
                     if novos_registros:
                         df_novos = pd.DataFrame(novos_registros)
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
-                                if not df_fresco.empty:
-                                    df_fresco = df_fresco.dropna(how='all')
-                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                else:
-                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                
-                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                                if ok:
-                                    st.session_state.df_historico_f1 = df_final
-                                st.cache_data.clear()
-                                st.toast(f"{len(novos_registros)} novos RDCs sincronizados com a nuvem! ({nomes_ja_existentes} já constavam).", icon="✅")
-                            except Exception as e:
-                                st.error(f"Erro ao salvar na nuvem: {e}")
-                                st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                        else:
-                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.toast(f"{len(novos_registros)} novos RDCs adicionados localmente! ({nomes_ja_existentes} já constavam).", icon="✅")
+                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                        st.session_state.df_historico_f1 = df_final
+                        salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                        st.toast(f"{len(novos_registros)} novos RDCs sincronizados! ({nomes_ja_existentes} já constavam).", icon="✅")
                     elif nomes_ja_existentes > 0:
                         st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
                         
@@ -6196,9 +6668,18 @@ Retorne apenas o JSON sem crases ou markdown."""
             df_hist["DATA"] = pd.to_datetime(df_hist["DATA_ISO"], errors="coerce")
             df_hist = df_hist.dropna(subset=["DATA"])
             df_hist["MES_ANO"] = df_hist["DATA"].dt.strftime("%Y-%m")
-            meses_disponiveis = sorted(df_hist["MES_ANO"].unique(), reverse=True)
+            
+        hoje_ref = datetime.date.today()
+        meses_gerados = []
+        for i_m in range(18):
+            ano_m = hoje_ref.year - ((hoje_ref.month - 1 - i_m) < 0 and 1 or 0)
+            mes_m = ((hoje_ref.month - 1 - i_m) % 12) + 1
+            meses_gerados.append(f"{ano_m:04d}-{mes_m:02d}")
+            
+        if not df_hist.empty and "MES_ANO" in df_hist.columns:
+            meses_disponiveis = sorted(list(set(meses_gerados + df_hist["MES_ANO"].unique().tolist())), reverse=True)
         else:
-            meses_disponiveis = [datetime.date.today().strftime("%Y-%m")]
+            meses_disponiveis = sorted(meses_gerados, reverse=True)
             
         col_f1_mes, col_f1_disc = st.columns([1, 1])
         with col_f1_mes:
@@ -6415,11 +6896,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos_mk], ignore_index=True)
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
                                 if conn and not st.session_state.get('force_use_local', False):
-                                    try:
-                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                                        st.cache_data.clear()
-                                    except Exception:
-                                        pass
+                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                                 st.success(f"✅ {len(novos)} entrega(s) marcada(s) no dia {dia_marcar}!")
                             else:
                                 st.info("ℹ️ Todos já estavam marcados nesse dia.")
@@ -6433,15 +6910,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     removidos += 1
                             if removidos > 0:
                                 if conn and not st.session_state.get('force_use_local', False):
-                                    try:
-                                        salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
-                                        st.cache_data.clear()
-                                    except Exception:
-                                        pass
+                                    salvar_f1_seguro(conn, st.session_state.df_historico_f1, caminho_historico_f1_csv)
                                 st.success(f"❌ {removidos} entrega(s) desmarcada(s) no dia {dia_marcar}!")
                             else:
                                 st.info("ℹ️ Nenhum deles estava marcado nesse dia.")
-                        time.sleep(2)
+                        time.sleep(0.5)
                         st.rerun()
 
             # --- EXPORTAÇÃO E NUVEM ---
@@ -6809,6 +7282,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                 - DISCIPLINA: Extraia a disciplina ou função do topo, mas RETORNE APENAS A PRIMEIRA PALAVRA OU A PALAVRA PRINCIPAL (ex: MECÂNICA, SOLDA, TOPOGRAFIA, CALDEIRARIA). Se for montador de andaime escreva ANDAIME. Sempre apenas 1 palavra.
                 - ENCARREGADO: É QUASE PROIBIDO retornar 'AJUSTAR NOME'. Você DEVE escolher o nome da lista oficial [{nomes_para_prompt}] que for mais parecido fonética ou visualmente com o que está escrito à mão, mesmo que a letra seja péssima, haja apenas o primeiro nome, iniciais (ex: "J. Silva") ou erros grosseiros. Faça o cruzamento lógico e retorne EXATAMENTE o nome completo da lista. Só use 'AJUSTAR NOME' se o campo estiver 100% em branco ou completamente rasurado sem nenhuma letra legível.
                 - TURNO: Extraia o turno marcado ('1º TURNO', '2º TURNO', '3º TURNO', 'DIURNO' ou 'NOTURNO').
+                - EFETIVO_PREVISTO: Extraia a quantidade total de colaboradores prevista/cadastrada para a equipe indicada no cabeçalho (ex: 'Previsto: 12' ou 'Total: 12'). Retorne apenas o número (ex: '12'). Se não constar, retorne ''.
+                - EFETIVO_PRESENTE: Extraia a quantidade real de colaboradores que estavam PRESENTES trabalhando no dia (ex: 'Presentes: 10' ou número de efetivo trabalhado). Retorne apenas o número (ex: '10'). Se não constar, retorne ''.
+                - FALTAS: Extraia a quantidade de faltas anotadas no cabeçalho ou nas observações da equipe (ex: 'Faltas: 2'). Retorne apenas o número (ex: '2'). Se não houver faltas relatadas, retorne '0'.
+                - FOLGAS: Extraia a quantidade de folgas da equipe (ex: 'Folga: 1'). Retorne apenas o número (ex: '1'). Se não constar, retorne '0'.
+                - ATESTADOS: Extraia o número de atestados médicos ou afastamentos da equipe (ex: 'Atestado: 1'). Se não constar, retorne '0'.
                 - DDS: Extraia o tema principal de Segurança mencionado no relatório (DDS, Diálogo de Segurança). (ex: Trabalho a quente, Bloqueio, etc). Se não tiver, retorne 'Não Informado'.
                 - TRANSCRICAO: Leia TUDO o que está escrito na seção de ATIVIDADES do RDC e transcreva o CONTEÚDO COMPLETO de forma LEGÍVEL e COMPREENSÍVEL. Corrija a ortografia usando o glossário acima, mas NÃO resuma e NÃO elimine detalhes. Inclua TODAS as informações que o encarregado anotou.
                 - ATIVIDADE: Crie um RESUMO GERAL de no máximo 35 palavras contendo as principais atividades executadas em todo o RDC. TUDO EM MAIÚSCULAS. CORRIJA a ortografia usando o glossário acima. NÃO CRIE SUBNÍVEIS, APENAS UM ÚNICO RESUMO TEXTUAL.
@@ -6946,7 +7424,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         from google import genai
                         
                         tmp_path = arquivo_dict['tmp_path']
-                        max_tentativas = 2
+                        max_tentativas = 4
                         idx_chave_atual_local = 0
                         client_local = genai.Client(api_key=chaves_api[idx_chave_atual_local])
                         
@@ -6971,34 +7449,35 @@ Retorne apenas o JSON sem crases ou markdown."""
                                     time.sleep(1.5)
                                     tempo_espera += 1.5
                                 
-                                # Lista de modelos em ordem de tentativa para máxima resiliência
-                                modelos_tentativa = []
-                                if modelo_gemini:
+                                # Modelos estáveis com alta cota de requisições no Free Tier
+                                modelos_tentativa = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest']
+                                if modelo_gemini and modelo_gemini not in modelos_tentativa:
                                     modelos_tentativa.append(modelo_gemini)
-                                for m_fb in ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.7-flash']:
-                                    if m_fb not in modelos_tentativa:
-                                        modelos_tentativa.append(m_fb)
                                 
                                 resposta = None
                                 ultimo_err_mod = None
                                 for mod_atual in modelos_tentativa:
-                                    try:
-                                        resposta = client_local.models.generate_content(
-                                            model=mod_atual,
-                                            contents=[arquivo_up, prompt_ia],
-                                            config=genai.types.GenerateContentConfig(
-                                                response_mime_type="application/json",
-                                                response_schema=list[schema],
-                                                temperature=0.0
+                                    sucesso = False
+                                    for attempt in range(3):
+                                        try:
+                                            resposta = client_local.models.generate_content(
+                                                model=mod_atual,
+                                                contents=[arquivo_up, prompt_ia],
+                                                config=genai.types.GenerateContentConfig(
+                                                    response_mime_type='application/json',
+                                                    response_schema=list[schema],
+                                                    temperature=0.0
+                                                )
                                             )
-                                        )
-                                        if resposta and resposta.text:
-                                            break
-                                    except Exception as err_gen:
-                                        ultimo_err_mod = err_gen
-                                        # Tenta o próximo modelo imediatamente em caso de 503, 404, 429
-                                        continue
-                                
+                                            if resposta and resposta.text:
+                                                sucesso = True
+                                                break
+                                        except Exception as err_gen:
+                                            ultimo_err_mod = err_gen
+                                            time.sleep(5.0)
+                                            continue
+                                    if sucesso:
+                                        break
                                 if not resposta or not resposta.text:
                                     if ultimo_err_mod:
                                         raise ultimo_err_mod
@@ -7055,7 +7534,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                                 if isinstance(dados_extraidos_lista, dict):
                                     dados_extraidos_lista = [dados_extraidos_lista]
 
-                                # Se o nome do arquivo contem data (ex: 07-09.pdf -> 2026-09-07), ela tem prioridade absoluta com o ano atual
                                 data_do_nome = arquivo_dict.get('data_extraida')
                                 if data_do_nome:
                                     data_norm = normalizar_data_brasil(data_do_nome)
@@ -7076,6 +7554,16 @@ Retorne apenas o JSON sem crases ou markdown."""
                                         dados['LOCAL'] = ''
                                     if 'AREA' not in dados:
                                         dados['AREA'] = ''
+                                    if 'EFETIVO_PREVISTO' not in dados:
+                                        dados['EFETIVO_PREVISTO'] = ''
+                                    if 'EFETIVO_PRESENTE' not in dados:
+                                        dados['EFETIVO_PRESENTE'] = ''
+                                    if 'FALTAS' not in dados:
+                                        dados['FALTAS'] = '0'
+                                    if 'FOLGAS' not in dados:
+                                        dados['FOLGAS'] = '0'
+                                    if 'ATESTADOS' not in dados:
+                                        dados['ATESTADOS'] = '0'
                                     dados['SUB'] = 1
                                     dados['SUB_ATIVIDADE'] = dados.get('ATIVIDADE', '')
                                     dados['LOCAL_ESPECIFICO'] = ''
@@ -7093,11 +7581,11 @@ Retorne apenas o JSON sem crases ou markdown."""
                                             time.sleep(2)
                                             continue
                                         else:
-                                            time.sleep(15)
+                                            time.sleep(12)
                                             continue
-                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str:
+                                elif '503' in erro_str or 'UNAVAILABLE' in erro_str or 'high demand' in erro_str.lower():
                                     if tentativa < max_tentativas - 1:
-                                        time.sleep(2)
+                                        time.sleep(3 + (tentativa * 3))
                                         continue
                                 raise Exception(f"Erro na IA: {inner_e}")
                             finally:
@@ -7108,9 +7596,9 @@ Retorne apenas o JSON sem crases ou markdown."""
                                         pass
 
                     import concurrent.futures
-                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-3.7-flash')
+                    modelo_usado = st.session_state.get('modelo_gemini', 'gemini-3.5-flash')
                     
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                         future_to_chunk = {
                             executor.submit(processar_chunk_ia, chunk, lista_chaves, modelo_usado, prompt_ia, RDC_Schema, old_cred): chunk
                             for chunk in arquivos_processar
@@ -7187,7 +7675,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     )
                 with col_dw2:
                     if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
                         st.rerun()
                 
                 st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
@@ -7203,14 +7691,30 @@ Retorne apenas o JSON sem crases ou markdown."""
                             data = bloco.iloc[0].get('DATA', '?')
                             resumo = bloco.iloc[0].get('ATIVIDADE', '')
                             transcricao = bloco.iloc[0].get('TRANSCRICAO', '')
+                            efet_pres = bloco.iloc[0].get('EFETIVO_PRESENTE', '')
+                            faltas_val = bloco.iloc[0].get('FALTAS', '0')
+                            folgas_val = bloco.iloc[0].get('FOLGAS', '0')
+                            atest_val = bloco.iloc[0].get('ATESTADOS', '0')
+                            
+                            tag_efetivo = ""
+                            if (efet_pres and str(efet_pres).strip()) or (faltas_val and str(faltas_val).strip() not in ['0', '']):
+                                tag_efetivo = f"""
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0;">
+                                    <span style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #34d399; font-weight: 600;">👥 Presentes: {efet_pres if str(efet_pres).strip() else 'N/I'}</span>
+                                    <span style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #f87171; font-weight: 600;">❌ Faltas: {faltas_val}</span>
+                                    <span style="background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #60a5fa; font-weight: 600;">🏖️ Folgas: {folgas_val}</span>
+                                    <span style="background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #c084fc; font-weight: 600;">🏥 Atestados: {atest_val}</span>
+                                </div>
+                                """
                             
                             st.markdown(f"""
                             <div style="background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.25); border-radius: 12px; padding: 15px; margin-bottom: 12px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                     <span style="font-weight: 700; color: #0ea5e9; font-size: 15px;">📋 RDC #{int(item_id)} — {enc}</span>
                                     <span style="color: #64748b; font-size: 12px;">{disc} · {data}</span>
                                 </div>
-                                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 5px 0;">📝 Resumo Final: {resumo}</p>
+                                {tag_efetivo}
+                                <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 5px 0;">📝 Resumo Final: {resumo}</p>
                             """, unsafe_allow_html=True)
                             
                             if transcricao and str(transcricao).strip():
@@ -7234,7 +7738,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
                 # Preparar dados para edição
                 df_editavel = df_filtrado.copy()
-                colunas_mostrar = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
+                colunas_mostrar = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PRESENTE', 'FALTAS', 'ATIVIDADE', 'CALDEIRA']
                 df_editavel = df_editavel[[c for c in colunas_mostrar if c in df_editavel.columns]]
                 
                 df_editado = st.data_editor(df_editavel, hide_index=True, use_container_width=True, key="editor_ia_df")
@@ -7248,7 +7752,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     for _, row_edit in df_editado.iterrows():
                         item_id = row_edit['ITEM']
                         idx = df_filtrado[df_filtrado['ITEM'] == item_id].index
-                        for col in ['DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']:
+                        for col in ['DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PRESENTE', 'FALTAS', 'ATIVIDADE', 'CALDEIRA']:
                             if col in row_edit:
                                 df_filtrado.loc[idx, col] = row_edit[col]
                                 
@@ -7256,7 +7760,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     
                     # === PERSISTIR RDCs COMPLETOS NO BANCO DE DADOS ===
                     try:
-                        colunas_rdc = ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA']
+                        colunas_rdc = ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA']
                         df_salvar_rdc = df_filtrado.copy()
                         df_salvar_rdc['DATA'] = df_salvar_rdc['DATA'].apply(normalizar_data_brasil)
                         for col in colunas_rdc:
