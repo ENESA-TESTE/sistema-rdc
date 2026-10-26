@@ -719,6 +719,42 @@ def auditar_e_sincronizar_pde(df_bruto, fonte="GOOGLE_SHEETS"):
     return True, f"Sincronizados {len(df_sub)} funcionários com sucesso."
 
 
+def _garantir_colunas_padrao(df):
+    """Garante que o DataFrame tenha os nomes de colunas padrão (C.C, FUNÇÃO, ENCARREGADO, STATUS, etc)."""
+    if df is None or df.empty:
+        return df
+    mapping = {}
+    for col in df.columns:
+        c_up = str(col).strip().upper()
+        if "MATR" in c_up and not any(k in c_up for k in ["ENCARR", "COORD"]):
+            mapping[col] = "MATRICULA"
+        elif "NOME" in c_up:
+            mapping[col] = "NOME"
+        elif "FUN" in c_up:
+            mapping[col] = "FUNÇÃO"
+        elif "CUSTO" in c_up or "C.C" in c_up or c_up == "CC":
+            mapping[col] = "C.C"
+        elif "ENCARR" in c_up and "MATR" not in c_up:
+            mapping[col] = "ENCARREGADO"
+        elif "TURNO" in c_up:
+            mapping[col] = "TURNO"
+        elif "STATUS" in c_up or "SIT" in c_up:
+            mapping[col] = "STATUS"
+        elif "DISCIP" in c_up:
+            mapping[col] = "DISCIPLINA"
+        elif "MÃO DE OBRA" in c_up or "MAO DE OBRA" in c_up or "M.O" in c_up or c_up == "MO":
+            mapping[col] = "MÃO DE OBRA"
+    df_out = df.rename(columns=mapping)
+    if "C.C" not in df_out.columns:
+        col_cc = [c for c in df_out.columns if any(k in str(c).upper() for k in ["CUSTO", "CC"])]
+        df_out["C.C"] = df_out[col_cc[0]] if col_cc else ""
+    if "FUNÇÃO" not in df_out.columns and "FUNCAO" in df_out.columns:
+        df_out["FUNÇÃO"] = df_out["FUNCAO"]
+    if "STATUS" not in df_out.columns:
+        df_out["STATUS"] = "ATIVO"
+    return df_out
+
+
 def carregar_pde_instantaneo():
     """
     Retorna o DataFrame de funcionários com leitura instantânea (< 1ms).
@@ -757,7 +793,8 @@ def carregar_pde_instantaneo():
                     with get_db_connection() as conn:
                         df_s = pd.read_sql_query("SELECT * FROM pde_funcionarios;", conn)
                         if not df_s.empty:
-                            return df_s.rename(columns={"CC": "C.C", "FUNCAO": "FUNÇÃO", "MAO_DE_OBRA": "MÃO DE OBRA"})
+                            df = _garantir_colunas_padrao(df)
+                    return df_s.rename(columns={"CC": "C.C", "FUNCAO": "FUNÇÃO", "MAO_DE_OBRA": "MÃO DE OBRA"})
     except Exception as e:
         print(f"Aviso ao buscar Google Sheets em carregar_pde_instantaneo: {e}")
 
@@ -772,6 +809,7 @@ def carregar_pde_instantaneo():
                         auditar_e_sincronizar_pde(df, fonte="CSV_LOCAL")
                     except Exception:
                         pass
+                    df = _garantir_colunas_padrao(df)
                     return df
             except Exception:
                 pass

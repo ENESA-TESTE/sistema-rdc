@@ -222,6 +222,23 @@ def obter_base_pde_otimizada():
 
 df_pde, erro_pde = obter_base_pde_otimizada()
 
+# Blindagem universal de nomes de colunas
+if df_pde is not None and not df_pde.empty:
+    if "C.C" not in df_pde.columns:
+        cands = [c for c in df_pde.columns if any(k in str(c).upper() for k in ["CUSTO", "C.C", "CC"])]
+        df_pde["C.C"] = df_pde[cands[0]] if cands else ""
+    if "FUNÇÃO" not in df_pde.columns:
+        cands = [c for c in df_pde.columns if "FUN" in str(c).upper()]
+        df_pde["FUNÇÃO"] = df_pde[cands[0]] if cands else ""
+    if "ENCARREGADO" not in df_pde.columns:
+        cands = [c for c in df_pde.columns if "ENCARR" in str(c).upper() and "MATR" not in str(c).upper()]
+        df_pde["ENCARREGADO"] = df_pde[cands[0]] if cands else ""
+    if "STATUS" not in df_pde.columns:
+        df_pde["STATUS"] = "ATIVO"
+    if "MATRICULA" not in df_pde.columns:
+        cands = [c for c in df_pde.columns if "MATR" in str(c).upper() and "ENCARR" not in str(c).upper()]
+        df_pde["MATRICULA"] = df_pde[cands[0]] if cands else ""
+
 if df_pde is None or df_pde.empty:
     st.error("⚠️ Banco de dados PDE não carregado.")
     if erro_pde:
