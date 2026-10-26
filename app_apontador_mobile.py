@@ -250,7 +250,10 @@ if df_pde is None or df_pde.empty:
     st.stop()
 
 # Filtrar apenas ativos
-df_ativos = df_pde[df_pde["STATUS"] == "ATIVO"].copy()
+# Deduplicação de colunas e filtragem robusta de ativos
+df_pde = df_pde.loc[:, ~df_pde.columns.duplicated()]
+col_st = df_pde["STATUS"].iloc[:, 0] if isinstance(df_pde["STATUS"], pd.DataFrame) else df_pde["STATUS"]
+df_ativos = df_pde[col_st.astype(str).str.strip().str.upper() == "ATIVO"].copy()
 
 # Lista limpa e completa de encarregados ativos
 mapa_enc_mat = pde_engine.obter_mapa_encarregados_matricula()

@@ -669,13 +669,16 @@ def normalizar_colunas_pde(df):
             mapping[col] = "ENCARREGADO"
         elif "TURNO" in c_up:
             mapping[col] = "TURNO"
-        elif "STATUS" in c_up or "SIT" in c_up:
+        elif "STATUS" in c_up:
             mapping[col] = "STATUS"
+        elif "SIT" in c_up:
+            mapping[col] = "SITUACAO"
         elif "DISCIP" in c_up:
             mapping[col] = "DISCIPLINA"
         elif "MÃO DE OBRA" in c_up or "MAO DE OBRA" in c_up or "M.O" in c_up or c_up == "MO":
             mapping[col] = "MAO_DE_OBRA"
-    return df.rename(columns=mapping)
+    df_ren = df.rename(columns=mapping)
+    return df_ren.loc[:, ~df_ren.columns.duplicated()]
 
 
 def auditar_e_sincronizar_pde(df_bruto, fonte="GOOGLE_SHEETS"):
@@ -738,8 +741,10 @@ def _garantir_colunas_padrao(df):
             mapping[col] = "ENCARREGADO"
         elif "TURNO" in c_up:
             mapping[col] = "TURNO"
-        elif "STATUS" in c_up or "SIT" in c_up:
+        elif "STATUS" in c_up:
             mapping[col] = "STATUS"
+        elif "SIT" in c_up:
+            mapping[col] = "SITUACAO"
         elif "DISCIP" in c_up:
             mapping[col] = "DISCIPLINA"
         elif "MÃO DE OBRA" in c_up or "MAO DE OBRA" in c_up or "M.O" in c_up or c_up == "MO":
@@ -752,7 +757,7 @@ def _garantir_colunas_padrao(df):
         df_out["FUNÇÃO"] = df_out["FUNCAO"]
     if "STATUS" not in df_out.columns:
         df_out["STATUS"] = "ATIVO"
-    return df_out
+    return df_out.loc[:, ~df_out.columns.duplicated()]
 
 
 def carregar_pde_instantaneo():
