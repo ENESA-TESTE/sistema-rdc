@@ -4846,206 +4846,6 @@ Retorne apenas o JSON sem crases ou markdown."""
         with m5: st.markdown(card_kpi(t("Span of Control"), span_control, "groups", "#8b5cf6"), unsafe_allow_html=True)
         
         # ==============================================================
-        # ⏱️ RADAR DE HOMEM-HORA (HH) & RASTREABILIDADE DE CAMPO
-        # ==============================================================
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.container(border=True):
-            # 1. Contagem real do PDE (Google Sheets) por encarregado ativo
-            df_ativos_pde = df_atual[df_atual["STATUS"].astype(str).str.upper() == "ATIVO"] if "STATUS" in df_atual.columns else df_atual.copy()
-            mapa_tamanho_equipes = df_ativos_pde["ENCARREGADO"].value_counts().to_dict() if "ENCARREGADO" in df_ativos_pde.columns else {}
-            
-            # Mapeamento da disciplina real de cada encarregado no PDE
-            if "DISCIPLINA" in df_ativos_pde.columns and "ENCARREGADO" in df_ativos_pde.columns:
-                mapa_disc_enc = df_ativos_pde.groupby("ENCARREGADO")["DISCIPLINA"].agg(lambda x: x.mode()[0] if len(x) > 0 else "GERAL").to_dict()
-            else:
-                mapa_disc_enc = {}
-            
-            # Apenas encarregados com equipe real (> 0 colaboradores)
-            encs_com_equipe = [
-                enc for enc in lista_completa_encarregados 
-                if mapa_tamanho_equipes.get(enc, 0) > 0 and str(enc).upper() not in ["NAN", "NONE", "-", "AJUSTAR NOME"]
-            ]
-            total_encs_ativos = len(encs_com_equipe)
-
-            # Data de análise do radar
-            hoje_radar = agora_local_sgo().date()
-            col_rad_h1, col_rad_h2 = st.columns([3, 1])
-            with col_rad_h1:
-                st.markdown("""
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 20px;">⏱️</span>
-                    <h4 style="margin: 0; color: #f8fafc; font-size: 16px; font-weight: 700;">
-                        Radar de Homem-Hora (HH) & Rastreabilidade de Campo
-                    </h4>
-                </div>
-                <p style="color: #94a3b8; font-size: 12px; margin: 4px 0 0 0;">
-                    Monitoramento em tempo real do HH comprovado via RDC vs. HH no escuro (equipes sem apontamento).
-                </p>
-                """, unsafe_allow_html=True)
-            with col_rad_h2:
-                data_radar_sel = st.date_input("Data de Análise:", value=hoje_radar, key="dt_radar_hh")
-            
-            data_radar_iso = data_radar_sel.strftime("%Y-%m-%d")
-
-            # 2. Verificar quem entregou RDC nessa data e capturar dados de efetivo da IA
-            df_f1_mem = st.session_state.df_historico_f1
-            entregues_no_dia = set()
-            if df_f1_mem is not None and not df_f1_mem.empty and "DATA" in df_f1_mem.columns and "ENCARREGADO" in df_f1_mem.columns:
-                entregues_no_dia = set(
-                    df_f1_mem[df_f1_mem["DATA"] == data_radar_iso]["ENCARREGADO"].dropna().unique()
-                )
-
-            # Buscar dados detalhados de efetivo presentes e faltas nos RDCs lidos
-            mapa_efetivo_ia = {}
-            mapa_faltas_ia = {}
-            mapa_folgas_ia = {}
-            mapa_atestados_ia = {}
-            if os.path.exists(caminho_rdc_registros_csv):
-                try:
-                    df_rdc_banco_temp = pd.read_csv(caminho_rdc_registros_csv)
-                    if not df_rdc_banco_temp.empty and "DATA" in df_rdc_banco_temp.columns and "ENCARREGADO" in df_rdc_banco_temp.columns:
-                        df_dia_rdc = df_rdc_banco_temp[df_rdc_banco_temp["DATA"] == data_radar_iso]
-                        for _, r_rdc in df_dia_rdc.iterrows():
-                            enc_r = str(r_rdc.get("ENCARREGADO", "")).strip()
-                            # Efetivo presente
-                            pres_str = str(r_rdc.get("EFETIVO_PRESENTE", "")).strip()
-                            if pres_str.isdigit() and int(pres_str) > 0:
-                                mapa_efetivo_ia[enc_r] = int(pres_str)
-                            # Faltas
-                            falt_str = str(r_rdc.get("FALTAS", "0")).strip()
-                            if falt_str.isdigit():
-                                mapa_faltas_ia[enc_r] = int(falt_str)
-                            # Folgas
-                            folg_str = str(r_rdc.get("FOLGAS", "0")).strip()
-                            if folg_str.isdigit():
-                                mapa_folgas_ia[enc_r] = int(folg_str)
-                            # Atestados
-                            atest_str = str(r_rdc.get("ATESTADOS", "0")).strip()
-                            if atest_str.isdigit():
-                                mapa_atestados_ia[enc_r] = int(atest_str)
-                except:
-                    pass
-
-            # Separar entregues vs pendentes (apenas entre quem tem equipe real)
-            encs_entregues = [e for e in encs_com_equipe if e in entregues_no_dia]
-            encs_pendentes = [e for e in encs_com_equipe if e not in entregues_no_dia]
-
-            # 3. Cálculos de HH (8.8 horas por colaborador)
-            HORAS_TURNO = 8.8
-            
-            # Efetivo real entregue: usa valor da IA se presente, senão usa PDE
-            colabs_entregues = sum([mapa_efetivo_ia.get(e, mapa_tamanho_equipes.get(e, 0)) for e in encs_entregues])
-            colabs_pendentes = sum([mapa_tamanho_equipes.get(e, 0) for e in encs_pendentes])
-            
-            total_faltas_dia = sum(mapa_faltas_ia.values())
-            total_folgas_dia = sum(mapa_folgas_ia.values())
-            total_atestados_dia = sum(mapa_atestados_ia.values())
-            total_ausencias = total_faltas_dia + total_folgas_dia + total_atestados_dia
-            hh_perdido_absenteismo = (total_faltas_dia + total_atestados_dia) * HORAS_TURNO
-            
-            hh_comprovado = colabs_entregues * HORAS_TURNO
-            hh_no_escuro = colabs_pendentes * HORAS_TURNO
-            hh_total_base = hh_comprovado + hh_no_escuro
-            pct_rastreabilidade = (hh_comprovado / hh_total_base * 100) if hh_total_base > 0 else 0
-
-            # 4. Disciplinas Prioritárias (Estrutura Metálica, Dutos, Tubulação & Pressão)
-            hh_pend_tub = sum([mapa_tamanho_equipes.get(e, 0) * HORAS_TURNO for e in encs_pendentes if "TUBULA" in str(mapa_disc_enc.get(e, '')).upper() or "PRESS" in str(mapa_disc_enc.get(e, '')).upper() or "SOLDA" in str(mapa_disc_enc.get(e, '')).upper()])
-            encs_pend_tub_count = len([e for e in encs_pendentes if "TUBULA" in str(mapa_disc_enc.get(e, '')).upper() or "PRESS" in str(mapa_disc_enc.get(e, '')).upper() or "SOLDA" in str(mapa_disc_enc.get(e, '')).upper()])
-
-            hh_pend_est = sum([mapa_tamanho_equipes.get(e, 0) * HORAS_TURNO for e in encs_pendentes if "ESTRUTURA" in str(mapa_disc_enc.get(e, '')).upper() or "METÁLICA" in str(mapa_disc_enc.get(e, '')).upper() or "METALICA" in str(mapa_disc_enc.get(e, '')).upper()])
-            encs_pend_est_count = len([e for e in encs_pendentes if "ESTRUTURA" in str(mapa_disc_enc.get(e, '')).upper() or "METÁLICA" in str(mapa_disc_enc.get(e, '')).upper() or "METALICA" in str(mapa_disc_enc.get(e, '')).upper()])
-
-            hh_pend_dut = sum([mapa_tamanho_equipes.get(e, 0) * HORAS_TURNO for e in encs_pendentes if "DUTO" in str(mapa_disc_enc.get(e, '')).upper()])
-            encs_pend_dut_count = len([e for e in encs_pendentes if "DUTO" in str(mapa_disc_enc.get(e, '')).upper()])
-
-            # Renderizar Cards de Impacto
-            st.markdown("<br>", unsafe_allow_html=True)
-            c_hh1, c_hh2, c_hh3, c_hh4 = st.columns([1.1, 1.1, 1.1, 1.4])
-            
-            with c_hh1:
-                st.markdown(f"""
-                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 14px; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 700; color: #10b981; letter-spacing: 0.5px; text-transform: uppercase;">✅ HH Comprovado</div>
-                    <div style="font-size: 24px; font-weight: 900; color: #34d399; margin: 4px 0;">{hh_comprovado:,.0f} <span style="font-size: 12px; font-weight: 600;">HH</span></div>
-                    <div style="font-size: 11px; color: #94a3b8;"><b>{len(encs_entregues)}</b> de {total_encs_ativos} líderes ({pct_rastreabilidade:.1f}%)</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with c_hh2:
-                cor_escuro = "#ef4444" if hh_no_escuro > 0 else "#10b981"
-                bg_escuro = "rgba(239, 68, 68, 0.08)" if hh_no_escuro > 0 else "rgba(16, 185, 129, 0.08)"
-                borda_escuro = "rgba(239, 68, 68, 0.3)" if hh_no_escuro > 0 else "rgba(16, 185, 129, 0.3)"
-                st.markdown(f"""
-                <div style="background: {bg_escuro}; border: 1px solid {borda_escuro}; border-radius: 12px; padding: 14px; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 700; color: {cor_escuro}; letter-spacing: 0.5px; text-transform: uppercase;">⚠️ HH no Escuro</div>
-                    <div style="font-size: 24px; font-weight: 900; color: {cor_escuro}; margin: 4px 0;">{hh_no_escuro:,.0f} <span style="font-size: 12px; font-weight: 600;">HH</span></div>
-                    <div style="font-size: 11px; color: #94a3b8;"><b>{len(encs_pendentes)}</b> pendentes ({colabs_pendentes} pessoas)</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with c_hh3:
-                st.markdown(f"""
-                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 14px; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 700; color: #f59e0b; letter-spacing: 0.5px; text-transform: uppercase;">📉 Ausências / Faltas</div>
-                    <div style="font-size: 24px; font-weight: 900; color: #fbbf24; margin: 4px 0;">{total_ausencias} <span style="font-size: 12px; font-weight: 600;">colabs</span></div>
-                    <div style="font-size: 11px; color: #94a3b8;">{hh_perdido_absenteismo:,.0f} HH perdidos ({total_faltas_dia} Faltas / {total_atestados_dia} Atest.)</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with c_hh4:
-                st.markdown(f"""
-                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 10px 12px;">
-                    <div style="font-size: 10px; font-weight: 700; color: #38bdf8; text-transform: uppercase; margin-bottom: 4px;">🎯 Frentes Críticas no Escuro:</div>
-                    <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <span style="color: #cbd5e1;">🔧 Tubulação:</span>
-                        <b style="color: #f87171;">{hh_pend_tub:,.0f} HH <span style="color: #94a3b8; font-weight: 400;">({encs_pend_tub_count})</span></b>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <span style="color: #cbd5e1;">🔩 Estrutura:</span>
-                        <b style="color: #f87171;">{hh_pend_est:,.0f} HH <span style="color: #94a3b8; font-weight: 400;">({encs_pend_est_count})</span></b>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0;">
-                        <span style="color: #cbd5e1;">💨 Dutos:</span>
-                        <b style="color: #f87171;">{hh_pend_dut:,.0f} HH <span style="color: #94a3b8; font-weight: 400;">({encs_pend_dut_count})</span></b>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # Expander com lista nominal e botão de WhatsApp
-            if len(encs_pendentes) > 0:
-                with st.expander(f"📋 Ver Lista dos {len(encs_pendentes)} Encarregados Pendentes & Cobrar no WhatsApp", expanded=False):
-                    dados_tabela_pend = [
-                        {
-                            "Encarregado": enc,
-                            "Disciplina": mapa_disc_enc.get(enc, "GERAL"),
-                            "Efetivo (Pessoas)": mapa_tamanho_equipes.get(enc, 0),
-                            "HH no Escuro": f"{mapa_tamanho_equipes.get(enc, 0) * HORAS_TURNO:.1f} HH"
-                        }
-                        for enc in encs_pendentes
-                    ]
-                    df_tab_pend = pd.DataFrame(dados_tabela_pend).sort_values(by="Efetivo (Pessoas)", ascending=False)
-                    st.dataframe(df_tab_pend, hide_index=True, use_container_width=True)
-
-                    # Texto para WhatsApp
-                    texto_zap_cobranca = f"*⚠️ SGO RDC & PDE — COBRANÇA DE RDCS PENDENTES ({data_radar_sel.strftime('%d/%m/%Y')})*\n"
-                    texto_zap_cobranca += f"📊 *Status:* {len(encs_entregues)} entregues | {len(encs_pendentes)} pendentes ({hh_no_escuro:,.0f} HH no escuro)\n\n"
-                    texto_zap_cobranca += "*Frentes Críticas Pendentes:*\n"
-                    texto_zap_cobranca += f"• Tubulação: {hh_pend_tub:,.0f} HH ({encs_pend_tub_count} líderes)\n"
-                    texto_zap_cobranca += f"• Estrutura Metálica: {hh_pend_est:,.0f} HH ({encs_pend_est_count} líderes)\n"
-                    texto_zap_cobranca += f"• Dutos: {hh_pend_dut:,.0f} HH ({encs_pend_dut_count} líderes)\n\n"
-                    texto_zap_cobranca += "*Líderes que faltam entregar:*\n"
-                    for idx, enc in enumerate(encs_pendentes[:25], 1):
-                        d_enc = mapa_disc_enc.get(enc, 'GERAL')
-                        t_enc = mapa_tamanho_equipes.get(enc, 0)
-                        texto_zap_cobranca += f"{idx}. {enc} ({d_enc} - {t_enc} colabs)\n"
-                    if len(encs_pendentes) > 25:
-                        texto_zap_cobranca += f"... e mais {len(encs_pendentes) - 25} líderes.\n"
-                    texto_zap_cobranca += "\n_Favor enviar os RDCs com urgência para fechamento do dia!_"
-
-                    st.code(texto_zap_cobranca, language="text")
-                    st.caption("💡 Copie o texto acima e envie no grupo de WhatsApp da Obra/Coordenação.")
-        
-        # ==============================================================
         # BRIEFING MATINAL COM IA (PERSISTENTE POR DIA & EDITÁVEL)
         # ==============================================================
         st.markdown("<br>", unsafe_allow_html=True)
@@ -7697,15 +7497,6 @@ Retorne apenas o JSON sem crases ou markdown."""
                             atest_val = bloco.iloc[0].get('ATESTADOS', '0')
                             
                             tag_efetivo = ""
-                            if (efet_pres and str(efet_pres).strip()) or (faltas_val and str(faltas_val).strip() not in ['0', '']):
-                                tag_efetivo = f"""
-                                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0;">
-                                    <span style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #34d399; font-weight: 600;">👥 Presentes: {efet_pres if str(efet_pres).strip() else 'N/I'}</span>
-                                    <span style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #f87171; font-weight: 600;">❌ Faltas: {faltas_val}</span>
-                                    <span style="background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #60a5fa; font-weight: 600;">🏖️ Folgas: {folgas_val}</span>
-                                    <span style="background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; padding: 2px 8px; font-size: 11px; color: #c084fc; font-weight: 600;">🏥 Atestados: {atest_val}</span>
-                                </div>
-                                """
                             
                             st.markdown(f"""
                             <div style="background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.25); border-radius: 12px; padding: 15px; margin-bottom: 12px;">
@@ -7738,7 +7529,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 
                 # Preparar dados para edição
                 df_editavel = df_filtrado.copy()
-                colunas_mostrar = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PRESENTE', 'FALTAS', 'ATIVIDADE', 'CALDEIRA']
+                colunas_mostrar = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
                 df_editavel = df_editavel[[c for c in colunas_mostrar if c in df_editavel.columns]]
                 
                 df_editado = st.data_editor(df_editavel, hide_index=True, use_container_width=True, key="editor_ia_df")
@@ -7752,7 +7543,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                     for _, row_edit in df_editado.iterrows():
                         item_id = row_edit['ITEM']
                         idx = df_filtrado[df_filtrado['ITEM'] == item_id].index
-                        for col in ['DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PRESENTE', 'FALTAS', 'ATIVIDADE', 'CALDEIRA']:
+                        for col in ['DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']:
                             if col in row_edit:
                                 df_filtrado.loc[idx, col] = row_edit[col]
                                 
