@@ -382,3 +382,94 @@ def preencher_excel(equipe, encarregado_selecionado, data_rdc="", modelo_path=""
     except Exception as e:
         print(f"Erro em preencher_excel: {e}")
         return None
+
+
+def gerar_pdf_unico_lote(df_base, lista_encarregados, nome_empresa="ENESA Engenharia", data_rdc=""):
+    """
+    Gera um unico arquivo PDF concatenado contendo os RDCs de todos os encarregados da lista.
+    Retorna uma tupla (pdf_bytes, quantidade_gerada).
+    """
+    pdfs_individuais = []
+    qtd_enc = 0
+
+    for enc in lista_encarregados:
+        enc_str = str(enc).strip()
+        if not enc_str:
+            continue
+        eq = df_base[df_base["ENCARREGADO"].astype(str).str.strip().str.upper() == enc_str.upper()]
+        if eq.empty:
+            continue
+        pdf_bytes = gerar_pdf_rdc(eq, enc_str, nome_empresa=nome_empresa, data_rdc=data_rdc)
+        if pdf_bytes:
+            pdfs_individuais.append((enc_str, pdf_bytes))
+            qtd_enc += 1
+
+    if not pdfs_individuais:
+        return None, 0
+
+    if len(pdfs_individuais) == 1:
+        return pdfs_individuais[0][1], 1
+
+    try:
+        import pypdf
+        merger = pypdf.PdfWriter()
+        for _, b in pdfs_individuais:
+            merger.append(io.BytesIO(b))
+        out_buf = io.BytesIO()
+        merger.write(out_buf)
+        merger.close()
+        return out_buf.getvalue(), qtd_enc
+    except Exception:
+        pass
+
+    try:
+        import fitz
+        pdf_final = fitz.open()
+        for _, b in pdfs_individuais:
+            pdf_ind = fitz.open(stream=b, filetype="pdf")
+            pdf_final.insert_pdf(pdf_ind)
+            pdf_ind.close()
+        out_bytes = pdf_final.tobytes(deflate=True)
+        pdf_final.close()
+        return out_bytes, qtd_enc
+    except Exception:
+        pass
+
+    return pdfs_individuais[0][1], 1
+
+
+def gerar_zip_lote(df_base, lista_encarregados, formato="pdf", nome_empresa="ENESA Engenharia", data_rdc=""):
+    """
+    Gera um arquivo ZIP contendo multiplos arquivos (.pdf ou .xlsx) para cada encarregado da lista.
+    Retorna uma tupla (zip_bytes, quantidade_gerada).
+    """
+    zip_buffer = io.BytesIO()
+    qtd = 0
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for enc in lista_encarregados:
+            enc_str = str(enc).strip()
+            if not enc_str:
+                continue
+            eq = df_base[df_base["ENCARREGADO"].astype(str).str.strip().str.upper() == enc_str.upper()]
+            if eq.empty:
+                continue
+
+            nome_arq_base = enc_str.replace(" ", "_").upper()
+            if formato.lower() == "excel":
+                wb = preencher_excel(eq, enc_str, data_rdc=data_rdc)
+                if wb:
+                    buf_e = io.BytesIO()
+                    wb.save(buf_e)
+                    wb.close()
+                    zf.writestr(f"RDC_{nome_arq_base}.xlsx", buf_e.getvalue())
+                    qtd += 1
+            else:
+                pdf_b = gerar_pdf_rdc(eq, enc_str, nome_empresa=nome_empresa, data_rdc=data_rdc)
+                if pdf_b:
+                    zf.writestr(f"RDC_{nome_arq_base}.pdf", pdf_b)
+                    qtd += 1
+
+    if qtd > 0:
+        zip_buffer.seek(0)
+        return zip_buffer.getvalue(), qtd
+    return None, 0
