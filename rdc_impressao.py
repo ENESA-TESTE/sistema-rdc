@@ -32,6 +32,7 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="ENESA Engenhari
     """Gera um PDF que replica fielmente o MODELO oficial da Apropriação de Campo ENESA em folha A4."""
     try:
         pdf = FPDF(orientation="P", unit="mm", format="A4")
+        pdf.set_font("Helvetica", "", 8)
         pdf.add_page()
         pdf.set_auto_page_break(auto=False, margin=5)
         
