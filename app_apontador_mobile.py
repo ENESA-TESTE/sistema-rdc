@@ -7,6 +7,7 @@ import pandas as pd
 import datetime
 import time
 import os
+import re
 import io
 import importlib
 import pde_engine
@@ -671,13 +672,43 @@ with tab_remanejar:
             f"{r['MATRICULA']} — {r['NOME']} ({r['FUNÇÃO']}) [Atual: {r['ENCARREGADO'] if r['ENCARREGADO'] and r['ENCARREGADO'] != '-' else 'Sem Enc.'} | {formatar_cc_display(r['C.C'])}]"
             for _, r in df_ativos.sort_values(by="NOME").iterrows()
         ]
-        
-        selecionados = st.multiselect(
-            "Digite o nome ou matrícula para adicionar colaboradores (quantos quiser):",
+        mapa_mat_para_opcao = {
+            str(r["MATRICULA"]).strip().replace(".0", ""): f"{r['MATRICULA']} — {r['NOME']} ({r['FUNÇÃO']}) [Atual: {r['ENCARREGADO'] if r['ENCARREGADO'] and r['ENCARREGADO'] != '-' else 'Sem Enc.'} | {formatar_cc_display(r['C.C'])}]"
+            for _, r in df_ativos.iterrows()
+        }
+
+        lote_matriculas_txt = st.text_input(
+            "⚡ Colar / Digitar Várias Matrículas de uma vez (separadas por espaço ou vírgula):",
+            placeholder="Ex: 12502449 12502458 12502460 12502495 12502455",
+            key="txt_lote_matriculas_remanejo"
+        )
+        opcoes_auto_lote = []
+        mats_nao_encontradas = []
+        if lote_matriculas_txt.strip():
+            tokens_mat = [t.strip().replace(".0", "") for t in re.split(r"[\s,;\n\t|]+", lote_matriculas_txt.strip()) if t.strip()]
+            for tk in tokens_mat:
+                op_match = mapa_mat_para_opcao.get(tk)
+                if not op_match and tk.isdigit():
+                    op_match = mapa_mat_para_opcao.get(str(int(tk)))
+                if op_match:
+                    if op_match not in opcoes_auto_lote:
+                        opcoes_auto_lote.append(op_match)
+                else:
+                    mats_nao_encontradas.append(tk)
+            if opcoes_auto_lote:
+                st.success(f"✅ **{len(opcoes_auto_lote)} matrícula(s)** reconhecida(s) automaticamente do lote!")
+            if mats_nao_encontradas:
+                st.warning(f"⚠️ Matrícula(s) não encontrada(s) nos ativos: {', '.join(mats_nao_encontradas)}")
+
+        selecionados_manual = st.multiselect(
+            "Ou busque individualmente por Nome / Matrícula:",
             opcoes_colabs_multiselect,
+            default=opcoes_auto_lote,
             placeholder="🔎 Busque e selecione 1, 2, 5 ou mais colaboradores...",
             key="ms_colaboradores_remanejo"
         )
+        # Unir os digitados no lote com os selecionados na caixa
+        selecionados = list(dict.fromkeys(opcoes_auto_lote + selecionados_manual))
         
         if selecionados:
             st.info(f"📌 **{len(selecionados)} colaborador(es)** selecionado(s).")
@@ -994,12 +1025,29 @@ with tab_turno:
             f"{r['MATRICULA']} — {r['NOME']} ({r['FUNÇÃO']}) [Turno Atual: {str(r.get('TURNO', '')).strip() or 'S/ Turno'} | Enc: {r.get('ENCARREGADO', '-')}]"
             for _, r in df_ativos.sort_values(by="NOME").iterrows()
         ]
-        sel_avulsos_turno = st.multiselect(
-            "1. Busque e selecione 1 ou mais colaboradores:",
+        mapa_mat_turno_op = {
+            str(r["MATRICULA"]).strip().replace(".0", ""): f"{r['MATRICULA']} — {r['NOME']} ({r['FUNÇÃO']}) [Turno Atual: {str(r.get('TURNO', '')).strip() or 'S/ Turno'} | Enc: {r.get('ENCARREGADO', '-')}]"
+            for _, r in df_ativos.iterrows()
+        }
+        lote_mat_turno_txt = st.text_input(
+            "⚡ Colar / Digitar Várias Matrículas de uma vez (separadas por espaço ou vírgula):",
+            placeholder="Ex: 12502449 12502458 12502460 12502495 12502455",
+            key="txt_lote_mat_aba_turno"
+        )
+        auto_lote_turno = []
+        if lote_mat_turno_txt.strip():
+            for tk in [t.strip().replace(".0", "") for t in re.split(r"[\s,;\n\t|]+", lote_mat_turno_txt.strip()) if t.strip()]:
+                op_m = mapa_mat_turno_op.get(tk) or (mapa_mat_turno_op.get(str(int(tk))) if tk.isdigit() else None)
+                if op_m and op_m not in auto_lote_turno:
+                    auto_lote_turno.append(op_m)
+        sel_avulsos_manual = st.multiselect(
+            "Ou busque individualmente por Nome / Matrícula:",
             opcoes_todos_turno,
+            default=auto_lote_turno,
             placeholder="🔎 Digite nome ou matrícula...",
             key="ms_avulsos_aba_turno"
         )
+        sel_avulsos_turno = list(dict.fromkeys(auto_lote_turno + sel_avulsos_manual))
         novo_turno_avulso = st.radio(
             "2. Escolha o Novo Turno (Coluna G):",
             OPCOES_TURNO_OFICIAIS,
