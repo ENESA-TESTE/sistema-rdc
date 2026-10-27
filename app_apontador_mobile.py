@@ -308,28 +308,56 @@ df_pde = df_pde.loc[:, ~df_pde.columns.duplicated()]
 col_st = df_pde["STATUS"].iloc[:, 0] if isinstance(df_pde["STATUS"], pd.DataFrame) else df_pde["STATUS"]
 df_ativos = df_pde[col_st.astype(str).str.strip().str.upper() == "ATIVO"].copy()
 
-# Lista limpa e completa de encarregados ativos
+# Lista limpa e completa de TODOS os encarregados ativos (inclusive os que estão com 0 pessoas / sem equipe!)
 mapa_enc_mat = pde_engine.obter_mapa_encarregados_matricula()
 cargos_gestao = ["SUPERVIS", "COORDENAD", "GERENTE", "DIRETOR", "ENGENHEIR"]
 
-# 1. Encarregados que possuem equipe ativa de 3 ou mais colaboradores (sem Abmael)
 col_funcao = "FUNÇÃO" if "FUNÇÃO" in df_pde.columns else ("FUNCAO" if "FUNCAO" in df_pde.columns else None)
 mapa_funcao_pde = dict(zip(df_pde["NOME"].astype(str).str.strip().str.upper(), df_pde[col_funcao])) if col_funcao else {}
+nomes_desligados = set(
+    df_pde[df_pde["STATUS"].astype(str).str.strip().str.upper() != "ATIVO"]["NOME"]
+    .dropna().astype(str).str.strip().str.upper()
+)
 
-contagem_equipes = df_ativos["ENCARREGADO"].dropna().astype(str).str.strip().str.upper().value_counts()
-encs_com_equipe_minima = set(contagem_equipes[contagem_equipes >= 3].index)
-
+# 1. Todos que já aparecem na coluna ENCARREGADO (mesmo com 1 ou 2 pessoas)
 enc_da_coluna = set([
-    str(e).strip() for e in df_ativos["ENCARREGADO"].dropna().unique() 
-    if str(e).strip() and str(e) not in ["-", "0", "nan", "NAN", "SEM ENCARREGADO"]
-    and str(e).strip().upper() in encs_com_equipe_minima
-    and "ABMAEL" not in str(e).upper()
-    and not any(cg in str(e).upper() for cg in cargos_gestao)
-    and not any(cg in str(mapa_funcao_pde.get(str(e).strip().upper(), "")).upper() for cg in cargos_gestao)
+    str(e).strip().upper() for e in df_ativos["ENCARREGADO"].dropna().unique()
+    if str(e).strip() and str(e).strip().upper() not in ["-", "0", "NAN", "NONE", "SEM ENCARREGADO"]
 ])
 
-# Lista unificada apenas dos encarregados com equipe ativa na obra (mínimo 3 colaboradores)
-encarregados_ativos = sorted(list(enc_da_coluna))
+# 2. Todos os colaboradores ATIVOS cuja FUNÇÃO seja ENCARREGADO ou LÍDER (mesmo com 0 pessoas na equipe!)
+enc_por_funcao = set()
+if col_funcao and col_funcao in df_ativos.columns:
+    mask_func_enc = df_ativos[col_funcao].astype(str).str.upper().str.contains("ENCARREGAD|LIDER|LÍDER", na=False, regex=True)
+    enc_por_funcao = set(
+        df_ativos.loc[mask_func_enc, "NOME"].dropna().astype(str).str.strip().str.upper().unique()
+    )
+
+# 3. Encarregados salvos no encarregados_f1.json (desde que não estejam desligados)
+enc_do_f1_json = set()
+arq_f1_j = os.path.join(pde_engine.PASTA_BASE, "encarregados_f1.json")
+if os.path.exists(arq_f1_j):
+    try:
+        with open(arq_f1_j, "r", encoding="utf-8") as _ff1:
+            dados_f1 = json.load(_ff1)
+            if isinstance(dados_f1, list):
+                enc_do_f1_json = set(str(x).strip().upper() for x in dados_f1 if str(x).strip())
+            elif isinstance(dados_f1, dict):
+                for v_list in dados_f1.values():
+                    if isinstance(v_list, list):
+                        enc_do_f1_json.update(str(x).strip().upper() for x in v_list if str(x).strip())
+    except Exception:
+        pass
+
+todos_enc_bruto = (enc_da_coluna | enc_por_funcao | enc_do_f1_json) - nomes_desligados
+
+encarregados_ativos = sorted([
+    e for e in todos_enc_bruto
+    if e and e not in ["-", "0", "NAN", "NONE", "SEM ENCARREGADO"]
+    and "ABMAEL" not in e.upper()
+    and not any(cg in e.upper() for cg in cargos_gestao)
+    and not any(cg in str(mapa_funcao_pde.get(e.upper(), "")).upper() for cg in cargos_gestao)
+])
 
 # Opção de deixar sem encarregado
 OPCAO_SEM_ENC = "🚫 (Deixar Sem Encarregado)"
@@ -524,9 +552,10 @@ else:
 def formatar_enc_estrela(nome_enc):
     if nome_enc == OPCAO_SEM_ENC:
         return nome_enc
-    qtd_eq = int((df_ativos["ENCARREGADO"] == nome_enc).sum())
+    qtd_eq = int((df_ativos["ENCARREGADO"].astype(str).str.strip().str.upper() == str(nome_enc).strip().upper()).sum())
     prefixo = "⭐ " if nome_enc in meus_encarregados_fav else "👷 "
-    return f"{prefixo}{nome_enc} ({qtd_eq} pess.)"
+    sufixo = f"({qtd_eq} pess.)" if qtd_eq > 0 else "(0 pess. - Sem Equipe)"
+    return f"{prefixo}{nome_enc} {sufixo}"
 
 opcoes_enc_com_desvincular = [OPCAO_SEM_ENC] + lista_enc_ativa_tela
 
