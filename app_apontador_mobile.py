@@ -291,6 +291,9 @@ if df_pde is not None and not df_pde.empty:
         df_pde["ENCARREGADO"] = df_pde[cands[0]] if cands else ""
     if "STATUS" not in df_pde.columns:
         df_pde["STATUS"] = "ATIVO"
+    if "TURNO" not in df_pde.columns:
+        cands_t = [c for c in df_pde.columns if "TURNO" in str(c).upper()]
+        df_pde["TURNO"] = df_pde[cands_t[0]] if cands_t else "1° TURNO"
     if "MATRICULA" not in df_pde.columns:
         cands = [c for c in df_pde.columns if "MATR" in str(c).upper() and "ENCARR" not in str(c).upper()]
         df_pde["MATRICULA"] = df_pde[cands[0]] if cands else ""
@@ -446,6 +449,93 @@ with col_ap1:
 with col_ap2:
     st.metric("👥 Efetivo Ativo", f"{len(df_ativos):,}".replace(",", "."))
 
+# ====================================================================
+# ⭐ SISTEMA "MEUS ENCARREGADOS" (FAVORITOS POR APONTADOR)
+# ====================================================================
+ARQ_FAVORITOS_APONTADOR = os.path.join(pde_engine.PASTA_BASE, "favoritos_apontadores.json")
+
+def carregar_favoritos_apontadores():
+    if os.path.exists(ARQ_FAVORITOS_APONTADOR):
+        try:
+            with open(ARQ_FAVORITOS_APONTADOR, "r", encoding="utf-8") as _ff:
+                return json.load(_ff)
+        except Exception:
+            return {}
+    return {}
+
+def salvar_favoritos_apontador(nome_ap, lista_encs):
+    dados = carregar_favoritos_apontadores()
+    chave = (nome_ap or "PADRAO").strip().upper()
+    dados[chave] = [str(e).strip() for e in lista_encs if str(e).strip()]
+    try:
+        with open(ARQ_FAVORITOS_APONTADOR, "w", encoding="utf-8") as _ff:
+            json.dump(dados, _ff, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+chave_apontador_atual = (st.session_state.get("nome_apontador") or "PADRAO").strip().upper()
+mapa_todos_favoritos = carregar_favoritos_apontadores()
+
+# Sincronizar também via query_params ("favs") caso o celular recarregue
+param_favs = st.query_params.get("favs", "").strip()
+favs_salvos_servidor = mapa_todos_favoritos.get(chave_apontador_atual, [])
+if not favs_salvos_servidor and param_favs:
+    favs_salvos_servidor = [x.strip() for x in param_favs.split("|") if x.strip() in encarregados_ativos]
+    if favs_salvos_servidor:
+        salvar_favoritos_apontador(chave_apontador_atual, favs_salvos_servidor)
+
+meus_encarregados_fav = [e for e in favs_salvos_servidor if e in encarregados_ativos]
+
+with st.expander(f"⭐ Meus Encarregados da Rota ({len(meus_encarregados_fav)} favoritados)", expanded=(len(meus_encarregados_fav) == 0)):
+    st.caption("Marque abaixo os encarregados que você cuida no dia a dia. Eles ficarão fixados no topo do seu celular em todas as abas!")
+    novos_favs_sel = st.multiselect(
+        "Escolha seus Encarregados:",
+        options=encarregados_ativos,
+        default=meus_encarregados_fav,
+        placeholder="⭐ Toque para escolher os encarregados da sua área...",
+        key="ms_meus_encarregados_fav"
+    )
+    col_fv1, col_fv2 = st.columns([2, 1])
+    with col_fv1:
+        if st.button("💾 Salvar Meus Encarregados", type="primary", use_container_width=True, key="btn_salvar_favs_ap"):
+            salvar_favoritos_apontador(chave_apontador_atual, novos_favs_sel)
+            st.query_params["favs"] = "|".join(novos_favs_sel)
+            st.toast(f"⭐ {len(novos_favs_sel)} encarregado(s) salvos na sua rota!", icon="⭐")
+            st.rerun()
+    with col_fv2:
+        if meus_encarregados_fav and st.button("🗑️ Limpar", use_container_width=True, key="btn_limpar_favs_ap"):
+            salvar_favoritos_apontador(chave_apontador_atual, [])
+            if "favs" in st.query_params:
+                del st.query_params["favs"]
+            st.rerun()
+
+# Se o apontador tiver favoritos, oferecer filtro rápido global e colocar os favoritos no topo!
+if meus_encarregados_fav:
+    outros_encarregados = [e for e in encarregados_ativos if e not in meus_encarregados_fav]
+    encarregados_ordenados_top = meus_encarregados_fav + outros_encarregados
+    
+    filtro_visao_rota = st.radio(
+        "Filtro Rápido de Encarregados:",
+        [f"⭐ Só Meus Encarregados ({len(meus_encarregados_fav)})", f"🌐 Todos da Obra ({len(encarregados_ativos)})"],
+        horizontal=True,
+        key="radio_filtro_meus_encs"
+    )
+    if filtro_visao_rota.startswith("⭐"):
+        lista_enc_ativa_tela = meus_encarregados_fav
+    else:
+        lista_enc_ativa_tela = encarregados_ordenados_top
+else:
+    lista_enc_ativa_tela = encarregados_ativos
+
+def formatar_enc_estrela(nome_enc):
+    if nome_enc == OPCAO_SEM_ENC:
+        return nome_enc
+    qtd_eq = int((df_ativos["ENCARREGADO"] == nome_enc).sum())
+    prefixo = "⭐ " if nome_enc in meus_encarregados_fav else "👷 "
+    return f"{prefixo}{nome_enc} ({qtd_eq} pess.)"
+
+opcoes_enc_com_desvincular = [OPCAO_SEM_ENC] + lista_enc_ativa_tela
+
 # Link 4G para compartilhar no WhatsApp da equipe
 arq_link_4g = os.path.join(pde_engine.PASTA_BASE, "link_4g_apontadores.txt")
 if os.path.exists(arq_link_4g):
@@ -460,10 +550,13 @@ if os.path.exists(arq_link_4g):
         pass
 
 
-# --- NAVEGAÇÃO PRINCIPAL (4 ABAS DIRETAS) ---
-tab_remanejar, tab_equipe, tab_imprimir, tab_historico = st.tabs([
+OPCOES_TURNO_OFICIAIS = ["1° TURNO", "2° TURNO", "3° TURNO"]
+
+# --- NAVEGAÇÃO PRINCIPAL (5 ABAS DIRETAS) ---
+tab_remanejar, tab_turno, tab_equipe, tab_imprimir, tab_historico = st.tabs([
     "🔄 Remanejar",
-    "📋 Ver Equipes",
+    "🕒 Turno",
+    "📋 Equipes",
     "🖨️ Imprimir RDC",
     "📜 Histórico"
 ])
@@ -486,9 +579,12 @@ with tab_remanejar:
     # -------------------------------------------------------------
     if modo_remanejo == "👷 Selecionar Encarregado e Colocar Pessoas":
         st.markdown("##### 1. Escolha o Encarregado de Destino:")
+        idx_padrao_rem = 1 if (meus_encarregados_fav and len(opcoes_enc_com_desvincular) > 1) else 0
         enc_alvo = st.selectbox(
             "Selecione o Encarregado:",
             opcoes_enc_com_desvincular,
+            index=idx_padrao_rem,
+            format_func=formatar_enc_estrela,
             key="sel_enc_alvo_remanejo"
         )
         
@@ -540,7 +636,12 @@ with tab_remanejar:
                 key="sel_cc_remanejo_multi"
             )
         with col_c2:
-            obs_multi = st.text_input("📝 Observação:", placeholder="Ex: Remanejamento...", key="txt_obs_remanejo_multi")
+            turno_escolhido_multi = st.selectbox(
+                "🕒 Turno (Coluna G):",
+                ["(Manter Atual)"] + OPCOES_TURNO_OFICIAIS,
+                key="sel_turno_remanejo_multi"
+            )
+        obs_multi = st.text_input("📝 Observação:", placeholder="Ex: Remanejamento...", key="txt_obs_remanejo_multi")
 
         # Lista de colaboradores formatada com Nome, Matrícula, Função e Encarregado Atual
         opcoes_colabs_multiselect = [
@@ -585,6 +686,8 @@ with tab_remanejar:
                         }
                         if cc_codigo_limpo:
                             item_dict["NOVO_CC"] = cc_codigo_limpo
+                        if turno_escolhido_multi != "(Manter Atual)":
+                            item_dict["NOVO_TURNO"] = turno_escolhido_multi
                         lista_alt.append(item_dict)
                         
                     ok, msg = pde_engine.aplicar_correcoes_em_massa(lista_alt, sync_sheets=True)
@@ -693,10 +796,15 @@ with tab_remanejar:
                 st.markdown("##### 🚀 Destino da Transferência")
                 
                 idx_enc_padrao = opcoes_enc_com_desvincular.index(enc_atual) if enc_atual in opcoes_enc_com_desvincular else 0
-                novo_enc_escolhido = st.selectbox("👷 Novo Encarregado:", opcoes_enc_com_desvincular, index=idx_enc_padrao, key="sel_novo_enc_ind_v2")
+                novo_enc_escolhido = st.selectbox("👷 Novo Encarregado:", opcoes_enc_com_desvincular, index=idx_enc_padrao, format_func=formatar_enc_estrela, key="sel_novo_enc_ind_v2")
                 
                 idx_cc_ind = opcoes_cc_formatadas.index(cc_atual_display) if cc_atual_display in opcoes_cc_formatadas else 0
                 novo_cc_escolhido_fmt = st.selectbox("🏢 Novo Centro de Custo (C.C — PB/RB):", opcoes_cc_formatadas, index=idx_cc_ind, key="sel_novo_cc_ind_v2")
+                
+                turno_atual_colab = str(row_c.get("TURNO", "1° TURNO")).strip().upper()
+                opcoes_turno_ind = ["(Manter Atual)"] + OPCOES_TURNO_OFICIAIS
+                idx_turno_ind = opcoes_turno_ind.index(turno_atual_colab) if turno_atual_colab in opcoes_turno_ind else 0
+                novo_turno_ind = st.selectbox(f"🕒 Turno na Coluna G (Atual: {turno_atual_colab or '1° TURNO'}):", opcoes_turno_ind, index=idx_turno_ind, key="sel_novo_turno_ind_v2")
                 
                 obs_ind = st.text_input("📝 Motivo / Observação (Opcional):", placeholder="Ex: Reforço, remanejamento...", key="txt_obs_ind_v2")
                 
@@ -715,7 +823,8 @@ with tab_remanejar:
                             "MATRICULA": row_c["MATRICULA"],
                             "NOME": row_c["NOME"],
                             "NOVO_ENCARREGADO": enc_final,
-                            "NOVO_CC": cc_final_raw
+                            "NOVO_CC": cc_final_raw,
+                            "NOVO_TURNO": (novo_turno_ind if novo_turno_ind != "(Manter Atual)" else None)
                         }]
                         ok, msg = pde_engine.aplicar_correcoes_em_massa(lista_alt, sync_sheets=True)
                         if ok:
@@ -742,12 +851,185 @@ with tab_remanejar:
             st.info("👆 Digite o nome ou a matrícula no campo acima para pesquisar.")
 
 # ====================================================================
+# ABA NOVA: GESTÃO DE TURNO (COLUNA G — 1° TURNO, 2° TURNO E 3° TURNO)
+# ====================================================================
+with tab_turno:
+    st.markdown("##### 🕒 Alterar Turno na Planilha (Coluna G)")
+    st.caption("Altere rapidamente os colaboradores entre **1° TURNO**, **2° TURNO** e **3° TURNO** direto na Coluna G do Google Sheets.")
+
+    # Resumo rápido de efetivo por turno
+    s_turno_norm = df_ativos["TURNO"].fillna("").astype(str).str.strip().str.upper()
+    qtd_t1 = int(s_turno_norm.str.contains("1", na=False).sum())
+    qtd_t2 = int(s_turno_norm.str.contains("2", na=False).sum())
+    qtd_t3 = int(s_turno_norm.str.contains("3", na=False).sum())
+
+    c_t1, c_t2, c_t3 = st.columns(3)
+    c_t1.metric("☀️ 1° TURNO", f"{qtd_t1}")
+    c_t2.metric("🌆 2° TURNO", f"{qtd_t2}")
+    c_t3.metric("🌙 3° TURNO", f"{qtd_t3}")
+
+    modo_turno = st.radio(
+        "Como deseja alterar o Turno?",
+        ["👷 Por Equipe do Encarregado", "🔎 Buscar Colaboradores Avulsos"],
+        horizontal=True,
+        key="radio_modo_aba_turno"
+    )
+
+    if modo_turno == "👷 Por Equipe do Encarregado":
+        enc_turno_sel = st.selectbox(
+            "1. Escolha o Encarregado:",
+            lista_enc_ativa_tela,
+            format_func=formatar_enc_estrela,
+            key="sel_enc_aba_turno"
+        )
+        eq_turno_df = df_ativos[df_ativos["ENCARREGADO"] == enc_turno_sel].sort_values(by="NOME")
+
+        if eq_turno_df.empty:
+            st.info("Nenhum colaborador ativo vinculado a este encarregado.")
+        else:
+            marcar_toda_eq_turno = st.checkbox(
+                f"✅ Aplicar para TODA a equipe de {enc_turno_sel} ({len(eq_turno_df)} pessoas)",
+                value=True,
+                key="chk_toda_eq_turno"
+            )
+            if marcar_toda_eq_turno:
+                mats_alvo_turno = list(eq_turno_df["MATRICULA"].astype(str))
+            else:
+                opcoes_eq_turno = [
+                    f"{r['MATRICULA']} — {r['NOME']} ({r['FUNÇÃO']}) [Atual: {str(r.get('TURNO', '')).strip() or 'S/ Turno'}]"
+                    for _, r in eq_turno_df.iterrows()
+                ]
+                escolhidos_eq_t = st.multiselect(
+                    "Selecione os colaboradores da equipe:",
+                    opcoes_eq_turno,
+                    default=opcoes_eq_turno,
+                    key="ms_eq_aba_turno"
+                )
+                mats_alvo_turno = [x.split(" — ")[0].strip() for x in escolhidos_eq_t]
+
+            novo_turno_eq = st.radio(
+                "2. Escolha o Novo Turno (Coluna G):",
+                OPCOES_TURNO_OFICIAIS,
+                horizontal=True,
+                key="radio_novo_turno_eq"
+            )
+
+            if st.button(
+                f"💾 Gravar {novo_turno_eq} na Coluna G ({len(mats_alvo_turno)} pessoas)",
+                type="primary",
+                use_container_width=True,
+                key="btn_salvar_turno_eq"
+            ):
+                if not mats_alvo_turno:
+                    st.warning("Selecione pelo menos 1 colaborador.")
+                else:
+                    with st.spinner(f"Atualizando Coluna G para {novo_turno_eq}..."):
+                        lista_alt_t = []
+                        for m_t in mats_alvo_turno:
+                            r_match = df_ativos[df_ativos["MATRICULA"].astype(str) == str(m_t)]
+                            nome_m = str(r_match.iloc[0]["NOME"]) if not r_match.empty else ""
+                            lista_alt_t.append({
+                                "MATRICULA": m_t,
+                                "NOME": nome_m,
+                                "NOVO_TURNO": novo_turno_eq
+                            })
+                        ok_t, msg_t = pde_engine.aplicar_correcoes_em_massa(lista_alt_t, sync_sheets=True)
+                        if ok_t:
+                            for item_t in lista_alt_t:
+                                pde_engine.registrar_movimentacao_equipe(
+                                    matricula=item_t["MATRICULA"],
+                                    nome=item_t["NOME"],
+                                    de_enc=enc_turno_sel,
+                                    para_enc=enc_turno_sel,
+                                    de_cc="-",
+                                    para_cc="-",
+                                    apontador=st.session_state.nome_apontador,
+                                    obs=f"Turno (Col G) -> {novo_turno_eq}"
+                                )
+                            st.success(f"🎉 **{len(lista_alt_t)} colaborador(es)** atualizados para **{novo_turno_eq}** na Coluna G!\n\n{msg_t}")
+                            st.cache_data.clear()
+                            time.sleep(1.2)
+                            st.rerun()
+                        else:
+                            st.error(f"Erro ao atualizar turno: {msg_t}")
+
+            with st.expander(f"👀 Ver Turno Atual da Equipe de {enc_turno_sel} ({len(eq_turno_df)} pessoas)"):
+                for _, r_et in eq_turno_df.iterrows():
+                    t_at = str(r_et.get("TURNO", "")).strip() or "Não definido"
+                    st.markdown(f"""
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); border-radius:8px; padding:7px 12px; margin-bottom:5px;">
+                        <div>
+                            <b style="color:#f8fafc; font-size:13px;">{r_et['NOME']}</b>
+                            <div style="font-size:11px; color:#94a3b8;">Mat: {r_et['MATRICULA']} • {r_et['FUNÇÃO']}</div>
+                        </div>
+                        <span class="badge-cc" style="font-size:11px;">🕒 {t_at}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    else:
+        opcoes_todos_turno = [
+            f"{r['MATRICULA']} — {r['NOME']} ({r['FUNÇÃO']}) [Turno Atual: {str(r.get('TURNO', '')).strip() or 'S/ Turno'} | Enc: {r.get('ENCARREGADO', '-')}]"
+            for _, r in df_ativos.sort_values(by="NOME").iterrows()
+        ]
+        sel_avulsos_turno = st.multiselect(
+            "1. Busque e selecione 1 ou mais colaboradores:",
+            opcoes_todos_turno,
+            placeholder="🔎 Digite nome ou matrícula...",
+            key="ms_avulsos_aba_turno"
+        )
+        novo_turno_avulso = st.radio(
+            "2. Escolha o Novo Turno (Coluna G):",
+            OPCOES_TURNO_OFICIAIS,
+            horizontal=True,
+            key="radio_novo_turno_avulso"
+        )
+        if sel_avulsos_turno:
+            if st.button(
+                f"💾 Gravar {novo_turno_avulso} na Coluna G ({len(sel_avulsos_turno)} selecionado(s))",
+                type="primary",
+                use_container_width=True,
+                key="btn_salvar_turno_avulso"
+            ):
+                with st.spinner(f"Gravando {novo_turno_avulso} na Coluna G..."):
+                    lista_alt_av = []
+                    for item_s in sel_avulsos_turno:
+                        m_av = item_s.split(" — ")[0].strip()
+                        r_m = df_ativos[df_ativos["MATRICULA"].astype(str) == m_av]
+                        n_av = str(r_m.iloc[0]["NOME"]) if not r_m.empty else ""
+                        enc_av = str(r_m.iloc[0].get("ENCARREGADO", "")) if not r_m.empty else ""
+                        lista_alt_av.append({
+                            "MATRICULA": m_av,
+                            "NOME": n_av,
+                            "ENC_ATUAL": enc_av,
+                            "NOVO_TURNO": novo_turno_avulso
+                        })
+                    ok_av, msg_av = pde_engine.aplicar_correcoes_em_massa(lista_alt_av, sync_sheets=True)
+                    if ok_av:
+                        for it_av in lista_alt_av:
+                            pde_engine.registrar_movimentacao_equipe(
+                                matricula=it_av["MATRICULA"],
+                                nome=it_av["NOME"],
+                                de_enc=it_av["ENC_ATUAL"],
+                                para_enc=it_av["ENC_ATUAL"],
+                                de_cc="-",
+                                para_cc="-",
+                                apontador=st.session_state.nome_apontador,
+                                obs=f"Turno (Col G) -> {novo_turno_avulso}"
+                            )
+                        st.success(f"🎉 **{len(lista_alt_av)} colaborador(es)** alterados para **{novo_turno_avulso}** na Coluna G!\n\n{msg_av}")
+                        st.cache_data.clear()
+                        time.sleep(1.2)
+                        st.rerun()
+                    else:
+                        st.error(f"Erro ao salvar: {msg_av}")
+
+# ====================================================================
 # ABA 2: VISÃO POR EQUIPE (Raio-X do Encarregado & Desvinculação Rápida)
 # ====================================================================
 with tab_equipe:
     st.markdown("##### 📋 Integrantes por Encarregado")
     
-    enc_visao = st.selectbox("Selecione o Encarregado:", encarregados_ativos, key="sel_enc_visao")
+    enc_visao = st.selectbox("Selecione o Encarregado:", lista_enc_ativa_tela, format_func=formatar_enc_estrela, key="sel_enc_visao")
     
     if enc_visao:
         equipe = df_ativos[df_ativos["ENCARREGADO"] == enc_visao].sort_values(by="NOME")
@@ -812,11 +1094,15 @@ with tab_imprimir:
     st.markdown("##### 🖨️ Emissão e Impressão de RDC")
     st.caption("Gere os formulários oficiais em PDF ou Excel prontos para imprimir e levar a campo.")
     
-    # 1. Modo de Seleção de Encarregados
-    modo_selecao_enc = st.radio("Como deseja selecionar?", ["1 Encarregado", "Múltiplos / Todos"], horizontal=True, key="modo_sel_enc_imp")
+    # 1. Modo de Seleção de Encarregados (Com atalho 1-clique para Meus Favoritos)
+    opcoes_modo_imp = ["⭐ Meus Encarregados", "1 Encarregado", "Múltiplos / Todos"] if meus_encarregados_fav else ["1 Encarregado", "Múltiplos / Todos"]
+    modo_selecao_enc = st.radio("Como deseja selecionar?", opcoes_modo_imp, horizontal=True, key="modo_sel_enc_imp")
 
-    if modo_selecao_enc == "1 Encarregado":
-        enc_unico = st.selectbox("Escolha o Encarregado:", encarregados_ativos, key="sel_enc_imp_unico")
+    if modo_selecao_enc == "⭐ Meus Encarregados":
+        lista_alvo_imp = meus_encarregados_fav
+        st.success(f"⭐ **{len(lista_alvo_imp)} encarregado(s)** da sua rota selecionados automaticamente!")
+    elif modo_selecao_enc == "1 Encarregado":
+        enc_unico = st.selectbox("Escolha o Encarregado:", lista_enc_ativa_tela, format_func=formatar_enc_estrela, key="sel_enc_imp_unico")
         lista_alvo_imp = [enc_unico] if enc_unico else []
     else:
         sel_todos = st.checkbox("Selecionar Todos os Encarregados Ativos", key="chk_sel_todos_imp")
