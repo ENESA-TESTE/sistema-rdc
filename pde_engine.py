@@ -350,6 +350,7 @@ def detectar_colunas_planilha(ws):
     cols = {
         "col_mat_idx": 1,        # A
         "col_nome_idx": 2,       # B
+        "col_turno_idx": 7,      # G (TURNO)
         "col_cc_idx": 8,         # H
         "col_mat_enc_idx": 11,   # K
         "col_enc_nome_idx": 12   # L
@@ -372,6 +373,8 @@ def detectar_colunas_planilha(ws):
                     cols["col_enc_nome_idx"] = c_idx
                 elif any(k in v for k in ["CENTRO DE CUSTO", "C.C", "CC", "CUSTO"]):
                     cols["col_cc_idx"] = c_idx
+                elif "TURNO" in v:
+                    cols["col_turno_idx"] = c_idx
                 elif "NOME" in v and not any(k in v for k in ["ENCARR", "COORD", "SUPERV"]):
                     cols["col_nome_idx"] = c_idx
             if achou_header:
@@ -383,6 +386,7 @@ def detectar_colunas_planilha(ws):
     # Converte índices para letras de coluna (ex: 11 -> 'K', 8 -> 'H')
     cols["letra_mat"] = _col_idx_to_letter(cols["col_mat_idx"])
     cols["letra_nome"] = _col_idx_to_letter(cols["col_nome_idx"])
+    cols["letra_turno"] = _col_idx_to_letter(cols.get("col_turno_idx", 7))
     cols["letra_cc"] = _col_idx_to_letter(cols["col_cc_idx"])
     cols["letra_mat_enc"] = _col_idx_to_letter(cols["col_mat_enc_idx"])
     cols["letra_enc_nome"] = _col_idx_to_letter(cols["col_enc_nome_idx"])
@@ -579,6 +583,17 @@ def sincronizar_alteracoes_gsheets_direto(lista_alteracoes):
                     batch_updates.append({
                         "range": f"{cols['letra_cc']}{row}",
                         "values": [[cc_limpo]]
+                    })
+                    celulas_afetadas += 1
+
+            # 3. Tratar Turno (Coluna G: 1° TURNO, 2° TURNO, 3° TURNO)
+            if alt.get("NOVO_TURNO") is not None:
+                novo_turno = str(alt.get("NOVO_TURNO")).strip().upper()
+                if novo_turno and novo_turno != "(MANTER ATUAL)":
+                    letra_g = cols.get("letra_turno", "G")
+                    batch_updates.append({
+                        "range": f"{letra_g}{row}",
+                        "values": [[novo_turno]]
                     })
                     celulas_afetadas += 1
                 
@@ -847,8 +862,24 @@ def obter_mapa_centros_de_custo():
     return mapa
 
 
+def _enviar_movimentacao_gsheets_async(linha_mov):
+    try:
+        sh = obter_cliente_google_sheets()
+        if not sh:
+            return
+        ws_names = [w.title for w in sh.worksheets()]
+        cols_mov = ["DATA_HORA", "MATRICULA", "NOME", "DE_ENCARREGADO", "PARA_ENCARREGADO", "DE_CC", "PARA_CC", "APONTADOR", "OBSERVACAO"]
+        if "Movimentacoes_Campo" not in ws_names:
+            ws_m = sh.add_worksheet(title="Movimentacoes_Campo", rows=2000, cols=10)
+            ws_m.update(values=[cols_mov, linha_mov], range_name="A1")
+        else:
+            ws_m = sh.worksheet("Movimentacoes_Campo")
+            ws_m.append_row(linha_mov, value_input_option="USER_ENTERED")
+    except Exception:
+        pass
+
 def registrar_movimentacao_equipe(matricula, nome, de_enc, para_enc, de_cc, para_cc, apontador="Apontador", obs=""):
-    """Registra uma transferência / movimentação de funcionário no histórico local."""
+    """Registra uma transferência / movimentação de funcionário no histórico local e sincroniza na nuvem."""
     agora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     inicializar_banco_pde()
     try:
@@ -860,6 +891,11 @@ def registrar_movimentacao_equipe(matricula, nome, de_enc, para_enc, de_cc, para
             conn.commit()
     except Exception as e:
         print(f"Erro ao registrar movimentacao: {e}")
+    try:
+        linha_m = [agora, str(matricula), str(nome), str(de_enc), str(para_enc), str(de_cc), str(para_cc), str(apontador or "Campo"), str(obs)]
+        threading.Thread(target=_enviar_movimentacao_gsheets_async, args=(linha_m,), daemon=True).start()
+    except Exception:
+        pass
 
 
 def obter_historico_movimentacoes(limite=50):
@@ -924,6 +960,14 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
                         SET CC = ?, ATUALIZADO_EM = ?
                         WHERE MATRICULA = ?;
                     """, (str(novo_cc).strip(), agora, mat))
+
+                novo_turno = alt.get("NOVO_TURNO")
+                if novo_turno is not None and str(novo_turno).strip().upper() not in ["", "(MANTER ATUAL)"]:
+                    cursor.execute("""
+                        UPDATE pde_funcionarios
+                        SET TURNO = ?, ATUALIZADO_EM = ?
+                        WHERE MATRICULA = ?;
+                    """, (str(novo_turno).strip().upper(), agora, mat))
             conn.commit()
     except Exception as e:
         print(f"Erro ao atualizar banco SQLite: {e}")
@@ -979,6 +1023,17 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
                         ccc = col_cc[0]
                         mask_cc = df_csv["_MAT_STR"].isin(mat_dict_cc.keys())
                         df_csv.loc[mask_cc, ccc] = df_csv.loc[mask_cc, "_MAT_STR"].map(mat_dict_cc)
+
+                    col_turno_csv = [c for c in df_csv.columns if "TURNO" in str(c).upper()]
+                    mat_dict_turno = {
+                        str(a.get("MATRICULA", "")).strip().replace(".0", ""): str(a["NOVO_TURNO"]).strip().upper()
+                        for a in lista_alteracoes
+                        if a.get("NOVO_TURNO") is not None and str(a.get("NOVO_TURNO")).strip().upper() not in ["", "(MANTER ATUAL)"]
+                    }
+                    if col_turno_csv and mat_dict_turno:
+                        ct = col_turno_csv[0]
+                        mask_t = df_csv["_MAT_STR"].isin(mat_dict_turno.keys())
+                        df_csv.loc[mask_t, ct] = df_csv.loc[mask_t, "_MAT_STR"].map(mat_dict_turno)
                         
                     df_csv.drop(columns=["_MAT_STR"], inplace=True, errors="ignore")
                     df_csv.to_csv(caminho_csv, index=False, encoding='latin1', errors='replace')
