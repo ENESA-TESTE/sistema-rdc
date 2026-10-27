@@ -78,8 +78,9 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="ENESA Engenhari
         pdf.set_font("Helvetica", "", 5.5)
         pdf.cell(28, h_row, "DISCIPLINA/SETOR:", 1, 0, "R")
         pdf.cell(col_mid - 28, h_row, "", 1, 0, "L")
+        pdf.set_font("Helvetica", "B", 6.5)
         pdf.cell(10, h_row, "DATA:", 1, 0, "R")
-        pdf.set_font("Helvetica", "B", 7)
+        pdf.set_font("Helvetica", "B", 10.5)
         pdf.cell(col_right - 10, h_row, str(data_rdc) if data_rdc else "", 1, 1, "C")
         
         y += h_row
