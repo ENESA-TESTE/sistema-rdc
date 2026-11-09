@@ -135,7 +135,42 @@ def t(texto):
         return TRANSLATIONS.get(texto, texto)
     return texto
 
-from streamlit_gsheets import GSheetsConnection
+try:
+    from streamlit_gsheets import GSheetsConnection
+except ImportError:
+    GSheetsConnection = None
+
+class _SgoDirectGSheetsConn:
+    """Conexão direta via gspread caso streamlit_gsheets não esteja instalado no PC do colega."""
+    def read(self, worksheet="PDE", ttl=45):
+        sh = obter_planilha_google()
+        if not sh:
+            return pd.DataFrame()
+        ws = sh.worksheet(worksheet)
+        vals = ws.get_all_values()
+        if not vals or len(vals) < 2:
+            return pd.DataFrame()
+        hdr = [str(c).strip() for c in vals[0]]
+        n_c = len(hdr)
+        rows = [r + [""] * max(0, n_c - len(r)) if len(r) < n_c else r[:n_c] for r in vals[1:]]
+        return pd.DataFrame(rows, columns=hdr)
+
+    def update(self, worksheet="PDE", data=None):
+        if data is None or data.empty:
+            return
+        sh = obter_planilha_google()
+        if not sh:
+            return
+        ws_names = [w.title for w in sh.worksheets()]
+        cols = list(data.columns)
+        if worksheet not in ws_names:
+            ws = sh.add_worksheet(title=worksheet, rows=max(len(data) + 500, 1000), cols=max(len(cols) + 2, 20))
+        else:
+            ws = sh.worksheet(worksheet)
+        valores = [cols] + data.fillna("").astype(str).values.tolist()
+        ws.clear()
+        ws.update(values=valores, range_name="A1")
+
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 # Força a criação do arquivo de tema Escuro automaticamente
@@ -155,1312 +190,399 @@ if os.path.exists(caminho_nome_site):
 else:
     nome_site = "ENESA Engenharia"
 
-st.set_page_config(page_title=f"Sistema RDC & PDE - {nome_site}", layout="wide", initial_sidebar_state="expanded")
+_sgo_fav = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sgo_favicon.png")
+st.set_page_config(page_title=f"Sistema RDC & PDE - {nome_site}", page_icon=(_sgo_fav if os.path.exists(_sgo_fav) else "🏗️"), layout="wide", initial_sidebar_state="expanded")
 
-# Injeção de CSS para ajustes de interface
-st.markdown("""
-    <style>
-        /* Tipografia Moderna e Ícones */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
-        
-        html, body, [class*="css"] {
-            font-family: 'Inter', sans-serif;
-        }
+# ==============================================================================
+# ENTERPRISE DESIGN SYSTEM — SGO RDC & PDE v10.5 EYE-COMFORT EDITION
+# ==============================================================================
+if st.session_state.get("tema_visual_sgo") not in ["🌊 Azul Sereno (Ardósia Suave)", "🌿 Verde-Petróleo Suave (Conforto Visual)"]:
+    st.session_state["tema_visual_sgo"] = "🌊 Azul Sereno (Ardósia Suave)"
+tema_escolhido = st.session_state.get("tema_visual_sgo", "🌊 Azul Sereno (Ardósia Suave)")
 
-        /* Glassmorphism na Sidebar */
-        [data-testid="stSidebar"] {
-            background-color: rgba(15, 23, 42, 0.5) !important;
-            backdrop-filter: blur(12px) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-        }
-
-        /* Melhorar visual dos Métricas (Cards) */
-        [data-testid="stMetric"] {
-            background: rgba(30, 41, 59, 0.5) !important;
-            border-radius: 12px !important;
-            padding: 15px 20px !important;
-            border: 1px solid rgba(255, 255, 255, 0.05) !important;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
-            transition: all 0.3s ease !important;
-        }
-        [data-testid="stMetric"]:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2) !important;
-            border-color: rgba(14, 165, 233, 0.3) !important;
-        }
-
-        /* Botões Arredondados com Hover Vivo */
-        .stButton button {
-            border-radius: 8px !important;
-            transition: all 0.2s ease !important;
-            font-weight: 600 !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        }
-        .stButton button:hover {
-            transform: scale(1.02) !important;
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3) !important;
-            border-color: rgba(14, 165, 233, 0.5) !important;
-        }
-        
-        /* Headers com gradiente sutil */
-        h1, h2, h3 {
-            font-weight: 700 !important;
-        }
-        
-        /* Ocultar barra de topo do Streamlit */
-        header[data-testid="stHeader"] {
-            background: transparent !important;
-        }
-
-        /* ================================================ */
-        /* 3. TABELAS ZEBRADAS (linhas alternadas)          */
-        /* ================================================ */
-        [data-testid="stDataFrame"] table tbody tr:nth-child(even) {
-            background-color: rgba(30, 41, 59, 0.4) !important;
-        }
-        [data-testid="stDataFrame"] table tbody tr:nth-child(odd) {
-            background-color: rgba(15, 23, 42, 0.6) !important;
-        }
-        [data-testid="stDataFrame"] table tbody tr:hover {
-            background-color: rgba(14, 165, 233, 0.12) !important;
-            transition: background-color 0.2s ease !important;
-        }
-        [data-testid="stDataFrame"] table thead tr {
-            background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(139, 92, 246, 0.15)) !important;
-            border-bottom: 2px solid rgba(14, 165, 233, 0.3) !important;
-        }
-        [data-testid="stDataFrame"] table thead th {
-            font-weight: 700 !important;
-            text-transform: uppercase !important;
-            font-size: 0.75rem !important;
-            letter-spacing: 0.5px !important;
-            color: #e2e8f0 !important;
-        }
-
-        /* ================================================ */
-        /* 4. TABS/MENUS COM ESTILO PREMIUM                 */
-        /* ================================================ */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 4px !important;
-            background: rgba(15, 23, 42, 0.6) !important;
-            border-radius: 12px !important;
-            padding: 4px !important;
-            border: 1px solid rgba(255, 255, 255, 0.06) !important;
-        }
-        .stTabs [data-baseweb="tab"] {
-            border-radius: 8px !important;
-            padding: 8px 16px !important;
-            font-weight: 600 !important;
-            font-size: 0.85rem !important;
-            color: #94a3b8 !important;
-            transition: all 0.25s ease !important;
-            border: none !important;
-        }
-        .stTabs [data-baseweb="tab"]:hover {
-            background: rgba(14, 165, 233, 0.1) !important;
-            color: #e2e8f0 !important;
-        }
-        .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, #0ea5e9, #3b82f6) !important;
-            color: #ffffff !important;
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35) !important;
-        }
-        .stTabs [data-baseweb="tab-highlight"] {
-            display: none !important;
-        }
-        .stTabs [data-baseweb="tab-border"] {
-            display: none !important;
-        }
-
-        /* ================================================ */
-        /* 6. SPINNER DE CARREGAMENTO PREMIUM               */
-        /* ================================================ */
-        .stSpinner > div {
-            border-radius: 12px !important;
-            background: rgba(15, 23, 42, 0.8) !important;
-            backdrop-filter: blur(8px) !important;
-            border: 1px solid rgba(14, 165, 233, 0.2) !important;
-            padding: 20px !important;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-        }
-        .stSpinner > div > div {
-            border-top-color: #0ea5e9 !important;
-        }
-
-        /* Tentar forçar o carregamento da fonte oficial de ícones do Google */
-        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0');
-        
-        /* Esconder o botão de collapse da sidebar para evitar texto quebrado */
-        [data-testid="stSidebarCollapseButton"] {
-            display: none !important;
-        }
-        
-        /* Garantir fonte correta para os ícones do st.expander sem vazar texto */
-        [data-testid="stExpander"] summary [data-testid="stIconMaterial"],
-        [data-testid="stExpander"] summary .material-symbols-rounded {
-            font-family: 'Material Symbols Rounded' !important;
-            font-size: 18px !important;
-        }
-        
-        /* Esconder o menu superior chato do Streamlit (Deploy, Rerun, etc) */
-        header { visibility: hidden !important; display: none !important; }
-        [data-testid="stHeader"] { display: none !important; }
-        [data-testid="stToolbar"] { display: none !important; }
-        #MainMenu { display: none !important; }
-        footer { display: none !important; }
-        .stApp > header { display: none !important; }
-        
-        /* Remover a linha colorida no topo e subir o layout */
-        [data-testid="stDecoration"] { display: none !important; }
-        .stApp { margin-top: -60px; }
-        
-        /* Travar a largura da barra lateral (esconder o arrastador) */
-        [data-testid="stSidebarResizer"] {
-            display: none !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Paleta Premium Dark Mode (Glassmorphism & Neon Subtle)
-cor_fundo = "#0f172a" # Slate 900 (azul-marinho elegante)
-cor_fundo_grad = "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)"
-cor_card = "rgba(30, 41, 59, 0.55)" # Slate 800 glass
-cor_borda = "rgba(255, 255, 255, 0.08)"
-cor_texto = "#f8fafc"
-cor_texto_sub = "#94a3b8"
-cor_azul = "#3b82f6"
-cor_azul_hover = "#2563eb"
-cor_destaque = "#0ea5e9" # Light blue neon
-cor_verde = "#10b981"
+if "Azul Sereno" in tema_escolhido:
+    cor_fundo = "#1B2838"
+    cor_fundo_grad = "linear-gradient(150deg, #223246 0%, #1B2838 52%, #16212F 100%)"
+    cor_sidebar_grad = "linear-gradient(180deg, #16212F 0%, #121B28 100%)"
+    cor_card = "rgba(37, 53, 74, 0.88)"
+    cor_card_grad = "linear-gradient(165deg, rgba(42, 60, 84, 0.92) 0%, rgba(31, 45, 64, 0.95) 100%)"
+    cor_input_bg = "rgba(24, 35, 50, 0.92)"
+    cor_borda = "rgba(148, 163, 184, 0.20)"
+    cor_texto = "#E6EDF5"
+    cor_texto_sub = "#A8B8CD"
+    cor_azul = "#3B82F6"
+    cor_azul_hover = "#2563EB"
+    cor_destaque = "#38BDF8"
+    cor_verde = "#10B981"
+    cor_tabela_par = "rgba(35, 50, 70, 0.65)"
+    cor_tabela_impar = "rgba(27, 40, 56, 0.80)"
+    cor_tabela_head = "rgba(22, 33, 47, 0.95)"
+else:
+    # PADRÃO: 🌿 Verde-Petróleo & Ardósia Suave (Conforto Visual Anti-Fadiga)
+    cor_fundo = "#1A242D"
+    cor_fundo_grad = "linear-gradient(150deg, #212E3A 0%, #1B2631 52%, #162029 100%)"
+    cor_sidebar_grad = "linear-gradient(180deg, #151F28 0%, #111A22 100%)"
+    cor_card = "rgba(35, 49, 62, 0.88)"
+    cor_card_grad = "linear-gradient(165deg, rgba(40, 56, 70, 0.92) 0%, rgba(29, 41, 53, 0.96) 100%)"
+    cor_input_bg = "rgba(22, 32, 42, 0.92)"
+    cor_borda = "rgba(148, 179, 174, 0.20)"
+    cor_texto = "#E6EFEA"
+    cor_texto_sub = "#A3B8B4"
+    cor_azul = "#0D9488"
+    cor_azul_hover = "#0F766E"
+    cor_destaque = "#14B8A6"
+    cor_verde = "#10B981"
+    cor_tabela_par = "rgba(34, 48, 60, 0.65)"
+    cor_tabela_impar = "rgba(26, 37, 48, 0.82)"
+    cor_tabela_head = "rgba(20, 30, 39, 0.95)"
 
 st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
-    
-    @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(15px); }}
-        to {{ opacity: 1; transform: translateY(0); }}
-    }}
-    
-    /* === BASE === */
-    .stApp {{
-        font-family: 'Inter', sans-serif !important;
-        background: {cor_fundo_grad};
-        background-attachment: fixed;
-        color: {cor_texto};
-    }}
-    
-    .block-container {{
-        animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-        max-width: 1200px;
-        padding-top: 1rem;
+<style>
+    /* 1. TIPOGRAFIA CORPORATIVA DE ALTA PRECISÃO */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+    :root {{
+        --sgo-bg: {cor_fundo};
+        --sgo-surface: {cor_card};
+        --sgo-border: {cor_borda};
+        --sgo-primary: {cor_azul};
+        --sgo-primary-hover: {cor_azul_hover};
+        --sgo-accent: {cor_destaque};
+        --sgo-emerald: {cor_verde};
+        --sgo-amber: #F59E0B;
+        --sgo-crimson: #EF4444;
+        --sgo-text: {cor_texto};
+        --sgo-muted: {cor_texto_sub};
     }}
 
-    /* === CABEÇALHO === */
-    .enesa-header {{
-        text-align: center;
-        margin-top: -30px;
-        margin-bottom: 28px;
-        padding: 32px 20px;
-        background: {cor_card};
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-radius: 16px;
-        border: 1px solid {cor_borda};
-        border-left: 5px solid {cor_destaque};
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        transition: transform 0.3s ease;
-    }}
-    .enesa-header:hover {{
-        transform: translateY(-2px);
-    }}
-    
-    /* === FUNDO === */
-    @keyframes panBackground {{
-        0% {{ background-position: 0 0; }}
-        100% {{ background-position: 100vw 100vh; }}
-    }}
-    .stApp {{
-        background: radial-gradient(ellipse at top, #1e293b 0%, {cor_fundo} 60%, #0f172a 100%) !important;
-        background-image: 
-            linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px) !important;
-        background-size: 50px 50px !important;
-        animation: panBackground 200s linear infinite !important;
-    }}
-    
-    /* === DATAFRAME GLOW === */
-    .stDataFrame {{
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid rgba(14, 165, 233, 0.1);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-    }}
-    .stDataFrame:hover {{
-        border-color: rgba(14, 165, 233, 0.4);
-        box-shadow: 0 8px 30px rgba(14, 165, 233, 0.15);
-    }}
-    
-    /* === GLOWING ACCENT PARA TABS === */
-    .stTabs [data-baseweb="tab-list"]::before {{
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.1), transparent);
-        pointer-events: none;
-        z-index: 0;
-        animation: panBackground 5s linear infinite;
-    }}
-    
-    /* === TIPOGRAFIA === */
-    h1, h2, h3 {{
-        color: {cor_texto} !important;
-        font-family: 'Outfit', sans-serif !important;
-        font-weight: 600 !important;
-        letter-spacing: -0.5px;
-    }}
-    p, span, label, div {{
-        font-family: 'Inter', sans-serif !important;
-    }}
-    
-    /* === BOTÃO PRINCIPAL === */
-    div.stButton > button[data-baseweb="button"] {{
-        background: linear-gradient(135deg, {cor_azul} 0%, {cor_destaque} 100%);
-        color: white;
-        border: none;
-        font-family: 'Outfit', sans-serif !important;
-        font-weight: 600;
-        font-size: 0.95rem;
-        letter-spacing: 0.5px;
-        border-radius: 10px;
-        padding: 12px 24px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
-    }}
-    div.stButton > button[data-baseweb="button"]:hover {{
-        transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
-    }}
-    div.stButton > button[data-baseweb="button"]:active {{
-        transform: translateY(1px) scale(0.98);
-    }}
-    
-    /* === SIDEBAR === */
-    [data-testid="stSidebar"] {{
-        background-color: rgba(15, 23, 42, 0.8) !important;
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(14, 165, 233, 0.2);
-        box-shadow: 4px 0 25px rgba(14, 165, 233, 0.15);
-    }}
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3 {{
-        color: {cor_texto} !important;
-        font-family: 'Outfit', sans-serif !important;
-        text-shadow: 0 0 15px rgba(14, 165, 233, 0.5);
-    }}
-    
-    /* === ADMIN AVATAR GLOW === */
-    .admin-avatar {{
-        width: 60px; height: 60px;
-        border-radius: 50%;
-        background: {cor_azul};
-        display: flex; align-items: center; justify-content: center;
-        margin: 20px auto;
-        box-shadow: 0 0 20px {cor_azul};
-        color: white; font-weight: bold; font-size: 20px;
-        border: 2px solid white;
-    }}
-    
-    /* === INPUTS & CONTAINERS === */
-    .stTextInput input, .stSelectbox > div > div, .stTextArea textarea {{
-        border-radius: 10px !important;
-        border: 1px solid {cor_borda} !important;
-        background-color: rgba(15, 23, 42, 0.5) !important;
-        color: {cor_texto} !important;
-        transition: all 0.3s ease !important;
-        backdrop-filter: blur(4px);
-    }}
-    .stTextInput input:focus, .stSelectbox > div > div:focus-within, .stTextArea textarea:focus {{
-        border-color: {cor_destaque} !important;
-        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2) !important;
-        background-color: rgba(30, 41, 59, 0.8) !important;
-    }}
-    
-    /* === ABAS === */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 8px;
-        background-color: {cor_card};
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
-        padding: 6px;
-        border: 1px solid {cor_borda};
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        border-radius: 8px;
-        font-family: 'Outfit', sans-serif !important;
-        font-weight: 500;
-        font-size: 0.95rem;
-        padding: 10px 20px;
-        color: {cor_texto_sub};
-        transition: all 0.3s ease;
-        border: 1px solid transparent;
-    }}
-    .stTabs [data-baseweb="tab"]:hover {{
+    html, body, [class*="css"] {{
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
         color: {cor_texto};
-        background-color: rgba(255, 255, 255, 0.05);
+        -webkit-font-smoothing: antialiased;
     }}
-    .stTabs [aria-selected="true"] {{
-        background: linear-gradient(135deg, {cor_azul} 0%, {cor_destaque} 100%) !important;
-        color: white !important;
-        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
-        border: 1px solid rgba(255,255,255,0.1);
+
+    h1, h2, h3, h4, .sgo-heading {{
+        font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+        letter-spacing: -0.02em !important;
+        color: {cor_texto} !important;
     }}
-    
-    /* === MÉTRICAS (GLASS CARDS) === */
+
+    /* 2. BACKGROUND & CONTAINER PRINCIPAL (CONFORTO VISUAL) */
+    .stApp {{
+        background: {cor_fundo_grad} !important;
+        background-attachment: fixed !important;
+        color: {cor_texto} !important;
+        margin-top: -55px;
+    }}
+
+    .block-container {{
+        max-width: 1460px !important;
+        padding-top: 1.4rem !important;
+        padding-bottom: 3.5rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }}
+
+    /* Ocultar chrome desnecessário do Streamlit no Desktop */
+    header {{ visibility: hidden !important; display: none !important; }}
+    [data-testid="stHeader"] {{ display: none !important; }}
+    [data-testid="stToolbar"] {{ display: none !important; }}
+    [data-testid="stDecoration"] {{ display: none !important; }}
+    #MainMenu {{ display: none !important; }}
+    footer {{ display: none !important; }}
+    .stApp > header {{ display: none !important; }}
+    [data-testid="stSidebarCollapseButton"] {{ display: none !important; }}
+    [data-testid="stSidebarResizer"] {{ display: none !important; }}
+
+    /* Garantir ícones nativos do Material Symbols nos Expanders */
+    [data-testid="stExpander"] summary [data-testid="stIconMaterial"],
+    [data-testid="stExpander"] summary .material-symbols-rounded {{
+        font-family: 'Material Symbols Rounded' !important;
+        font-size: 18px !important;
+    }}
+
+    /* 3. BARRA LATERAL EXECUTIVA (SIDEBAR) */
+    [data-testid="stSidebar"] {{
+        background: {cor_sidebar_grad} !important;
+        border-right: 1px solid {cor_borda} !important;
+        box-shadow: 4px 0 22px rgba(0, 0, 0, 0.22) !important;
+    }}
+
+    /* 4. HEADER CORPORATIVO (TOP COMMAND BAR) */
+    .enesa-header {{
+        background: {cor_card_grad} !important;
+        backdrop-filter: blur(14px) !important;
+        -webkit-backdrop-filter: blur(14px) !important;
+        border: 1px solid {cor_borda} !important;
+        border-left: 4px solid {cor_azul} !important;
+        border-radius: 14px !important;
+        padding: 18px 24px !important;
+        margin-top: 8px !important;
+        margin-bottom: 22px !important;
+        box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    }}
+
+    /* 5. CONTAINERS, CARDS E MÉTRICAS NATIVAS */
+    [data-testid="stVerticalBlockBorderWrapper"] {{
+        background: {cor_card} !important;
+        backdrop-filter: blur(10px) !important;
+        border: 1px solid {cor_borda} !important;
+        border-radius: 14px !important;
+        padding: 18px !important;
+        box-shadow: 0 6px 20px -6px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    }}
+
     [data-testid="stMetric"] {{
-        background: {cor_card};
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid {cor_borda};
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        position: relative;
-        overflow: hidden;
-    }}
-    [data-testid="stMetric"]::before {{
-        content: '';
-        position: absolute;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
-        pointer-events: none;
+        background: {cor_card_grad} !important;
+        border-radius: 12px !important;
+        padding: 16px 18px !important;
+        border: 1px solid {cor_borda} !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+        transition: border-color 0.2s ease, transform 0.2s ease !important;
     }}
     [data-testid="stMetric"]:hover {{
-        transform: translateY(-5px);
-        box-shadow: 0 12px 25px rgba(0,0,0,0.3);
-        border-color: rgba(14, 165, 233, 0.3);
+        transform: translateY(-1px) !important;
+        border-color: {cor_destaque} !important;
     }}
     [data-testid="stMetricLabel"] {{
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
         color: {cor_texto_sub} !important;
-        font-family: 'Outfit', sans-serif !important;
-        font-weight: 500 !important;
-        letter-spacing: 0.5px;
     }}
     [data-testid="stMetricValue"] {{
-        color: {cor_texto} !important;
-        font-family: 'Outfit', sans-serif !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-weight: 700 !important;
-        font-size: 2.2rem !important;
-        background: linear-gradient(to right, #fff, #94a3b8);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: {cor_texto} !important;
+        font-variant-numeric: tabular-nums !important;
     }}
-    
-    /* === DATAFRAMES === */
-    .stDataFrame {{
-        border-radius: 12px;
-        overflow: hidden;
+
+    /* 6. CARTÃO KPI EXECUTIVO CUSTOMIZADO */
+    .sgo-kpi-card {{
+        background: {cor_card_grad};
         border: 1px solid {cor_borda};
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }}
-    
-    /* === FILE UPLOADER === */
-    [data-testid="stFileUploader"] {{
-        border-radius: 12px;
-        background: {cor_card};
-        border: 1px dashed rgba(14, 165, 233, 0.4);
-        padding: 10px;
-        transition: all 0.3s ease;
-    }}
-    [data-testid="stFileUploader"]:hover {{
-        border-color: {cor_destaque};
-        background: rgba(30, 41, 59, 0.6);
-    }}
-    [data-testid="stFileUploaderDropzone"] button {{
-        color: transparent !important;
+        border-radius: 13px;
+        padding: 16px 20px;
+        height: 114px;
         position: relative;
-        min-width: 140px !important;
-    }}
-    [data-testid="stFileUploaderDropzone"] button::after {{
-        content: "Procurar arquivos";
-        color: white;
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        font-family: 'Outfit', sans-serif !important;
-        font-weight: 600;
-        font-size: 14px;
-        white-space: nowrap;
-    }}
-    
-    /* === EXPANDERS === */
-    [data-testid="stExpander"] {{
-        background: {cor_card};
-        backdrop-filter: blur(10px);
-        border-radius: 12px !important;
-        border: 1px solid {cor_borda} !important;
         overflow: hidden;
-        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
     }}
-    [data-testid="stExpander"]:hover {{
-        border-color: rgba(14, 165, 233, 0.3) !important;
-        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.1);
+    .sgo-kpi-card:hover {{
+        transform: translateY(-2px);
+        border-color: {cor_destaque};
+    }}
+    .sgo-kpi-top {{
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }}
+    .sgo-kpi-label {{
+        margin: 0;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: {cor_texto_sub};
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        line-height: 1.3;
+    }}
+    .sgo-kpi-icon {{
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Material Symbols Rounded';
+        font-size: 19px;
+        flex-shrink: 0;
+    }}
+    .sgo-kpi-value {{
+        margin: 2px 0 0 0;
+        font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+        font-size: 30px;
+        font-weight: 800;
+        color: {cor_texto};
+        letter-spacing: -0.025em;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+    }}
+    .sgo-kpi-bar {{
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        opacity: 0.95;
+    }}
+
+    /* 7. BOTÕES CORPORATIVOS SUAVES */
+    .stButton > button, .stDownloadButton > button, .stLinkButton > a {{
+        border-radius: 9px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.84rem !important;
+        letter-spacing: 0.01em !important;
+        padding: 0.5rem 1rem !important;
+        transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease !important;
+        border: 1px solid {cor_borda} !important;
+        background: {cor_card} !important;
+        color: {cor_texto} !important;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.14) !important;
+    }}
+    .stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover {{
+        transform: translateY(-1px) !important;
+        border-color: {cor_destaque} !important;
+        box-shadow: 0 5px 14px rgba(0, 0, 0, 0.22) !important;
+    }}
+    .stButton > button[kind="primary"], .stDownloadButton > button[kind="primary"] {{
+        background: linear-gradient(135deg, {cor_azul} 0%, {cor_azul_hover} 100%) !important;
+        border: 1px solid rgba(45, 212, 191, 0.40) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 12px rgba(13, 148, 136, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+    }}
+    .stButton > button[kind="primary"]:hover, .stDownloadButton > button[kind="primary"]:hover {{
+        background: linear-gradient(135deg, {cor_destaque} 0%, {cor_azul} 100%) !important;
+        color: #FFFFFF !important;
+    }}
+
+    /* 8. INPUTS, SELECTBOXES & EXPANDERS */
+    .stTextInput input, .stDateInput input, .stNumberInput input, .stTextArea textarea {{
+        background-color: {cor_input_bg} !important;
+        border: 1px solid {cor_borda} !important;
+        border-radius: 9px !important;
+        color: {cor_texto} !important;
+        font-size: 0.88rem !important;
+    }}
+    .stTextInput input:focus, .stDateInput input:focus, .stNumberInput input:focus, .stTextArea textarea:focus {{
+        border-color: {cor_destaque} !important;
+        box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16) !important;
+    }}
+    .stSelectbox [data-baseweb="select"] > div,
+    .stMultiSelect [data-baseweb="select"] > div {{
+        background-color: {cor_input_bg} !important;
+        border: 1px solid {cor_borda} !important;
+        border-radius: 9px !important;
+        color: {cor_texto} !important;
+    }}
+    .stSelectbox label, .stMultiSelect label, .stTextInput label, .stDateInput label, .stNumberInput label, [data-testid="stWidgetLabel"] p {{
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        color: {cor_texto_sub} !important;
+    }}
+
+    [data-testid="stExpander"] {{
+        background: {cor_card} !important;
+        border: 1px solid {cor_borda} !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
     }}
     [data-testid="stExpander"] summary {{
-        font-family: 'Outfit', sans-serif !important;
-        font-weight: 500;
-    }}
-    
-    /* === ALERTS (SUCCESS, ERROR, WARNING, INFO) === */
-    [data-testid="stAlert"] {{
-        background: rgba(15, 23, 42, 0.6) !important;
-        backdrop-filter: blur(12px) !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(255,255,255,0.05) !important;
-        color: {cor_texto} !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important;
-        overflow: hidden;
-        position: relative;
-    }}
-    [data-testid="stAlert"]::before {{
-        content: '';
-        position: absolute;
-        top: 0; left: 0; width: 4px; height: 100%;
-        background: rgba(255,255,255,0.2);
-    }}
-    /* Success Alert Green Glow */
-    [data-testid="stAlert"]:has(.st-emotion-cache-1cvow4s) {{
-        border-left: 1px solid rgba(16, 185, 129, 0.5) !important;
-    }}
-    [data-testid="stAlert"]:has(.st-emotion-cache-1cvow4s)::before {{
-        background: {cor_verde};
-        box-shadow: 0 0 15px {cor_verde};
-    }}
-    /* Error Alert Red Glow */
-    [data-testid="stAlert"]:has(.st-emotion-cache-1eq3m7k) {{
-        border-left: 1px solid rgba(239, 68, 68, 0.5) !important;
-    }}
-    [data-testid="stAlert"]:has(.st-emotion-cache-1eq3m7k)::before {{
-        background: #ef4444;
-        box-shadow: 0 0 15px #ef4444;
-    }}
-    /* Warning Alert Yellow/Orange Glow */
-    [data-testid="stAlert"]:has(.st-emotion-cache-1gtyq0b) {{
-        border-left: 1px solid rgba(245, 158, 11, 0.5) !important;
-    }}
-    [data-testid="stAlert"]:has(.st-emotion-cache-1gtyq0b)::before {{
-        background: #f59e0b;
-        box-shadow: 0 0 15px #f59e0b;
-    }}
-    
-    /* === DOWNLOAD BUTTONS (PREMIUM) === */
-    .stDownloadButton > button {{
-        background: linear-gradient(135deg, {cor_verde} 0%, #059669 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 10px !important;
-        font-family: 'Outfit', sans-serif !important;
         font-weight: 600 !important;
-        font-size: 0.9rem !important;
-        letter-spacing: 0.5px;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25) !important;
+        color: {cor_texto} !important;
+        padding: 12px 16px !important;
     }}
-    .stDownloadButton > button:hover {{
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4) !important;
-    }}
-    
-    /* === TOGGLE PREMIUM === */
-    .stToggle label {{
-        font-family: 'Inter', sans-serif !important;
-        font-weight: 500 !important;
-    }}
-    
-    /* === FORMS (GLASS) === */
-    [data-testid="stForm"] {{
-        background: {cor_card} !important;
-        backdrop-filter: blur(12px) !important;
-        border-radius: 16px !important;
+
+    /* 9. TABELAS DE DADOS CORPORATIVAS */
+    [data-testid="stDataFrame"] {{
         border: 1px solid {cor_borda} !important;
-        padding: 20px !important;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16) !important;
     }}
-    
-    /* === SEPARADORES PREMIUM === */
+    [data-testid="stDataFrame"] table tbody tr:nth-child(even) {{
+        background-color: {cor_tabela_par} !important;
+    }}
+    [data-testid="stDataFrame"] table tbody tr:nth-child(odd) {{
+        background-color: {cor_tabela_impar} !important;
+    }}
+    [data-testid="stDataFrame"] table thead tr {{
+        background: {cor_tabela_head} !important;
+        border-bottom: 1px solid {cor_borda} !important;
+    }}
+    [data-testid="stDataFrame"] table thead th {{
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.06em !important;
+        color: {cor_texto_sub} !important;
+    }}
+
+    /* 10. TABS INTERNAS */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 6px !important;
+        background: {cor_input_bg} !important;
+        border-radius: 11px !important;
+        padding: 5px !important;
+        border: 1px solid {cor_borda} !important;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        border-radius: 8px !important;
+        padding: 8px 18px !important;
+        font-weight: 600 !important;
+        font-size: 0.83rem !important;
+        color: {cor_texto_sub} !important;
+        border: none !important;
+    }}
+    .stTabs [aria-selected="true"] {{
+        background: linear-gradient(135deg, {cor_azul} 0%, {cor_azul_hover} 100%) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 3px 10px rgba(13, 148, 136, 0.30) !important;
+    }}
+    .stTabs [data-baseweb="tab-highlight"],
+    .stTabs [data-baseweb="tab-border"] {{
+        display: none !important;
+    }}
+
+    /* 11. DIVISORES & ALERTAS */
     hr {{
         border: none !important;
         height: 1px !important;
-        background: linear-gradient(90deg, transparent 0%, rgba(14, 165, 233, 0.3) 50%, transparent 100%) !important;
-        margin: 16px 0 !important;
+        background: linear-gradient(90deg, transparent, {cor_borda}, transparent) !important;
+        margin: 1.5rem 0 !important;
     }}
-    
-    /* === SELECTBOX PREMIUM === */
-    [data-testid="stSelectbox"] label {{
-        font-family: 'Outfit', sans-serif !important;
-        font-weight: 500 !important;
-        color: {cor_texto_sub} !important;
-        letter-spacing: 0.3px;
-    }}
-    
-    /* === NUMBER INPUT === */
-    .stNumberInput {{
-        border-radius: 10px !important;
-    }}
-    
-    /* === CAPTIONS (subtle) === */
-    .stCaption {{
-        font-style: italic !important;
-        opacity: 0.7;
-    }}
-    
-    /* === ANIMATED GLOW for primary buttons === */
-    @keyframes pulseGlow {{
-        0% {{ box-shadow: 0 0 5px rgba(14, 165, 233, 0.4); }}
-        50% {{ box-shadow: 0 0 20px rgba(14, 165, 233, 0.6); }}
-        100% {{ box-shadow: 0 0 5px rgba(14, 165, 233, 0.4); }}
-    }}
-    
-    div.stButton > button[kind="primary"] {{
-        animation: pulseGlow 2s ease-in-out infinite;
-    }}
-    
-    /* === MULTISELECT PREMIUM === */
-    [data-testid="stMultiSelect"] {{
-        font-family: 'Inter', sans-serif !important;
-    }}
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] {{
-        background: linear-gradient(135deg, {cor_azul}, {cor_destaque}) !important;
-        border-radius: 8px !important;
-        color: white !important;
-    }}
-    
-    /* === STATUS BARS === */
-    .stProgress > div > div {{
-        background: linear-gradient(90deg, {cor_azul}, {cor_destaque}) !important;
-        border-radius: 10px !important;
-    }}
-    
-    /* === MARCA D'ÁGUA EDSON GARCIA === */
-    .watermark-edson {{
-        position: fixed;
-        top: 20px;
-        right: 30px;
-        z-index: 999999;
-        font-family: 'Outfit', sans-serif;
-        font-size: 13px;
-        font-weight: 700;
-        background: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(14, 165, 233, 0.4));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        letter-spacing: 3px;
-        text-transform: uppercase;
-        pointer-events: none;
-        user-select: none;
-        text-shadow: 0 0 20px rgba(14, 165, 233, 0.2);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        opacity: 0.8;
-        animation: floatGlow 4s ease-in-out infinite;
-    }}
-    .watermark-edson::before {{
-        content: '✦';
-        font-size: 14px;
-        -webkit-text-fill-color: rgba(14, 165, 233, 0.5);
-    }}
-    
-    @keyframes floatGlow {{
-        0% {{ transform: translateY(0px); opacity: 0.7; }}
-        50% {{ transform: translateY(-3px); opacity: 1; }}
-        100% {{ transform: translateY(0px); opacity: 0.7; }}
-    }}
-    
-    /* ================================================ */
-    /* 📱 DESIGN MOBILE - EXPERIÊNCIA DE APP            */
-    /* ================================================ */
-    
-    /* === TABLETS (até 1024px) === */
-    @media screen and (max-width: 1024px) {{
-        .block-container {{
-            max-width: 100% !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-        }}
-        
-        /* Sidebar vira overlay em tablet */
-        [data-testid="stSidebar"] {{
-            width: 280px !important;
-            min-width: 280px !important;
-        }}
-    }}
-    
-    /* === CELULARES (até 768px) === */
-    @media screen and (max-width: 768px) {{
-        
-        /* --- Layout Geral --- */
-        .block-container {{
-            max-width: 100% !important;
-            padding: 0.5rem 0.75rem !important;
-            padding-top: 0.5rem !important;
-        }}
-        
-        .stApp {{
-            margin-top: -30px !important;
-        }}
-        
-        /* --- Esconder Sidebar por padrão no celular --- */
-        [data-testid="stSidebar"] {{
-            width: 260px !important;
-            min-width: 260px !important;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease !important;
-            z-index: 999 !important;
-        }}
-        [data-testid="stSidebar"][aria-expanded="true"] {{
-            transform: translateX(0) !important;
-        }}
-        
-        /* --- Cabeçalho Compacto --- */
-        .enesa-header {{
-            padding: 18px 14px !important;
-            margin-top: -15px !important;
-            margin-bottom: 16px !important;
-            border-radius: 12px !important;
-        }}
-        .enesa-header h1 {{
-            font-size: 1.3rem !important;
-        }}
-        .enesa-header p {{
-            font-size: 0.8rem !important;
-        }}
-        
-        /* --- Tipografia Mobile --- */
-        h1 {{
-            font-size: 1.4rem !important;
-        }}
-        h2 {{
-            font-size: 1.2rem !important;
-        }}
-        h3 {{
-            font-size: 1.05rem !important;
-        }}
-        p, span, label, div {{
-            font-size: 0.9rem !important;
-        }}
-        
-        /* --- Tabs: Scroll Horizontal (Swipe) --- */
-        .stTabs [data-baseweb="tab-list"] {{
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-            flex-wrap: nowrap !important;
-            -webkit-overflow-scrolling: touch !important;
-            scroll-snap-type: x mandatory !important;
-            gap: 4px !important;
-            padding: 4px !important;
-            border-radius: 10px !important;
-            scrollbar-width: none !important;
-            -ms-overflow-style: none !important;
-        }}
-        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {{
-            display: none !important;
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            flex-shrink: 0 !important;
-            scroll-snap-align: start !important;
-            padding: 8px 14px !important;
-            font-size: 0.78rem !important;
-            min-width: max-content !important;
-            white-space: nowrap !important;
-        }}
-        
-        /* --- Botões Grandes e Touch-Friendly --- */
-        .stButton button {{
-            min-height: 52px !important;
-            font-size: 0.95rem !important;
-            border-radius: 12px !important;
-            padding: 14px 20px !important;
-            width: 100% !important;
-            touch-action: manipulation !important;
-            -webkit-tap-highlight-color: transparent !important;
-        }}
-        .stButton button:active {{
-            transform: scale(0.97) !important;
-            transition: transform 0.1s ease !important;
-        }}
-        
-        /* --- Download Buttons --- */
-        .stDownloadButton button {{
-            min-height: 52px !important;
-            font-size: 0.95rem !important;
-            border-radius: 12px !important;
-            padding: 14px 20px !important;
-            width: 100% !important;
-        }}
-        
-        /* --- Inputs Maiores (Dedo-Friendly) --- */
-        .stTextInput input {{
-            min-height: 48px !important;
-            font-size: 16px !important;
-            border-radius: 10px !important;
-            padding: 12px 14px !important;
-        }}
-        .stSelectbox > div > div {{
-            min-height: 48px !important;
-            font-size: 16px !important;
-        }}
-        .stTextArea textarea {{
-            font-size: 16px !important;
-            min-height: 100px !important;
-        }}
-        .stDateInput input {{
-            min-height: 48px !important;
-            font-size: 16px !important;
-        }}
-        .stNumberInput input {{
-            min-height: 48px !important;
-            font-size: 16px !important;
-        }}
-        
-        /* --- Métricas: Cards Compactos --- */
-        [data-testid="stMetric"] {{
-            padding: 12px 14px !important;
-            border-radius: 12px !important;
-        }}
-        [data-testid="stMetricValue"] {{
-            font-size: 1.6rem !important;
-        }}
-        [data-testid="stMetricLabel"] {{
-            font-size: 0.75rem !important;
-        }}
-        
-        /* --- Colunas: Empilhar Verticalmente --- */
-        [data-testid="stHorizontalBlock"] {{
-            flex-wrap: wrap !important;
-            gap: 8px !important;
-        }}
-        [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"] {{
-            flex: 1 1 100% !important;
-            min-width: 100% !important;
-        }}
-        
-        /* --- Tabelas: Scroll Horizontal --- */
-        .stDataFrame {{
-            border-radius: 10px !important;
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch !important;
-        }}
-        [data-testid="stDataFrame"] table thead th {{
-            font-size: 0.65rem !important;
-            padding: 6px 8px !important;
-        }}
-        [data-testid="stDataFrame"] table tbody td {{
-            font-size: 0.75rem !important;
-            padding: 6px 8px !important;
-        }}
-        
-        /* --- Expanders Touch-Friendly --- */
-        [data-testid="stExpander"] {{
-            border-radius: 10px !important;
-        }}
-        [data-testid="stExpander"] summary {{
-            min-height: 48px !important;
-            padding: 12px 16px !important;
-            font-size: 0.9rem !important;
-            display: flex !important;
-            align-items: center !important;
-        }}
-        
-        /* --- File Uploader Maior --- */
-        [data-testid="stFileUploader"] {{
-            border-radius: 12px !important;
-            padding: 16px !important;
-        }}
-        [data-testid="stFileUploaderDropzone"] {{
-            min-height: 80px !important;
-        }}
-        
-        /* --- Alerts Compactos --- */
-        [data-testid="stAlert"] {{
-            border-radius: 10px !important;
-            padding: 12px !important;
-            font-size: 0.85rem !important;
-        }}
-        
-        /* --- Forms dentro de Expanders --- */
-        .stForm {{
-            padding: 8px !important;
-        }}
-        
-        /* --- Popover Mobile --- */
-        [data-testid="stPopover"] {{
-            width: 90vw !important;
-            max-width: 90vw !important;
-        }}
-        
-        /* --- Watermark menor no mobile --- */
-        .watermark-edson {{
-            font-size: 8px !important;
-            bottom: 4px !important;
-            right: 4px !important;
-        }}
-        
-        /* --- Toast/Notificações no mobile --- */
-        [data-testid="stToast"] {{
-            bottom: 70px !important;
-            right: 10px !important;
-            left: 10px !important;
-            max-width: calc(100vw - 20px) !important;
-        }}
-        
-        /* --- Scrollbar elegante no mobile --- */
-        * {{
-            scrollbar-width: thin !important;
-            scrollbar-color: rgba(14, 165, 233, 0.3) transparent !important;
-        }}
-        *::-webkit-scrollbar {{
-            width: 4px !important;
-            height: 4px !important;
-        }}
-        *::-webkit-scrollbar-thumb {{
-            background: rgba(14, 165, 233, 0.4) !important;
-            border-radius: 4px !important;
-        }}
-        *::-webkit-scrollbar-track {{
-            background: transparent !important;
-        }}
-    }}
-    
-    /* === CELULARES PEQUENOS (até 480px) === */
-    @media screen and (max-width: 480px) {{
-        .block-container {{
-            padding: 0.3rem 0.5rem !important;
-        }}
-        
-        .enesa-header {{
-            padding: 14px 10px !important;
-            margin-bottom: 12px !important;
-        }}
-        .enesa-header h1 {{
-            font-size: 1.1rem !important;
-        }}
-        
-        h1 {{
-            font-size: 1.2rem !important;
-        }}
-        h2 {{
-            font-size: 1.05rem !important;
-        }}
-        h3 {{
-            font-size: 0.95rem !important;
-        }}
-        
-        [data-testid="stMetricValue"] {{
-            font-size: 1.3rem !important;
-        }}
-        
-        .stTabs [data-baseweb="tab"] {{
-            padding: 6px 10px !important;
-            font-size: 0.72rem !important;
-        }}
-        
-        .stButton button {{
-            min-height: 48px !important;
-            font-size: 0.88rem !important;
-            padding: 12px 16px !important;
-        }}
-    }}
-    
-    /* === MODO PAISAGEM NO CELULAR === */
-    @media screen and (max-height: 500px) and (orientation: landscape) {{
-        .block-container {{
-            padding-top: 0.3rem !important;
-        }}
-        .enesa-header {{
-            padding: 10px !important;
-            margin-bottom: 8px !important;
-        }}
-    }}
-    
-    /* ================================================ */
-    /* 🌊 GLASSMORPHISM EXTREMO - VIDRO FOSCO PREMIUM   */
-    /* ================================================ */
-    
-    /* Cards de Métrica com Vidro Profundo */
-    [data-testid="stMetric"] {{
-        background: rgba(15, 23, 42, 0.35) !important;
-        backdrop-filter: blur(20px) saturate(180%) !important;
-        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 
-            0 8px 32px rgba(0, 0, 0, 0.25),
-            inset 0 1px 0 rgba(255, 255, 255, 0.1),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
-    }}
-    
-    /* Tabs com Vidro */
-    .stTabs [data-baseweb="tab-list"] {{
-        background: rgba(15, 23, 42, 0.3) !important;
-        backdrop-filter: blur(16px) saturate(160%) !important;
-        -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
-    }}
-    
-    /* Expanders com Vidro */
-    [data-testid="stExpander"] {{
-        background: rgba(15, 23, 42, 0.3) !important;
-        backdrop-filter: blur(16px) saturate(150%) !important;
-        -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-    }}
-    
-    /* Alerts com Vidro */
     [data-testid="stAlert"] {{
-        background: rgba(15, 23, 42, 0.35) !important;
-        backdrop-filter: blur(16px) saturate(150%) !important;
-        -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+        border-radius: 11px !important;
+        border: 1px solid {cor_borda} !important;
     }}
-    
-    /* Inputs com Vidro */
-    .stTextInput input, .stSelectbox > div > div, .stTextArea textarea,
-    .stDateInput input, .stNumberInput input {{
-        background: rgba(15, 23, 42, 0.35) !important;
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-    }}
-    .stTextInput input:focus, .stSelectbox > div > div:focus-within, .stTextArea textarea:focus {{
-        border-color: rgba(14, 165, 233, 0.5) !important;
-        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15), 0 0 20px rgba(14, 165, 233, 0.1) !important;
-    }}
-    
-    /* DataFrames com Vidro */
-    .stDataFrame {{
-        background: rgba(15, 23, 42, 0.25) !important;
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
-    }}
-    
-    /* Sidebar com Vidro Profundo */
-    [data-testid="stSidebar"] {{
-        background: rgba(10, 15, 30, 0.6) !important;
-        backdrop-filter: blur(24px) saturate(200%) !important;
-        -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
-        border-right: 1px solid rgba(14, 165, 233, 0.15) !important;
-        box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3), inset -1px 0 0 rgba(255, 255, 255, 0.04) !important;
-    }}
-    
-    /* File Uploader com Vidro */
-    [data-testid="stFileUploader"] {{
-        background: rgba(15, 23, 42, 0.3) !important;
-        backdrop-filter: blur(12px) !important;
-        -webkit-backdrop-filter: blur(12px) !important;
-        border: 1px dashed rgba(14, 165, 233, 0.35) !important;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
-    }}
-    
-    /* Botões com Vidro e Brilho */
-    div.stButton > button[data-baseweb="button"] {{
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.85) 0%, rgba(14, 165, 233, 0.85) 100%) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-    }}
-    div.stButton > button[data-baseweb="button"]:hover {{
-        box-shadow: 0 8px 30px rgba(14, 165, 233, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 40px rgba(14, 165, 233, 0.15) !important;
-    }}
-    
-    /* ================================================ */
-    /* ✨ MICRO-ANIMAÇÕES E TRANSIÇÕES SUAVES           */
-    /* ================================================ */
-    
-    /* Fade-Up: Elementos aparecem flutuando */
-    @keyframes fadeUpIn {{
-        from {{
-            opacity: 0;
-            transform: translateY(20px);
-        }}
-        to {{
-            opacity: 1;
-            transform: translateY(0);
-        }}
-    }}
-    
-    @keyframes fadeUpInDelayed {{
-        0% {{
-            opacity: 0;
-            transform: translateY(25px);
-        }}
-        30% {{
-            opacity: 0;
-            transform: translateY(25px);
-        }}
-        100% {{
-            opacity: 1;
-            transform: translateY(0);
-        }}
-    }}
-    
-    /* Pulse Glow para botões */
-    @keyframes pulseGlow {{
-        0% {{
-            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
-        }}
-        50% {{
-            box-shadow: 0 4px 25px rgba(14, 165, 233, 0.45), 0 0 40px rgba(14, 165, 233, 0.1);
-        }}
-        100% {{
-            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.2);
-        }}
-    }}
-    
-    @keyframes shimmer {{
-        0% {{
-            background-position: -200% 0;
-        }}
-        100% {{
-            background-position: 200% 0;
-        }}
-    }}
-    
-    /* Aplicar fade-up nos blocos */
-    .block-container {{
-        animation: fadeUpIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }}
-    
-    /* Métricas aparecem com delay escalonado */
-    [data-testid="stMetric"] {{
-        animation: fadeUpIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    }}
-    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(1) [data-testid="stMetric"] {{
-        animation-delay: 0.05s !important;
-    }}
-    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(2) [data-testid="stMetric"] {{
-        animation-delay: 0.12s !important;
-    }}
-    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(3) [data-testid="stMetric"] {{
-        animation-delay: 0.19s !important;
-    }}
-    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"]:nth-child(4) [data-testid="stMetric"] {{
-        animation-delay: 0.26s !important;
-    }}
-    
-    /* Botão Principal com pulso neon suave */
-    div.stButton > button[kind="primary"],
-    div.stButton > button[data-baseweb="button"] {{
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    }}
-    div.stButton > button[kind="primary"]:hover,
-    div.stButton > button[data-baseweb="button"]:hover {{
-        animation: pulseGlow 2s ease-in-out infinite !important;
-        transform: translateY(-2px) scale(1.02) !important;
-    }}
-    div.stButton > button[data-baseweb="button"]:active {{
-        transform: translateY(1px) scale(0.97) !important;
-        transition: transform 0.1s ease !important;
-    }}
-    
-    /* Tabs com transição suave */
-    .stTabs [data-baseweb="tab"] {{
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    }}
-    .stTabs [aria-selected="true"] {{
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        box-shadow: 0 4px 20px rgba(14, 165, 233, 0.35), 0 0 30px rgba(14, 165, 233, 0.1) !important;
-    }}
-    
-    /* Expanders com transição suave */
-    [data-testid="stExpander"] {{
-        transition: all 0.3s ease !important;
-    }}
-    [data-testid="stExpander"]:hover {{
-        transform: translateY(-1px) !important;
-        border-color: rgba(14, 165, 233, 0.25) !important;
-        box-shadow: 0 8px 25px rgba(14, 165, 233, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
-    }}
-    
-    /* DataFrames com hover suave */
-    .stDataFrame {{
-        transition: all 0.3s ease !important;
-    }}
-    .stDataFrame:hover {{
-        transform: translateY(-2px) !important;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25), 0 0 30px rgba(14, 165, 233, 0.08) !important;
-        border-color: rgba(14, 165, 233, 0.3) !important;
-    }}
-    
-    /* Inputs com transição de foco suave */
-    .stTextInput input, .stSelectbox > div > div, .stTextArea textarea {{
-        transition: all 0.3s ease !important;
-    }}
-    .stTextInput input:focus, .stTextArea textarea:focus {{
-        transform: scale(1.005) !important;
-    }}
-    
-    /* File Uploader com animação */
-    [data-testid="stFileUploader"] {{
-        transition: all 0.3s ease !important;
-    }}
-    [data-testid="stFileUploader"]:hover {{
-        border-color: rgba(14, 165, 233, 0.6) !important;
-        background: rgba(14, 165, 233, 0.05) !important;
-        box-shadow: 0 0 25px rgba(14, 165, 233, 0.1) !important;
-        transform: translateY(-1px) !important;
-    }}
-    
-    /* Alerts com entrada suave */
-    [data-testid="stAlert"] {{
-        animation: fadeUpIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }}
-    
-    /* Shimmer decorativo no cabeçalho */
-    .enesa-header {{
-        position: relative;
-        overflow: hidden;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    }}
-    .enesa-header::after {{
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -200%;
-        width: 200%;
-        height: 100%;
-        background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(14, 165, 233, 0.04),
-            rgba(255, 255, 255, 0.06),
-            rgba(14, 165, 233, 0.04),
-            transparent
-        );
-        background-size: 200% 100%;
-        animation: shimmer 8s linear infinite;
-        pointer-events: none;
-    }}
-    .enesa-header:hover {{
-        transform: translateY(-3px) !important;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 0 30px rgba(14, 165, 233, 0.08) !important;
-    }}
-    
-    /* ================================================ */
-    /* 📱 BARRA DE NAVEGAÇÃO INFERIOR (MOBILE ONLY)     */
-    /* ================================================ */
-    @media screen and (max-width: 768px) {{
-        
-        /* Reposicionar as tabs principais para o rodapé */
-        .stTabs [data-baseweb="tab-list"] {{
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            z-index: 998 !important;
-            border-radius: 20px 20px 0 0 !important;
-            background: rgba(10, 15, 30, 0.85) !important;
-            backdrop-filter: blur(24px) saturate(200%) !important;
-            -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
-            border: none !important;
-            border-top: 1px solid rgba(14, 165, 233, 0.2) !important;
-            box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.4), 0 -1px 0 rgba(255, 255, 255, 0.05) !important;
-            padding: 6px 8px 10px 8px !important;
-            gap: 2px !important;
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-            flex-wrap: nowrap !important;
-            -webkit-overflow-scrolling: touch !important;
-            scrollbar-width: none !important;
-        }}
-        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {{
-            display: none !important;
-        }}
-        
-        /* Abas do rodapé com estilo de ícone */
-        .stTabs [data-baseweb="tab"] {{
-            flex-direction: column !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 6px 10px !important;
-            font-size: 0.65rem !important;
-            min-width: 60px !important;
-            min-height: 50px !important;
-            border-radius: 12px !important;
-            gap: 2px !important;
-            flex-shrink: 0 !important;
-            white-space: nowrap !important;
-            line-height: 1.1 !important;
-        }}
-        
-        /* Tab ativa com brilho neon */
-        .stTabs [aria-selected="true"] {{
-            background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(59, 130, 246, 0.2)) !important;
-            color: #0ea5e9 !important;
-            border: 1px solid rgba(14, 165, 233, 0.3) !important;
-            box-shadow: 0 0 20px rgba(14, 165, 233, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-        }}
-        
-        /* Espaço extra no final da página para não ficar escondido pela barra */
-        .block-container {{
-            padding-bottom: 85px !important;
-        }}
-        
-        /* Indicador de brilho na barra inferior */
-        .stTabs [data-baseweb="tab-list"]::before {{
-            content: '' !important;
-            position: absolute !important;
-            top: -1px !important;
-            left: 10% !important;
-            right: 10% !important;
-            height: 2px !important;
-            background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.5), transparent) !important;
-            border-radius: 2px !important;
-            z-index: 1 !important;
-            animation: none !important;
-        }}
-    }}
-    </style>
-    
-    <div class="watermark-edson">EDSON GARCIA DE ARAUJO</div>
-""", unsafe_allow_html=True)
 
-# ================================================================
-# PALETA CORPORATIVA SGO v9.2
-# ================================================================
-st.markdown("""
-<style>
-:root{
-  --sgo-bg:#07111f;--sgo-surface:#0d1b2d;--sgo-surface-2:#12243a;
-  --sgo-border:rgba(125,158,196,.18);--sgo-primary:#2f81f7;
-  --sgo-accent:#38bdf8;--sgo-text:#f1f5f9;--sgo-muted:#86a0bf;
-}
-.stApp{background:radial-gradient(circle at 45% -10%,#142945 0%,#091525 42%,#050b14 100%)!important;}
-[data-testid="stSidebar"]{background:linear-gradient(180deg,#081423 0%,#07111e 100%)!important;border-right:1px solid var(--sgo-border)!important;}
-[data-testid="stSidebar"] div.stButton>button[kind="primary"]{background:linear-gradient(90deg,#1f5ba8,#1c4d8e)!important;border-color:#347ed2!important;color:white!important;}
-[data-testid="stSidebar"] div.stButton>button[kind="secondary"]{color:#c3d1e3!important;}
-[data-testid="stSidebar"] div.stButton>button[kind="secondary"]:hover{background:rgba(47,129,247,.11)!important;border-color:rgba(56,189,248,.24)!important;}
-.sgo-nav-group{color:#5f7fa7!important;}
-.sgo-team-footer{margin-top:18px;padding:15px 10px 4px;border-top:1px solid rgba(125,158,196,.16);text-align:center;}
-.sgo-team-title{font-size:9px;letter-spacing:1.45px;color:#506987;font-weight:800;margin-bottom:8px;}
-.sgo-team-names{font-size:11px;line-height:1.65;color:#a9bdd3;font-weight:600;}
-.sgo-team-version{margin-top:12px;padding-top:10px;border-top:1px solid rgba(125,158,196,.10);font-size:9px;color:#526a87;letter-spacing:.45px;}
-.sgo-team-version span{color:#38bdf8;font-weight:800;margin-left:5px;}
-.enesa-header{background:rgba(9,22,38,.94)!important;border-color:var(--sgo-border)!important;border-left-color:var(--sgo-accent)!important;}
-[data-testid="stMetric"],[data-testid="stExpander"],[data-testid="stForm"]{background:rgba(13,27,45,.76)!important;border-color:var(--sgo-border)!important;}
+    /* 12. RODAPÉ INSTITUCIONAL DA SIDEBAR */
+    .sgo-team-footer {{
+        margin-top: 16px;
+        padding: 12px 12px 6px;
+        border-top: 1px solid rgba(148, 163, 184, 0.16);
+        text-align: center;
+    }}
+    .sgo-team-title {{
+        font-size: 9px;
+        letter-spacing: 1.4px;
+        color: #94A3B8;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }}
+    .sgo-team-names {{
+        font-size: 13px;
+        color: #F1F5F9;
+        font-weight: 700;
+    }}
+    .sgo-team-version {{
+        margin-top: 5px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        color: #94A3B8;
+    }}
+    .sgo-team-version span {{
+        color: #2DD4BF;
+        font-weight: 600;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1496,6 +618,7 @@ caminho_historico_f1_csv = os.path.join(pasta_base, "historico_f1_local.csv")
 caminho_base_salva_xlsx = os.path.join(pasta_base, "BASE_ATUAL.xlsx")
 caminho_escala_csv = os.path.join(pasta_base, "escala_diaria.csv")
 caminho_rdc_registros_csv = os.path.join(pasta_base, "rdc_registros.csv")
+caminho_programacao_csv = os.path.join(pasta_base, "programacao_semanal.csv")
 caminho_briefings_json = os.path.join(pasta_base, "briefings_historico.json")
 
 celula_encarregado = "I4"
@@ -1680,8 +803,9 @@ def gerar_pdf_rdc(equipe, encarregado_selecionado, nome_empresa="", logo_path=""
     pdf.set_font("Helvetica", "", 5.5)
     pdf.cell(28, h_row, "DISCIPLINA/SETOR:", 1, 0, "R")
     pdf.cell(col_mid - 28, h_row, "", 1, 0, "L")
+    pdf.set_font("Helvetica", "B", 6.5)
     pdf.cell(10, h_row, "DATA:", 1, 0, "R")
-    pdf.set_font("Helvetica", "B", 7)
+    pdf.set_font("Helvetica", "B", 10.5)
     pdf.cell(col_right - 10, h_row, str(data_rdc) if data_rdc else "", 1, 1, "C")
     
     y += h_row
@@ -2047,6 +1171,54 @@ def _executar_salvamento_nuvem_f1(conn, df_f1, caminho_csv):
         except Exception:
             pass
 
+def _executar_salvamento_nuvem_rdc_registros(df_rdc):
+    """Sincroniza rdc_registros.csv na aba RDC_Registros do Google Sheets em segundo plano."""
+    try:
+        sh = obter_planilha_google()
+        if sh and df_rdc is not None and not df_rdc.empty:
+            ws_names = [w.title for w in sh.worksheets()]
+            cols = list(df_rdc.columns)
+            if "RDC_Registros" not in ws_names:
+                ws_r = sh.add_worksheet(title="RDC_Registros", rows=max(len(df_rdc) + 500, 1000), cols=max(len(cols) + 2, 25))
+            else:
+                ws_r = sh.worksheet("RDC_Registros")
+            valores = [cols] + df_rdc.fillna("").astype(str).values.tolist()
+            if ws_r.row_count < len(valores) + 50:
+                ws_r.add_rows(len(valores) + 500 - ws_r.row_count)
+            ws_r.clear()
+            ws_r.update(values=valores, range_name="A1")
+    except Exception:
+        pass
+
+def sincronizar_rdc_registros_nuvem_para_local(caminho_csv):
+    """Puxa RDC_Registros da nuvem Google Sheets e mescla com o arquivo local sem perder nada."""
+    try:
+        sh = obter_planilha_google()
+        if sh:
+            ws_names = [w.title for w in sh.worksheets()]
+            if "RDC_Registros" in ws_names:
+                ws_r = sh.worksheet("RDC_Registros")
+                dados = ws_r.get_all_values()
+                if dados and len(dados) > 1:
+                    df_nuvem = pd.DataFrame(dados[1:], columns=dados[0])
+                    if not df_nuvem.empty and "DATA" in df_nuvem.columns and "ENCARREGADO" in df_nuvem.columns:
+                        if os.path.exists(caminho_csv):
+                            try:
+                                df_loc = pd.read_csv(caminho_csv)
+                                df_merged = pd.concat([df_nuvem, df_loc], ignore_index=True)
+                                subset_cols = [c for c in ["DATA", "ENCARREGADO", "ATIVIDADE"] if c in df_merged.columns]
+                                if subset_cols:
+                                    df_merged = df_merged.drop_duplicates(subset=subset_cols)
+                            except Exception:
+                                df_merged = df_nuvem
+                        else:
+                            df_merged = df_nuvem
+                        df_merged.to_csv(caminho_csv, index=False)
+                        return df_merged
+    except Exception:
+        pass
+    return None
+
 def salvar_f1_seguro(conn, df_f1, caminho_csv, modo_async=True):
     """Salva o Histórico F1 localmente em < 1ms e sincroniza na nuvem sem travar."""
     if df_f1 is None or df_f1.empty:
@@ -2366,7 +1538,7 @@ if 'df_historico_f1' not in st.session_state or st.session_state.df_historico_f1
     _f1_carregado = False
     # PRIORIDADE 1: Tentar carregar da NUVEM (Google Sheets) para nunca perder dados
     try:
-        _conn_f1 = st.connection("gsheets", type=GSheetsConnection)
+        _conn_f1 = st.connection("gsheets", type=GSheetsConnection) if GSheetsConnection else _SgoDirectGSheetsConn()
         _df_f1_nuvem = _conn_f1.read(worksheet="Historico_F1", ttl=0)
         if _df_f1_nuvem is not None:
             _df_f1_nuvem = _df_f1_nuvem.dropna(how='all')
@@ -2399,7 +1571,10 @@ if 'mostrar_upload' not in st.session_state:
 # =================================================================
 # SISTEMA DE LOGIN (BLOQUEIO GLOBAL) E COOKIES
 # =================================================================
-import extra_streamlit_components as stx
+try:
+    import extra_streamlit_components as stx
+except ImportError:
+    stx = None
 
 
 # =================================================================
@@ -2474,8 +1649,10 @@ def normalizar_data_brasil(val):
 # =================================================================
 # PERSISTÊNCIA E GESTÃO DE BRIEFINGS DIÁRIOS (LOCAL + NUVEM)
 # =================================================================
-def carregar_briefings_salvos():
-    """Carrega todos os briefings matinais salvos (mescla cache local com a nuvem permanente)."""
+def carregar_briefings_salvos(forcar_nuvem=False):
+    """Carrega todos os briefings matinais salvos com cache em memória para alta velocidade."""
+    if not forcar_nuvem and "_cache_briefings_mem" in st.session_state and st.session_state["_cache_briefings_mem"]:
+        return st.session_state["_cache_briefings_mem"]
     dados = {}
     
     # 1. Carregar do cache local
@@ -2514,6 +1691,7 @@ def carregar_briefings_salvos():
     except Exception:
         pass
         
+    st.session_state['_cache_briefings_mem'] = dados
     return dados
 
 def salvar_briefing_dia(data_str, briefing_dict):
@@ -2531,6 +1709,7 @@ def salvar_briefing_dia(data_str, briefing_dict):
         dados[chave_iso] = briefing_dict
         
         # 1. Salvar no arquivo local
+        st.session_state['_cache_briefings_mem'] = dados
         with open(caminho_briefings_json, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
             
@@ -2636,12 +1815,15 @@ def eh_encarregado_valido(nome):
 # =================================================================
 # SINCRONIZAÇÃO GLOBAL EM TEMPO REAL (MULTI-DISPOSITIVO / TV / MOBILE)
 # =================================================================
-def sincronizar_dados_globais():
+def sincronizar_dados_globais(forcar=False):
     """
-    Sincroniza todos os dados em tempo real entre todos os acessos (PC, TV, Celular).
-    Garante que qualquer RDC escaneado, alteração de PDE ou atualização de F1
-    seja imediatamente refletido em todas as telas conectadas.
+    Sincroniza todos os dados entre os acessos sem regravar disco a cada clique.
     """
+    import time as _t_sync
+    agora_ts = _t_sync.time()
+    if not forcar and st.session_state.get("_ultima_sync_global_ts", 0) > (agora_ts - 120):
+        return
+    st.session_state["_ultima_sync_global_ts"] = agora_ts
     # 1. SINCRONIZAR HISTÓRICO F1 E RDCs ESCANEADOS
     registros_f1 = []
     
@@ -2665,7 +1847,11 @@ def sincronizar_dados_globais():
         except Exception:
             pass
             
-    # 1.3 Do banco de RDCs escaneados (rdc_registros.csv)
+    # 1.3 Do banco de RDCs escaneados (rdc_registros.csv + Nuvem Google Sheets)
+    try:
+        sincronizar_rdc_registros_nuvem_para_local(caminho_rdc_registros_csv)
+    except Exception:
+        pass
     if os.path.exists(caminho_rdc_registros_csv):
         try:
             df_rdc_reg = pd.read_csv(caminho_rdc_registros_csv)
@@ -2695,7 +1881,160 @@ def sincronizar_dados_globais():
 
 sincronizar_dados_globais()
 
-cookie_manager = stx.CookieManager()
+# =================================================================
+# MOTOR DE SINCRONIZAÇÃO EM TEMPO REAL (BACKGROUND THREAD + AUTO-REFRESH)
+# =================================================================
+import hashlib as _hashlib_sync
+try:
+    import toml as _toml_sync
+except ImportError:
+    import tomllib as _tomllib_builtin
+    class _toml_sync:
+        @staticmethod
+        def load(p):
+            with open(p, "rb") as _f:
+                return _tomllib_builtin.load(_f)
+
+@st.cache_resource(show_spinner=False)
+def obter_monitor_nuvem_tempo_real_v2():
+    """Mantém um dicionário compartilhado atualizado em segundo plano a cada 5s via gspread puro (sem st.secrets na thread)."""
+    estado = {
+        "versao": 0,
+        "df_raw_pde": None,
+        "df_f1": None,
+        "hash_pde": "",
+        "hash_f1": "",
+        "hash_rdc": "",
+        "hash_global": "",
+        "linhas_pde": 0,
+        "ultima_sync_str": "Conectando...",
+        "ultimo_erro": "",
+        "forcar_agora": False,
+        "rodando": False,
+        "_sh_cached": None,
+        "_sh_ts": 0.0,
+    }
+
+    def _obter_sh_puro():
+        agora = time.time()
+        if estado["_sh_cached"] is not None and (agora - estado["_sh_ts"]) < 900:
+            return estado["_sh_cached"]
+        from google.oauth2 import service_account
+        import gspread
+        sec_path = os.path.join(pasta_base, ".streamlit", "secrets.toml")
+        if not os.path.exists(sec_path):
+            return None
+        sec_data = _toml_sync.load(sec_path)
+        creds_info = dict(sec_data["connections"]["gsheets"])
+        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
+        client = gspread.authorize(creds)
+        sh = client.open_by_url(creds_info['spreadsheet'])
+        estado["_sh_cached"] = sh
+        estado["_sh_ts"] = agora
+        return sh
+
+    def _calcular_hash_tabela(valores):
+        # Hash 100% de todas as células e colunas da planilha em < 1ms
+        return _hashlib_sync.md5(repr(valores).encode("utf-8", errors="ignore")).hexdigest()
+
+    def _normalizar_linhas_batch(vals):
+        if not vals or len(vals) < 2:
+            return None, None
+        header = [str(c).strip() for c in vals[0]]
+        n_cols = len(header)
+        rows = [r + [""] * max(0, n_cols - len(r)) if len(r) < n_cols else r[:n_cols] for r in vals[1:]]
+        return header, rows
+
+    def _ciclo_sync():
+        try:
+            sh = _obter_sh_puro()
+            if not sh:
+                return
+            res_batch = sh.values_batch_get(["PDE!A1:Z3500", "Historico_F1!A1:D7000", "RDC_Registros!A1:Z4000"])
+            value_ranges = res_batch.get("valueRanges", []) if isinstance(res_batch, dict) else []
+            mudou = False
+
+            # 1. PDE (todas as células e colunas!)
+            if len(value_ranges) > 0:
+                vals_pde = value_ranges[0].get("values", [])
+                if vals_pde and len(vals_pde) > 1:
+                    h_pde = _calcular_hash_tabela(vals_pde)
+                    if h_pde != estado["hash_pde"]:
+                        hdr, rows = _normalizar_linhas_batch(vals_pde)
+                        if hdr and rows:
+                            df_raw_pde = pd.DataFrame(rows, columns=hdr).dropna(how="all")
+                            if not df_raw_pde.empty:
+                                estado["df_raw_pde"] = df_raw_pde
+                                estado["linhas_pde"] = len(df_raw_pde)
+                                estado["hash_pde"] = h_pde
+                                mudou = True
+
+            # 2. Historico_F1
+            if len(value_ranges) > 1:
+                vals_f1 = value_ranges[1].get("values", [])
+                if vals_f1 and len(vals_f1) > 1:
+                    h_f1 = _calcular_hash_tabela(vals_f1)
+                    if h_f1 != estado["hash_f1"]:
+                        hdr, rows = _normalizar_linhas_batch(vals_f1)
+                        if hdr and rows:
+                            df_raw_f1 = pd.DataFrame(rows, columns=hdr)
+                            if "DATA" in df_raw_f1.columns and "ENCARREGADO" in df_raw_f1.columns:
+                                df_raw_f1["DATA"] = df_raw_f1["DATA"].apply(normalizar_data_brasil)
+                                df_raw_f1["ENCARREGADO"] = df_raw_f1["ENCARREGADO"].astype(str).str.strip().str.upper()
+                                df_raw_f1 = df_raw_f1[df_raw_f1["ENCARREGADO"].apply(eh_encarregado_valido)][["DATA", "ENCARREGADO"]].dropna().drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                estado["df_f1"] = df_raw_f1
+                                estado["hash_f1"] = h_f1
+                                try:
+                                    df_raw_f1.to_csv(caminho_historico_f1_csv, index=False)
+                                except Exception:
+                                    pass
+                                mudou = True
+
+            # 3. RDC_Registros
+            if len(value_ranges) > 2:
+                vals_r = value_ranges[2].get("values", [])
+                if vals_r and len(vals_r) > 1:
+                    h_r = _calcular_hash_tabela(vals_r)
+                    if h_r != estado["hash_rdc"]:
+                        hdr, rows = _normalizar_linhas_batch(vals_r)
+                        if hdr and rows:
+                            df_nuvem_r = pd.DataFrame(rows, columns=hdr)
+                            if not df_nuvem_r.empty and "DATA" in df_nuvem_r.columns:
+                                df_nuvem_r.to_csv(caminho_rdc_registros_csv, index=False)
+                                estado["hash_rdc"] = h_r
+                                mudou = True
+
+            estado["ultima_sync_str"] = agora_local_sgo().strftime("%H:%M:%S")
+            estado["ultimo_erro"] = ""
+            if mudou:
+                estado["hash_global"] = f"{estado['hash_pde']}|{estado['hash_f1']}|{estado['hash_rdc']}"
+                estado["versao"] += 1
+        except Exception as e_sync:
+            estado["ultimo_erro"] = str(e_sync)[:80]
+            estado["_sh_cached"] = None
+
+    def _worker_loop():
+        while True:
+            _ciclo_sync()
+            for _ in range(5):
+                if estado.get("forcar_agora"):
+                    estado["forcar_agora"] = False
+                    break
+                time.sleep(1)
+
+    if not estado["rodando"]:
+        estado["rodando"] = True
+        # Executar 1º ciclo rápido em background
+        t_mon = threading.Thread(target=_worker_loop, daemon=True)
+        t_mon.start()
+
+    return estado
+
+_MONITOR_NUVEM = obter_monitor_nuvem_tempo_real_v2()
+
+
+cookie_manager = stx.CookieManager() if stx else None
 
 caminho_usuarios = "usuarios.json"
 import json
@@ -2736,35 +2075,37 @@ hora_agora = dt_mod.datetime.now().strftime("%H:%M")
 data_agora = dt_mod.datetime.now().strftime("%d/%m/%Y")
 nome_user_logado = st.session_state.get('nome_completo', 'Admin')
 
+modulo_ativo_hdr = st.session_state.get("pagina_sgo", "Dashboard")
 st.markdown(f"""
     <div class="enesa-header">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-            <div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-                    <h1 style="margin: 0; font-size: 1.7rem; font-weight: 700;">
-                        <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Sistema de Gestao RDC & PDE</span>
-                    </h1>
-                    <span style="background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #0ea5e9; font-weight: 700; letter-spacing: 1px;">v9.2</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #38BDF8; background: rgba(14, 165, 233, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); padding: 3px 9px; border-radius: 5px;">{nome_site}</span>
+                    <span style="color: #475569; font-size: 12px;">/</span>
+                    <span style="font-size: 11px; font-weight: 600; color: #94A3B8; letter-spacing: 0.4px; text-transform: uppercase;">Módulo: <strong style="color: #E2E8F0;">{modulo_ativo_hdr}</strong></span>
                 </div>
-                <p style="color: {cor_texto_sub}; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px;">Controle Operacional de Efetivo</p>
+                <div style="display: flex; align-items: baseline; gap: 12px; margin-top: 2px;">
+                    <h1 style="margin: 0; font-size: 1.55rem; font-weight: 800; color: #F8FAFC; letter-spacing: -0.025em;">
+                        Sistema de Gestão RDC &amp; PDE
+                    </h1>
+                    <span style="font-family: 'JetBrains Mono', monospace; background: rgba(37, 99, 235, 0.18); border: 1px solid rgba(96, 165, 250, 0.3); border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #93C5FD; font-weight: 700; letter-spacing: 0.6px;">v10.0 ENTERPRISE</span>
+                </div>
+                <p style="color: #94A3B8; font-size: 0.8rem; margin: 0; font-weight: 500;">Plataforma Corporativa de Controle Operacional de Efetivo, Custos e Produtividade</p>
             </div>
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 20px; padding: 5px 14px; font-size: 11px; color: #10b981; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
-                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 6px #10b981; animation: pulse 2s infinite;"></span>
-                    ONLINE
+                <div style="background: rgba(16, 185, 129, 0.10); border: 1px solid rgba(16, 185, 129, 0.28); border-radius: 8px; padding: 7px 13px; font-size: 11px; color: #34D399; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 7px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10B981; display: inline-block; box-shadow: 0 0 8px #10B981;"></span>
+                    CLOUD SYNC ATIVO
                 </div>
-                <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.15); border-radius: 10px; padding: 6px 14px; font-size: 12px; color: #94a3b8;">
-                    <span style="color: #0ea5e9; font-weight: 600;">{nome_user_logado}</span> · {data_agora}
+                <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 8px; padding: 7px 14px; font-size: 12px; color: #CBD5E1; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #38BDF8; font-weight: 600;">{nome_user_logado}</span>
+                    <span style="color: #475569;">|</span>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #94A3B8;">{data_agora} · {hora_agora}</span>
                 </div>
             </div>
         </div>
     </div>
-    <style>
-        @keyframes pulse {{
-            0%, 100% {{ opacity: 1; }}
-            50% {{ opacity: 0.4; }}
-        }}
-    </style>
 """, unsafe_allow_html=True)
 
 # =================================================================
@@ -2811,21 +2152,26 @@ with st.sidebar:
         section[data-testid="stSidebar"] {min-width:292px!important;max-width:292px!important;width:292px!important;}
       }
       section[data-testid="stSidebar"] .block-container {padding:14px 12px 18px!important;}
-      section[data-testid="stSidebar"] div.stButton > button {
+      section[data-testid="stSidebar"] div.stButton > button,
+      section[data-testid="stSidebar"] div.stLinkButton > a {
         min-height:44px!important;width:100%!important;text-align:left!important;
         justify-content:flex-start!important;border-radius:8px!important;padding:9px 12px!important;
         font-size:13px!important;font-weight:600!important;margin:1px 0!important;
-        box-shadow:none!important;border:1px solid transparent!important;
+        box-shadow:none!important;border:1px solid transparent!important;text-decoration:none!important;
       }
       section[data-testid="stSidebar"] div.stButton > button[kind="primary"] {
-        background:linear-gradient(90deg,#194b91,#173b72)!important;
-        border-color:#2e69b8!important;color:#fff!important;
+        background:linear-gradient(90deg,#2563EB,#1D4ED8)!important;
+        border-color:#3B82F6!important;color:#fff!important;
       }
-      section[data-testid="stSidebar"] div.stButton > button[kind="secondary"] {
+      section[data-testid="stSidebar"] div.stButton > button[kind="secondary"],
+      section[data-testid="stSidebar"] div.stLinkButton > a {
         background:transparent!important;color:#cbd5e1!important;
       }
       section[data-testid="stSidebar"] div.stButton > button[kind="secondary"]:hover {
         background:rgba(59,130,246,.09)!important;border-color:rgba(59,130,246,.18)!important;
+      }
+      section[data-testid="stSidebar"] div.stLinkButton > a:hover {
+        background:rgba(16,185,129,.12)!important;border-color:rgba(16,185,129,.32)!important;color:#34D399!important;
       }
       .sgo-nav-group {font-size:10px;color:#607a9e;font-weight:750;letter-spacing:1.1px;
         text-transform:uppercase;margin:15px 5px 6px;}
@@ -2868,26 +2214,32 @@ with st.sidebar:
             st.session_state.pagina_sgo = label
             st.rerun()
 
-    # Funções prioritárias para smartphone e operação diária.
-    _nav_button("Dashboard", "⌂", "nav_dashboard")
-    _nav_button("Resumo Diário", "▣", "nav_resumo")
-    _nav_button("Competição F1", "🏆", "nav_f1")
-    _nav_button("RDC Digital", "📱", "nav_rdc_digital")
-    _nav_button("Emissão de RDC", "▤", "nav_emissao")
-    _nav_button("Leitor de RDC (IA)", "⌗", "nav_ia")
+    # Redirecionar páginas antigas caso estivessem salvas na sessão
+    if st.session_state.get("pagina_sgo") in ["RDC Digital", "Análise de Gargalos", "Escala", "Busca Global & Raio-X", "Resumo Diário", "Programação Semanal", "Leitor de RDC (IA)"]:
+        st.session_state.pagina_sgo = "Leitor de RDC" if st.session_state.get("pagina_sgo") == "Leitor de RDC (IA)" else "Dashboard"
 
-    # Funções técnicas ficam recolhidas para reduzir a altura do menu no celular.
-    with st.expander("Mostrar mais opções", expanded=False):
-        _nav_button("Escala", "♟", "nav_escala")
-        _nav_button("Análise de Gargalos", "▥", "nav_gargalos")
-        _nav_button("Controle de C.C", "⚙", "nav_cc")
-        _nav_button("Banco de Dados", "▱", "nav_banco")
-        if st.button("▣   Modo TV", key="nav_modo_tv", use_container_width=True, type="secondary"):
-            st.session_state.modo_tv = True
-            st.session_state.tv_slide = 0
-            st.rerun()
-        if st.button("❔   Ajuda e Suporte", key="nav_ajuda", use_container_width=True, type="secondary"):
-            st.info("Para suporte, registre o erro, a tela e o horário da ocorrência.")
+    st.markdown('<div class="sgo-nav-group">VISÃO EXECUTIVA</div>', unsafe_allow_html=True)
+    _nav_button("Dashboard", "📊", "nav_dashboard")
+    _nav_button("Competição F1", "🏆", "nav_f1")
+    _nav_button("Controle de C.C", "🏛️", "nav_cc")
+    _nav_button("Auditoria de Efetivo", "✅", "nav_auditoria_efetivo")
+    if st.button("📺   Modo Apresentação (TV)", key="nav_modo_tv", use_container_width=True, type="secondary"):
+        st.session_state.modo_tv = True
+        st.session_state.tv_slide = 0
+        st.rerun()
+
+    st.markdown('<div class="sgo-nav-group">OPERAÇÃO &amp; DOCUMENTOS</div>', unsafe_allow_html=True)
+    _nav_button("Emissão de RDC", "🖨️", "nav_emissao")
+    _nav_button("Leitor de RDC", "📄", "nav_ia")
+
+    st.markdown('<div class="sgo-nav-group">GESTÃO &amp; SUPORTE</div>', unsafe_allow_html=True)
+    _nav_button("Banco de Dados", "🗄️", "nav_banco")
+    st.link_button(
+        "💬   Suporte Técnico · (27) 98144-2043",
+        "https://wa.me/5527981442043?text=Ol%C3%A1%20Edson%2C%20preciso%20de%20suporte%20t%C3%A9cnico%20no%20Sistema%20SGO%20RDC%20%26%20PDE.",
+        use_container_width=True,
+        help="Abrir conversa direta no WhatsApp Empresarial: (27) 98144-2043"
+    )
 
 
     # Injeção de PWA (Instalação no Celular / Desktop)
@@ -2915,12 +2267,66 @@ with st.sidebar:
     if "modelo_gemini" not in st.session_state:
         st.session_state.modelo_gemini = "gemini-3.5-flash"
 
+    st.markdown('<div class="sgo-nav-group">CONFORTO VISUAL (TEMA)</div>', unsafe_allow_html=True)
+    st.selectbox(
+        "Paleta de Cores:",
+        [
+            "🌊 Azul Sereno (Ardósia Suave)",
+            "🌿 Verde-Petróleo Suave (Conforto Visual)"
+        ],
+        key="tema_visual_sgo",
+        label_visibility="collapsed"
+    )
+
+
+    # Monitor ao vivo de sincronização automática (a cada 5s sem precisar reiniciar o app)
+    @st.fragment(run_every=5)
+    def _painel_status_nuvem_ao_vivo():
+        mon = obter_monitor_nuvem_tempo_real_v2()
+        h_nuvem = mon.get("hash_global", "")
+        h_local = st.session_state.get("_hash_nuvem_aplicado", "")
+        if h_nuvem and h_nuvem != h_local:
+            if mon.get("df_raw_pde") is not None:
+                st.session_state.df = preparar_dataframe(mon["df_raw_pde"].copy())
+            if mon.get("df_f1") is not None:
+                st.session_state.df_historico_f1 = mon["df_f1"].copy()
+            st.session_state["_hash_nuvem_aplicado"] = h_nuvem
+            st.session_state["_versao_nuvem_aplicada"] = mon.get("versao", 0)
+            st.cache_data.clear()
+            st.rerun(scope="app")
+
+        hora_sync = mon.get("ultima_sync_str") or "..."
+        qtd_p = mon.get("linhas_pde", 0)
+        sub_txt = f"{hora_sync} · {qtd_p} reg." if qtd_p else hora_sync
+        st.markdown(f"""
+        <div style="background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.28);border-radius:10px;padding:7px 11px;margin:8px 0 6px 0;display:flex;align-items:center;justify-content:space-between;">
+            <span style="color:#34D399;font-size:11px;font-weight:700;">🟢 Nuvem Ao Vivo (5s)</span>
+            <span style="color:#94A3B8;font-size:10px;font-family:'JetBrains Mono',monospace;">{sub_txt}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("🔄 Sincronizar Agora", use_container_width=True, key="btn_force_live_sync_sidebar"):
+            mon["forcar_agora"] = True
+            mon["hash_pde"] = ""
+            mon["hash_f1"] = ""
+            mon["hash_rdc"] = ""
+            mon["hash_global"] = ""
+            st.session_state["_hash_nuvem_aplicado"] = ""
+            st.session_state.df = None
+            st.cache_data.clear()
+            time.sleep(0.8)
+            st.rerun(scope="app")
+
+    _painel_status_nuvem_ao_vivo()
+
     # Rodape institucional do menu.
     st.markdown("""
     <div class="sgo-team-footer">
       <div class="sgo-team-title">DESENVOLVEDOR DO PROJETO</div>
       <div class="sgo-team-names">Edson Garcia</div>
-      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v9.2</span></div>
+      <div style="margin-top:4px;">
+        <a href="https://wa.me/5527981442043?text=Ol%C3%A1%20Edson%2C%20preciso%20de%20suporte%20t%C3%A9cnico%20no%20Sistema%20SGO%20RDC%20%26%20PDE." target="_blank" style="color:#34D399;font-size:11.5px;font-weight:600;text-decoration:none;font-family:'JetBrains Mono',monospace;">💬 WhatsApp: (27) 98144-2043</a>
+      </div>
+      <div class="sgo-team-version">SGO RDC &amp; PDE <span>v10.0 Enterprise</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2928,7 +2334,7 @@ with st.sidebar:
 # LÓGICA DE CARREGAMENTO DA NUVEM (GOOGLE SHEETS)
 # =================================================================
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    conn = st.connection("gsheets", type=GSheetsConnection) if GSheetsConnection else _SgoDirectGSheetsConn()
 except Exception:
     conn = None
 
@@ -2973,14 +2379,24 @@ if arquivo_pde is not None:
                 st.sidebar.error(f"Erro Nuvem: {e}")
 
 # =================================================================
-# CARREGAMENTO EXCLUSIVO DO GOOGLE SHEETS (NUVEM OFICIAL)
+# CARREGAMENTO E ATUALIZAÇÃO AUTOMÁTICA EM TEMPO REAL (GOOGLE SHEETS)
 # =================================================================
+_mon_rt = obter_monitor_nuvem_tempo_real_v2()
+_h_rt = _mon_rt.get("hash_global", "")
+if _h_rt and _h_rt != st.session_state.get("_hash_nuvem_aplicado", ""):
+    if _mon_rt.get("df_raw_pde") is not None and arquivo_pde is None:
+        st.session_state.df = preparar_dataframe(_mon_rt["df_raw_pde"].copy())
+    if _mon_rt.get("df_f1") is not None:
+        st.session_state.df_historico_f1 = _mon_rt["df_f1"].copy()
+    st.session_state["_hash_nuvem_aplicado"] = _h_rt
+    st.session_state["_versao_nuvem_aplicada"] = _mon_rt.get("versao", 0)
+
 if conn and st.session_state.df is None:
     try:
         df_gsheets = None
         for ws_name in ["PDE", "Página1", "Base", "EFETIVO"]:
             try:
-                df_gsheets = conn.read(worksheet=ws_name, ttl=300)
+                df_gsheets = conn.read(worksheet=ws_name, ttl=45)
                 if df_gsheets is not None and not df_gsheets.empty and len(df_gsheets.columns) >= 3:
                     break
             except Exception:
@@ -2997,7 +2413,7 @@ if conn and st.session_state.df is None:
 # =================================================================
 if conn and ("df_historico_f1" not in st.session_state or st.session_state.df_historico_f1.empty):
     try:
-        df_f1 = conn.read(worksheet="Historico_F1", ttl=180)
+        df_f1 = conn.read(worksheet="Historico_F1", ttl=30)
         if df_f1 is not None and not df_f1.empty:
             df_f1 = df_f1.dropna(how='all')
             if 'ENCARREGADO' in df_f1.columns:
@@ -3010,11 +2426,13 @@ if conn and ("df_historico_f1" not in st.session_state or st.session_state.df_hi
 # CONTEUDO PRINCIPAL
 # =================================================================
 if st.session_state.df is not None:
-    df_atual = preparar_dataframe(st.session_state.df.copy())
+    df_atual = preparar_dataframe(st.session_state.df)
     lista_encarregados_base = sorted([str(e) for e in df_atual["ENCARREGADO"].unique() if str(e).strip() != ""])
 
-    # ====== HISTÓRICO DE C.C (FOTOGRAFIA DIÁRIA) ======
-    try:
+    # ====== HISTÓRICO DE C.C (FOTOGRAFIA DIÁRIA - 1X POR SESSÃO) ======
+    if not st.session_state.get("_snapshot_cc_salvo_hoje", False):
+      try:
+        st.session_state["_snapshot_cc_salvo_hoje"] = True
         hoje_hist = datetime.date.today().strftime("%Y-%m-%d")
         df_cc_valido = df_atual[df_atual["C.C"].astype(str).str.strip() != ""]
         if not df_cc_valido.empty:
@@ -3036,7 +2454,7 @@ if st.session_state.df is not None:
                 hist_cc_novo = cc_counts
                 
             hist_cc_novo.to_csv(caminho_hist_cc, index=False)
-    except Exception as e:
+      except Exception as e:
         pass # Falha silenciosa para não quebrar o app
     # ==================================================
 
@@ -3213,6 +2631,7 @@ if st.session_state.df is not None:
                         
         st.stop() # Finaliza o script para não mostrar as abas do admin
 
+    @st.cache_data(ttl=300, show_spinner=False)
     def gerar_relatorio_pdf(df):
         import io
         from fpdf import FPDF
@@ -3278,6 +2697,7 @@ if st.session_state.df is not None:
         
         return bytes(pdf.output())
 
+    @st.cache_data(ttl=300, show_spinner=False)
     def gerar_relatorio_pptx_dashboard(df, nome_site, caminho_logo, lista_completa_encarregados):
         import io
         import datetime as dt_mod
@@ -4200,310 +3620,440 @@ Retorne apenas o JSON sem crases ou markdown."""
         return bytes(pdf.output())
 
     # =================================================================
-    # MODO TV EXECUTIVO (APRESENTAÇÃO PREMIUM)
+    # MODO TV EXECUTIVO v10.0 (WAR ROOM WIDESCREEN PRESENTATION)
     # =================================================================
     if st.session_state.get("modo_tv", False):
         import streamlit.components.v1 as components
-        
-        # Forçar sincronização global em tempo real
-        sincronizar_dados_globais()
-        
-        slide_atual = st.session_state.get("tv_slide", 0)
+        import plotly.express as px
+        import plotly.graph_objects as go
+
+        if "tv_slide" not in st.session_state:
+            st.session_state.tv_slide = 0
+        total_slides_tv = 4
+        slide_atual = st.session_state.tv_slide % total_slides_tv
         nome_site_display = nome_site if (nome_site and str(nome_site).strip()) else "ENESA ENGENHARIA"
-        
-        # CSS Ultra Premium para Modo TV Fullscreen
+
         st.markdown("""
         <style>
-            [data-testid="stSidebar"] { display: none !important; }
-            [data-testid="stSidebarCollapseButton"] { display: none !important; }
-            .block-container { max-width: 98% !important; padding: 1rem 1.5rem !important; }
-            .stApp { background: #0b1120 !important; }
-            
-            .tv-card-kpi {
-                background: rgba(30, 41, 59, 0.6);
-                border: 1px solid rgba(255, 255, 255, 0.08);
+            [data-testid="stSidebar"], [data-testid="stSidebarCollapseButton"] { display: none !important; }
+            .enesa-header { display: none !important; }
+            .stApp {
+                background: radial-gradient(ellipse at 50% -15%, #132744 0%, #091220 50%, #050911 100%) !important;
+            }
+            .block-container {
+                max-width: 98vw !important;
+                padding: 0.8rem 1.8rem 1.5rem !important;
+            }
+            .tv-exec-bar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 16px;
+                background: linear-gradient(135deg, rgba(15, 23, 42, 0.96) 0%, rgba(20, 34, 58, 0.94) 100%);
+                border: 1px solid rgba(56, 189, 248, 0.25);
+                border-left: 4px solid #0EA5E9;
                 border-radius: 14px;
-                padding: 16px 20px;
-                position: relative;
-                overflow: hidden;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-                margin-bottom: 14px;
+                padding: 14px 22px;
+                margin-bottom: 12px;
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
             }
-            .tv-card-chart {
-                background: rgba(30, 41, 59, 0.6);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 16px;
-                padding: 16px 18px;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-            }
-            .tv-badge-live {
-                background: linear-gradient(135deg, #ef4444, #dc2626);
-                color: white;
+            .tv-live-pill {
+                background: rgba(239, 68, 68, 0.16);
+                border: 1px solid rgba(239, 68, 68, 0.45);
+                color: #FCA5A5;
                 font-weight: 800;
                 font-size: 11px;
-                letter-spacing: 1.5px;
-                padding: 4px 12px;
-                border-radius: 20px;
+                letter-spacing: 1.4px;
+                padding: 5px 12px;
+                border-radius: 999px;
                 display: inline-flex;
                 align-items: center;
-                gap: 6px;
-                box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
-                animation: pulseLive 1.5s infinite;
+                gap: 7px;
             }
-            @keyframes pulseLive {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0.65; }
+            .tv-live-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #EF4444;
+                box-shadow: 0 0 10px #EF4444;
+                animation: tvPulse 1.6s infinite;
             }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Tema TV 2.0: maior leitura, contraste e aproveitamento em telas grandes.
-        st.markdown("""
-        <style>
-          .stApp {background:radial-gradient(circle at 50% -20%,#18345a 0%,#091526 45%,#050b14 100%)!important;}
-          .block-container{max-width:1920px!important;padding:.65rem 1.15rem 1.2rem!important;}
-          [data-testid="stSidebar"], [data-testid="stSidebarCollapseButton"]{display:none!important;}
-          .enesa-header,.watermark-edson{display:none!important;}
-          [data-testid="stMetric"],[data-testid="stVerticalBlockBorderWrapper"]{
-            background:linear-gradient(145deg,rgba(20,40,66,.95),rgba(10,23,40,.96))!important;
-            border:1px solid rgba(91,166,231,.20)!important;border-radius:14px!important;
-            box-shadow:0 12px 34px rgba(0,0,0,.28)!important;
-          }
-          .tv-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;
-            background:linear-gradient(90deg,rgba(15,36,61,.98),rgba(11,26,45,.98));
-            border:1px solid rgba(56,189,248,.20);border-radius:14px;padding:12px 17px;
-            margin-bottom:13px;box-shadow:0 10px 30px rgba(0,0,0,.28)}
-          .tv-brand{font-size:1.15rem;font-weight:850;color:#f8fafc;letter-spacing:.2px}
-          .tv-sub{font-size:.72rem;color:#86a0bf;margin-top:3px}.tv-clock{font-size:1.45rem;font-weight:850;color:#38bdf8}
-          .tv-card-kpi{min-height:126px!important;padding:17px 19px!important;border-radius:14px!important;
-            background:linear-gradient(145deg,#142943,#0d1c30)!important;border:1px solid rgba(148,163,184,.14)!important;
-            box-shadow:0 10px 28px rgba(0,0,0,.26)!important}
-          .tv-card-chart{background:linear-gradient(145deg,#10233b,#0a1728)!important;
-            border:1px solid rgba(148,163,184,.14)!important;border-radius:14px!important}
-          .tv-section-title{font-size:1.55rem;font-weight:850;color:#fff;margin:0}.tv-section-sub{font-size:.78rem;color:#89a0ba;margin-top:4px}
-          .stButton button,.stDownloadButton button,.stLinkButton a{min-height:44px!important;border-radius:9px!important;font-weight:700!important}
-          [data-testid="stDataFrame"]{border-radius:12px!important;border:1px solid rgba(148,163,184,.14)!important}
-          @media(min-width:1600px){.tv-card-kpi{min-height:145px!important}.tv-section-title{font-size:1.8rem!important}}
+            @keyframes tvPulse {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.45; transform: scale(0.92); }
+            }
+            .tv-kpi-box {
+                background: linear-gradient(165deg, rgba(20, 32, 54, 0.92) 0%, rgba(11, 19, 34, 0.96) 100%);
+                border: 1px solid rgba(148, 163, 184, 0.16);
+                border-radius: 14px;
+                padding: 18px 22px;
+                min-height: 128px;
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+            }
+            .tv-slide-banner {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 18px;
+                background: rgba(15, 23, 42, 0.7);
+                border: 1px solid rgba(148, 163, 184, 0.14);
+                border-radius: 11px;
+                margin-bottom: 14px;
+            }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- BARRA DE NAVEGAÇÃO SUPERIOR DO MODO TV ---
+        nomes_slides_tv = [
+            "📊 1. Efetivo & Operação",
+            "📈 2. Entregas na Semana (Seg–Sex)",
+            "🏆 3. Ranking & Pódio F1",
+            "📋 4. Briefing Executivo"
+        ]
+
+        # Barra de Topo Widescreen
         st.markdown(f"""
-        <div class="tv-topbar">
-          <div><div class="tv-brand">SGO | RDC & PDE</div><div class="tv-sub">Centro de Comando Operacional · {nome_site_display}</div></div>
-          <div style="text-align:right"><div class="tv-clock">{hora_agora}</div><div class="tv-sub">{data_agora} · Dados sincronizados</div></div>
+        <div class="tv-exec-bar">
+            <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <span class="tv-live-pill"><span class="tv-live-dot"></span>MODO TV · AO VIVO</span>
+                <div>
+                    <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.25rem; font-weight: 800; color: #F8FAFC; letter-spacing: -0.02em;">
+                        SGO — Centro de Comando Operacional · <span style="color: #38BDF8;">{nome_site_display}</span>
+                    </div>
+                    <div style="font-size: 0.78rem; color: #94A3B8; font-weight: 500;">
+                        Slide {slide_atual + 1} de {total_slides_tv}: <strong style="color: #E2E8F0;">{nomes_slides_tv[slide_atual]}</strong>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="text-align: right;">
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.35rem; font-weight: 800; color: #38BDF8; line-height: 1.1;">{hora_agora}</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #94A3B8;">{data_agora}</div>
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([2.2, 3.8, 1.4, 1.3, 1.0])
-        with col_nav1:
-            st.markdown(f"""<div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;"><div class="tv-badge-live">● AO VIVO</div><span style="font-size: 16px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">{nome_site_display}</span></div>""", unsafe_allow_html=True)
-            
-        with col_nav2:
-            opcoes_slides = ["📊 1. Efetivo & KPIs", "🏎️ 2. Competição F1", "🤖 3. Briefing & IA"]
-            slide_sel = st.segmented_control("", opcoes_slides, default=opcoes_slides[slide_atual % 3], key="tv_slide_selector")
-            if slide_sel:
-                idx_novo = opcoes_slides.index(slide_sel)
+
+        # Barra de Controles da Apresentação
+        c_tv_prev, c_tv_sel, c_tv_next, c_tv_auto, c_tv_qr, c_tv_ref, c_tv_exit = st.columns([0.9, 3.3, 0.9, 1.2, 1.1, 1.0, 0.9], vertical_alignment="center")
+        with c_tv_prev:
+            if st.button("◀ Anterior", use_container_width=True, key="btn_tv_prev"):
+                st.session_state.tv_slide = (slide_atual - 1) % total_slides_tv
+                st.rerun()
+        with c_tv_sel:
+            slide_sel = st.segmented_control(
+                "Slide da Apresentação",
+                nomes_slides_tv,
+                default=nomes_slides_tv[slide_atual],
+                key="tv_slide_selector_v10",
+                label_visibility="collapsed"
+            )
+            if slide_sel and slide_sel in nomes_slides_tv:
+                idx_novo = nomes_slides_tv.index(slide_sel)
                 if idx_novo != slide_atual:
                     st.session_state.tv_slide = idx_novo
                     st.rerun()
-
-        with col_nav3:
-            if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_tv_open_qr", type="secondary"):
-                modal_qr_code_mobile()
-                    
-        with col_nav4:
-            if st.button("🔄 Atualizar", use_container_width=True, key="btn_tv_refresh", type="secondary"):
-                try:
-                    st.cache_data.clear()
-                except Exception:
-                    pass
-                sincronizar_dados_globais()
+        with c_tv_next:
+            if st.button("Próximo ▶", use_container_width=True, key="btn_tv_next"):
+                st.session_state.tv_slide = (slide_atual + 1) % total_slides_tv
                 st.rerun()
-        with col_nav5:
-            if st.button("❌ Sair", type="secondary", use_container_width=True):
+        with c_tv_auto:
+            tv_auto_play = st.toggle("⏱️ Auto (25s)", value=st.session_state.get("tv_auto_play", False), key="tgl_tv_autoplay")
+            st.session_state.tv_auto_play = tv_auto_play
+        with c_tv_qr:
+            if st.button("📱 QR Mobile", use_container_width=True, key="btn_tv_open_qr"):
+                modal_qr_code_mobile()
+        with c_tv_ref:
+            if st.button("🔄 Atualizar", use_container_width=True, key="btn_tv_refresh"):
+                st.cache_data.clear()
+                sincronizar_dados_globais(forcar=True)
+                st.rerun()
+        with c_tv_exit:
+            if st.button("✖ Sair TV", type="primary", use_container_width=True, key="btn_tv_exit"):
                 st.session_state.modo_tv = False
                 st.rerun()
-                    
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-        
+
+        def render_tv_kpi(col, titulo, valor, subtitulo, cor, icone_mat):
+            with col:
+                st.markdown(f"""
+                <div class="tv-kpi-box">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, {cor}, transparent);"></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 11.5px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.07em;">{titulo}</span>
+                        <div style="width: 34px; height: 34px; border-radius: 9px; background: {cor}18; border: 1px solid {cor}38; color: {cor}; display: flex; align-items: center; justify-content: center; font-family: 'Material Symbols Rounded'; font-size: 19px;">{icone_mat}</div>
+                    </div>
+                    <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 34px; font-weight: 800; color: #F8FAFC; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; margin: 4px 0 2px 0;">{valor}</div>
+                    <span style="font-size: 11.5px; color: {cor}; font-weight: 600;">{subtitulo}</span>
+                </div>
+                """, unsafe_allow_html=True)
+
         # =========================================================
-        # SLIDE 0: DASHBOARD EXECUTIVO & KPIs DE EFETIVO
+        # SLIDE 0: PAINEL DE EFETIVO & DISTRIBUIÇÃO OPERACIONAL
         # =========================================================
-        if slide_atual % 3 == 0:
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">📊 Painel Executivo de Efetivo — <span style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{nome_site_display}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Controle Diário de Produtividade & Distribuição de Mão de Obra</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #38bdf8;">{data_agora}</span><span style="display: block; font-size: 11px; color: #64748b; text-transform: uppercase;">Obra 125 Arauco</span></div></div>""", unsafe_allow_html=True)
-            
-            # Filtro rápido de Local
-            filtro_tv_local = st.segmented_control(
-                "📍 Filtrar por Área / Caldeira:",
-                ["Geral (Todas)", "PB (Caldeira de Força)", "RB (Caldeira de Recuperação)", "ESP (Precipitador)"],
-                default="Geral (Todas)",
-                key="tv_filtro_loc_v8"
-            )
-            
-            df_tv = df_atual.copy()
+        if slide_atual == 0:
+            col_f_tv1, col_f_tv2 = st.columns([3, 1], vertical_alignment="center")
+            with col_f_tv1:
+                filtro_tv_local = st.segmented_control(
+                    "📍 Filtrar Visão por Área Operacional:",
+                    ["Geral (Todas)", "PB (Caldeira de Força)", "RB (Caldeira de Recuperação)", "ESP (Precipitador)"],
+                    default="Geral (Todas)",
+                    key="tv_filtro_loc_v10"
+                )
+            with col_f_tv2:
+                st.markdown(f"<div style='text-align:right; color:#94A3B8; font-size:12px; font-weight:600;'> ESCOPO ATIVO: <strong style='color:#38BDF8;'>{filtro_tv_local or 'Geral (Todas)'}</strong></div>", unsafe_allow_html=True)
+
+            df_tv = df_atual[df_atual["STATUS"].astype(str).str.strip().str.upper() == "ATIVO"].copy() if "STATUS" in df_atual.columns else df_atual.copy()
             if filtro_tv_local and "PB" in filtro_tv_local:
                 df_tv = df_tv[df_tv["C.C"].apply(lambda x: "125.02" in str(x) and ".005" not in str(x))]
             elif filtro_tv_local and "RB" in filtro_tv_local:
                 df_tv = df_tv[df_tv["C.C"].apply(lambda x: "125.01" in str(x) and ".005" not in str(x))]
             elif filtro_tv_local and "ESP" in filtro_tv_local:
                 df_tv = df_tv[df_tv["C.C"].apply(lambda x: ".005" in str(x))]
-                
-            # Métricas
+
             total_tv = len(df_tv)
             mod_tv = len(df_tv[df_tv["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOD"])
             moi_tv = len(df_tv[df_tv["MÃO DE OBRA"].astype(str).str.strip().str.upper() == "MOI"])
             pct_mod_tv = round(mod_tv / (mod_tv + moi_tv) * 100, 1) if (mod_tv + moi_tv) > 0 else 0
             enc_tv = len([e for e in df_tv["ENCARREGADO"].unique() if str(e).strip() != "" and str(e) in lista_completa_encarregados])
-            
-            # 5 Cards Executivos com Glow
+            span_tv = round(total_tv / enc_tv, 1) if enc_tv > 0 else 0
+
             k1, k2, k3, k4, k5 = st.columns(5)
-            def render_tv_kpi(col, titulo, valor, subtitulo, cor, icone):
-                with col:
-                    html_kpi = f'<div class="tv-card-kpi"><div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</span><span style="font-size: 16px;">{icone}</span></div><h2 style="margin: 6px 0 2px 0; font-size: 30px; font-weight: 800; color: #ffffff; text-shadow: 0 0 15px {cor}60;">{valor}</h2><span style="font-size: 11px; color: {cor}; font-weight: 600;">{subtitulo}</span><div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 3px; background: linear-gradient(90deg, {cor}, transparent);"></div></div>'
-                    st.markdown(html_kpi, unsafe_allow_html=True)
-                    
-            render_tv_kpi(k1, "Efetivo Total", total_tv, "Colaboradores Ativos", "#38bdf8", "👥")
-            render_tv_kpi(k2, "Mão de Obra Direta", mod_tv, "MOD Operacional", "#10b981", "⚡")
-            render_tv_kpi(k3, "Mão de Obra Indireta", moi_tv, "MOI Suporte/Gestão", "#f59e0b", "📐")
-            render_tv_kpi(k4, "Produtividade MOD", f"{pct_mod_tv}%", "Eficiência em Campo", "#0ea5e9", "📈")
-            render_tv_kpi(k5, "Frentes / Equipes", enc_tv, "Encarregados Liderando", "#a855f7", "👷‍♂️")
-            
-            # Gráficos lado a lado
-            cg1, cg2 = st.columns([1, 1.3])
+            render_tv_kpi(k1, "Efetivo Ativo", total_tv, "Colaboradores Mobilizados", "#2563EB", "groups")
+            render_tv_kpi(k2, "Mão de Obra Direta", mod_tv, f"{pct_mod_tv}% da Força de Trabalho", "#10B981", "engineering")
+            render_tv_kpi(k3, "Mão de Obra Indireta", moi_tv, "Gestão, Suporte & Qualidade", "#0EA5E9", "manage_accounts")
+            render_tv_kpi(k4, "Frentes / Equipes", enc_tv, "Encarregados em Operação", "#F59E0B", "shield_person")
+            render_tv_kpi(k5, "Span of Control", f"{span_tv}", "Média Colab. por Líder", "#6366F1", "hub")
+
+            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+            cg1, cg2, cg3 = st.columns([1, 1, 1.4])
             with cg1:
                 with st.container(border=True):
-                    st.markdown("<h4 style='margin: 0 0 6px 0; font-size: 15px; color: #f8fafc; font-weight: 700;'>📍 Distribuição por Área (Caldeira / ESP)</h4>", unsafe_allow_html=True)
+                    st.markdown("**Proporção MOD vs MOI**")
+                    if (mod_tv + moi_tv) > 0:
+                        df_mo_tv = pd.DataFrame({"Tipo": ["MOD (Direta)", "MOI (Indireta)"], "Quantidade": [mod_tv, moi_tv]})
+                        fig_mo_tv = px.pie(df_mo_tv, values="Quantidade", names="Tipo", hole=0.64, color="Tipo",
+                                           color_discrete_map={"MOD (Direta)": "#2563EB", "MOI (Indireta)": "#0EA5E9"})
+                        fig_mo_tv.update_traces(textinfo="percent+value", marker=dict(line=dict(color="#0F172A", width=2)))
+                        fig_mo_tv.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)",
+                                                font=dict(family="Inter", color="#E2E8F0", size=12), height=320,
+                                                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5))
+                        st.plotly_chart(fig_mo_tv, use_container_width=True, config={"displayModeBar": False})
+                    else:
+                        st.info("Sem dados.")
+            with cg2:
+                with st.container(border=True):
+                    st.markdown("**Distribuição por Área (PB / RB / ESP)**")
                     df_area_tv = df_tv.copy()
                     df_area_tv['AREA'] = df_area_tv['C.C'].apply(lambda x: 'PB (Força)' if '125.02' in str(x) and '.005' not in str(x) else ('RB (Recuperação)' if '125.01' in str(x) and '.005' not in str(x) else ('ESP (Precipitador)' if '.005' in str(x) else 'OUTROS')))
                     df_area_count = df_area_tv[df_area_tv['AREA'] != 'OUTROS'].groupby('AREA').size().reset_index(name='Quantidade')
-                    
                     if not df_area_count.empty:
-                        import plotly.express as px
-                        fig1 = px.pie(
-                            df_area_count, values='Quantidade', names='AREA', hole=0.55,
-                            color_discrete_sequence=["#38bdf8", "#10b981", "#f59e0b", "#a855f7"]
-                        )
-                        fig1.update_layout(
-                            margin=dict(l=10, r=10, t=10, b=10),
-                            paper_bgcolor="rgba(0,0,0,0)",
-                            plot_bgcolor="rgba(0,0,0,0)",
-                            font=dict(color="#e2e8f0", size=12),
-                            height=300,
-                            showlegend=True,
-                            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5)
-                        )
+                        fig1 = px.pie(df_area_count, values='Quantidade', names='AREA', hole=0.64,
+                                      color='AREA', color_discrete_map={'PB (Força)': '#2563EB', 'RB (Recuperação)': '#10B981', 'ESP (Precipitador)': '#F59E0B'})
+                        fig1.update_traces(textinfo="percent+value", marker=dict(line=dict(color="#0F172A", width=2)))
+                        fig1.update_layout(margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)",
+                                           font=dict(family="Inter", color="#E2E8F0", size=12), height=320,
+                                           legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5))
                         st.plotly_chart(fig1, use_container_width=True, config={"displayModeBar": False})
                     else:
                         st.info("Sem dados para os filtros selecionados.")
-                
-            with cg2:
+            with cg3:
                 with st.container(border=True):
-                    st.markdown("<h4 style='margin: 0 0 6px 0; font-size: 15px; color: #f8fafc; font-weight: 700;'>🏆 Top 10 Maiores Equipes por Efetivo</h4>", unsafe_allow_html=True)
+                    st.markdown("**Top 10 Maiores Equipes por Efetivo**")
                     df_top_enc = df_tv[df_tv["ENCARREGADO"].isin(lista_completa_encarregados)]
                     top10 = df_top_enc.groupby("ENCARREGADO").size().nlargest(10).reset_index(name="Efetivo")
                     if not top10.empty:
-                        import plotly.express as px
-                        fig2 = px.bar(
-                            top10, y="ENCARREGADO", x="Efetivo", orientation="h",
-                            color="Efetivo",
-                            color_continuous_scale=["#0ea5e9", "#6366f1"],
-                            text="Efetivo"
-                        )
-                        fig2.update_layout(
-                            margin=dict(l=10, r=20, t=10, b=10),
-                            paper_bgcolor="rgba(0,0,0,0)",
-                            plot_bgcolor="rgba(0,0,0,0)",
-                            font=dict(color="#e2e8f0", size=11),
-                            height=300,
-                            coloraxis_showscale=False,
-                            yaxis=dict(autorange="reversed"),
-                            xaxis_title="", yaxis_title=""
-                        )
-                        fig2.update_traces(textposition="outside", textfont=dict(color="#ffffff", size=11, family="sans-serif"))
+                        fig2 = px.bar(top10, y="ENCARREGADO", x="Efetivo", orientation="h", color="Efetivo",
+                                      color_continuous_scale=[(0, "#1E3A8A"), (1, "#38BDF8")], text="Efetivo")
+                        fig2.update_layout(margin=dict(l=10, r=35, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)",
+                                           plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color="#E2E8F0", size=11),
+                                           height=320, coloraxis_showscale=False, yaxis=dict(autorange="reversed"),
+                                           xaxis=dict(visible=False), xaxis_title="", yaxis_title="")
+                        fig2.update_traces(textposition="outside", cliponaxis=False)
                         st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
                     else:
                         st.info("Sem dados de encarregados.")
 
         # =========================================================
-        # SLIDE 1: GRANDE PRÊMIO F1 — RANKING & PÓDIO
+        # SLIDE 1: EVOLUÇÃO DE ENTREGAS NA SEMANA (SEGUNDA A SEXTA)
         # =========================================================
-        elif slide_atual % 3 == 1:
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">🏎️ Grande Prêmio F1 — <span style="background: linear-gradient(135deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Campeonato de Entregas de RDC</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Competição Oficial de Disciplina Operacional & Envio Diário de Relatórios</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #f59e0b;">TEMPORADA 2026</span><span style="display: block; font-size: 11px; color: #64748b;">Mês Atual</span></div></div>""", unsafe_allow_html=True)
-            
+        elif slide_atual == 1:
+            df_hist_tv_w = st.session_state.get("df_historico_f1", pd.DataFrame()).copy()
+            if not df_hist_tv_w.empty and "DATA" in df_hist_tv_w.columns:
+                df_hist_tv_w["DATA"] = df_hist_tv_w["DATA"].apply(lambda v: pd.to_datetime(str(v).strip(), dayfirst=True, errors="coerce") if "/" in str(v) else pd.to_datetime(str(v).strip(), errors="coerce"))
+                df_hist_tv_w = df_hist_tv_w.dropna(subset=["DATA"])
+
+                hoje_tv_sem = pd.Timestamp(datetime.date.today()).normalize()
+                ini_sem_tv = (hoje_tv_sem - pd.Timedelta(days=hoje_tv_sem.weekday())).date()
+                sems_tv = sorted(list(set((df_hist_tv_w["DATA"].dt.normalize() - pd.to_timedelta(df_hist_tv_w["DATA"].dt.weekday, unit="D")).dt.date.dropna())), reverse=True)
+                if ini_sem_tv not in sems_tv:
+                    sems_tv.insert(0, ini_sem_tv)
+
+                sem_escolhida_tv = st.selectbox(
+                    "📅 Semana de Referência (Segunda a Sexta):",
+                    sems_tv,
+                    format_func=lambda d: f"{'Semana Atual · ' if d == ini_sem_tv else ''}{pd.Timestamp(d).strftime('%d/%m')} a {(pd.Timestamp(d)+pd.Timedelta(days=4)).strftime('%d/%m/%Y')} (Seg–Sex)",
+                    key="tv_sel_semana_seg_sex"
+                )
+                ini_s = pd.Timestamp(sem_escolhida_tv).normalize()
+                fim_s = ini_s + pd.Timedelta(days=4)
+                df_sem_tv = df_hist_tv_w[(df_hist_tv_w["DATA"] >= ini_s) & (df_hist_tv_w["DATA"] <= fim_s + pd.Timedelta(hours=23, minutes=59, seconds=59))]
+                dias_s = pd.date_range(ini_s, fim_s, freq="D")
+                serie_s = df_sem_tv.groupby(df_sem_tv["DATA"].dt.normalize()).size().reindex(dias_s, fill_value=0)
+                df_dias_s = serie_s.rename("Qtd Entregue").reset_index().rename(columns={"index": "Data"})
+                df_dias_s["Dia"] = df_dias_s["Data"].dt.strftime("%a %d/%m").replace({"Mon": "Seg", "Tue": "Ter", "Wed": "Qua", "Thu": "Qui", "Fri": "Sex"}, regex=True)
+
+                tot_sem = int(df_dias_s["Qtd Entregue"].sum())
+                dias_c_ent = int((df_dias_s["Qtd Entregue"] > 0).sum())
+                med_sem = round(tot_sem / max(dias_c_ent, 1), 1)
+                pico_r = df_dias_s.loc[df_dias_s["Qtd Entregue"].idxmax()]
+                pico_q = int(pico_r["Qtd Entregue"])
+                pico_dt = pd.Timestamp(pico_r["Data"]).strftime("%d/%m/%Y") if pico_q > 0 else "—"
+
+                hoje_d = datetime.date.today()
+                dias_ref_tv = min(max((hoje_d - ini_s.date()).days + 1, 1), 5) if ini_s.date() <= hoje_d <= (ini_s + pd.Timedelta(days=6)).date() else 5
+                meta_sem_tv = len(lista_completa_encarregados) * max(dias_ref_tv, 1)
+                ating_tv = round(tot_sem / meta_sem_tv * 100, 1) if meta_sem_tv else 0
+
+                tk1, tk2, tk3, tk4 = st.columns(4)
+                render_tv_kpi(tk1, "RDCs Entregues (Seg–Sex)", tot_sem, f"Meta parcial: {meta_sem_tv} RDCs", "#2563EB", "task_alt")
+                render_tv_kpi(tk2, "Média por Dia Útil", med_sem, f"Em {dias_c_ent} dia(s) com entrega", "#0EA5E9", "analytics")
+                render_tv_kpi(tk3, "Melhor Dia da Semana", pico_dt, f"{pico_q} RDCs entregues", "#10B981", "workspace_premium")
+                render_tv_kpi(tk4, "Atingimento Semanal", f"{ating_tv}%", "Meta de Disciplina Operacional", "#F59E0B" if ating_tv < 90 else "#10B981", "speed")
+
+                st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+                cw1, cw2 = st.columns([6.2, 3.8])
+                with cw1:
+                    with st.container(border=True):
+                        st.markdown("**📈 Evolução Diária de Entregas de RDC (Segunda a Sexta)**")
+                        fig_tv_ev = go.Figure()
+                        fig_tv_ev.add_trace(go.Bar(
+                            x=df_dias_s["Dia"], y=df_dias_s["Qtd Entregue"],
+                            marker=dict(color="rgba(37, 99, 235, 0.35)", line=dict(color="#3B82F6", width=1.5)),
+                            text=df_dias_s["Qtd Entregue"], textposition="outside"
+                        ))
+                        fig_tv_ev.add_trace(go.Scatter(
+                            x=df_dias_s["Dia"], y=df_dias_s["Qtd Entregue"],
+                            mode="lines+markers", line=dict(color="#38BDF8", width=3, shape="spline"),
+                            marker=dict(size=10, color="#38BDF8", line=dict(color="#F8FAFC", width=1.5))
+                        ))
+                        fig_tv_ev.update_layout(
+                            xaxis_title="Dias Úteis (Segunda a Sexta)", yaxis_title="RDCs Entregues",
+                            yaxis=dict(rangemode="tozero", gridcolor="rgba(148,163,184,0.12)"),
+                            margin=dict(l=15, r=20, t=20, b=10), showlegend=False,
+                            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,0.35)",
+                            font=dict(family="Inter", color="#E2E8F0"), height=330, bargap=0.4
+                        )
+                        st.plotly_chart(fig_tv_ev, use_container_width=True, config={"displayModeBar": False})
+                with cw2:
+                    with st.container(border=True):
+                        st.markdown("**🎯 Velocímetro de Atingimento Semanal**")
+                        cor_g_tv = "#10B981" if ating_tv >= 90 else ("#F59E0B" if ating_tv >= 70 else "#EF4444")
+                        fig_vel_tv = go.Figure(go.Indicator(
+                            mode="gauge+number", value=min(ating_tv, 100),
+                            number={"suffix": "%", "font": {"size": 42, "color": "#F8FAFC", "family": "Plus Jakarta Sans"}},
+                            title={"text": f"Meta Semanal (Seg–Sex)<br><span style='font-size:13px;color:#94A3B8'>{tot_sem} entregues de {meta_sem_tv} esperados</span>"},
+                            gauge={
+                                "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": "#64748B"},
+                                "bar": {"color": cor_g_tv, "thickness": 0.3},
+                                "bgcolor": "rgba(15,23,42,0.4)", "borderwidth": 0,
+                                "steps": [
+                                    {"range": [0, 70], "color": "rgba(239,68,68,0.16)"},
+                                    {"range": [70, 90], "color": "rgba(245,158,11,0.16)"},
+                                    {"range": [90, 100], "color": "rgba(16,185,129,0.16)"}
+                                ],
+                                "threshold": {"line": {"color": "#F8FAFC", "width": 3}, "thickness": 0.75, "value": 90}
+                            }
+                        ))
+                        fig_vel_tv.update_layout(height=330, margin=dict(l=35, r=35, t=65, b=15), paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color="#E2E8F0"))
+                        st.plotly_chart(fig_vel_tv, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.info("Sem histórico de entregas para exibir.")
+
+        # =========================================================
+        # SLIDE 2: GRANDE PRÊMIO F1 — RANKING & PÓDIO
+        # =========================================================
+        elif slide_atual == 2:
             df_hist_tv = st.session_state.get("df_historico_f1", pd.DataFrame())
             if not df_hist_tv.empty and "DATA" in df_hist_tv.columns and "ENCARREGADO" in df_hist_tv.columns:
                 mes_atual_str = datetime.date.today().strftime("%Y-%m")
                 df_hist_tv["DATA_NORM"] = df_hist_tv["DATA"].apply(normalizar_data_brasil)
-                df_mes = df_hist_tv[df_hist_tv["DATA_NORM"].astype(str).str.startswith(mes_atual_str)]
-                
+                meses_disp_tv = sorted(df_hist_tv["DATA_NORM"].astype(str).str[:7].unique(), reverse=True)
+                mes_sel_tv = meses_disp_tv[0] if meses_disp_tv else mes_atual_str
+                df_mes = df_hist_tv[df_hist_tv["DATA_NORM"].astype(str).str.startswith(mes_sel_tv)]
+
                 if not df_mes.empty:
-                    ranking_tv = df_mes.groupby("ENCARREGADO").size().reset_index(name="ENTREGAS").sort_values("ENTREGAS", ascending=False)
+                    ranking_tv = df_mes.groupby("ENCARREGADO").size().reset_index(name="ENTREGAS").sort_values("ENTREGAS", ascending=False).reset_index(drop=True)
                     top3_tv = ranking_tv.head(3)
-                    
-                    cf1, cf2 = st.columns([1.2, 1])
+
+                    cf1, cf2 = st.columns([1.15, 1.15])
                     with cf1:
                         with st.container(border=True):
-                            # PÓDIO 3D REALISTA
                             def short_n(n):
                                 p = str(n).split()
                                 return p[0] + " " + (p[-1] if len(p) > 1 else "")
-                            
+
                             n1 = short_n(top3_tv.iloc[0]["ENCARREGADO"]) if len(top3_tv) >= 1 else "-"
                             t1 = top3_tv.iloc[0]["ENTREGAS"] if len(top3_tv) >= 1 else 0
                             n2 = short_n(top3_tv.iloc[1]["ENCARREGADO"]) if len(top3_tv) >= 2 else "-"
                             t2 = top3_tv.iloc[1]["ENTREGAS"] if len(top3_tv) >= 2 else 0
                             n3 = short_n(top3_tv.iloc[2]["ENCARREGADO"]) if len(top3_tv) >= 3 else "-"
                             t3 = top3_tv.iloc[2]["ENTREGAS"] if len(top3_tv) >= 3 else 0
-                            
-                            html_podio = (
-                                '<div style="width: 100%;">'
-                                '<h4 style="margin: 0 0 12px 0; font-size: 15px; color: #f8fafc; font-weight: 700;">🏆 Pódio dos Campeões (Mês Atual)</h4>'
-                                '<div style="display: flex; justify-content: center; align-items: flex-end; gap: 14px; width: 100%; height: 280px; padding-bottom: 10px;">'
-                                '<div style="display: flex; flex-direction: column; align-items: center; width: 30%;">'
-                                '<span style="font-size: 28px;">🥈</span>'
-                                f'<span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n2}</span>'
-                                '<div style="background: linear-gradient(180deg, #64748b, #334155); width: 100%; height: 120px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">'
-                                f'<span style="font-size: 26px; font-weight: 800; color: white;">{t2}</span>'
-                                '<span style="font-size: 10px; color: #94a3b8; text-transform: uppercase;">Entregas</span>'
-                                '</div>'
-                                '</div>'
-                                '<div style="display: flex; flex-direction: column; align-items: center; width: 36%;">'
-                                '<span style="font-size: 38px;">🥇</span>'
-                                f'<span style="font-size: 13px; font-weight: 800; color: #fbbf24; margin-bottom: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n1}</span>'
-                                '<div style="background: linear-gradient(180deg, #f59e0b, #b45309); width: 100%; height: 170px; border-radius: 14px 14px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 0 25px rgba(245,158,11,0.35); border: 2px solid rgba(254,240,138,0.4);">'
-                                f'<span style="font-size: 36px; font-weight: 900; color: white;">{t1}</span>'
-                                '<span style="font-size: 10px; color: #fef3c7; text-transform: uppercase; font-weight: 700;">RDCs Entregues</span>'
-                                '</div>'
-                                '</div>'
-                                '<div style="display: flex; flex-direction: column; align-items: center; width: 30%;">'
-                                '<span style="font-size: 28px;">🥉</span>'
-                                f'<span style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n3}</span>'
-                                '<div style="background: linear-gradient(180deg, #b45309, #78350f); width: 100%; height: 95px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1);">'
-                                f'<span style="font-size: 24px; font-weight: 800; color: white;">{t3}</span>'
-                                '<span style="font-size: 10px; color: #fed7aa; text-transform: uppercase;">Entregas</span>'
-                                '</div>'
-                                '</div>'
-                                '</div>'
-                                '</div>'
-                            )
-                            st.markdown(html_podio, unsafe_allow_html=True)
-                            
+
+                            st.markdown(f"""
+                            <div style="padding: 6px 4px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 18px;">
+                                    <h4 style="margin: 0; font-size: 16px; color: #F8FAFC; font-weight: 800;">🏆 Pódio Oficial de Disciplina Operacional</h4>
+                                    <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#38BDF8; background:rgba(14,165,233,0.12); padding:3px 10px; border-radius:6px;">Mês: {mes_sel_tv}</span>
+                                </div>
+                                <div style="display: flex; justify-content: center; align-items: flex-end; gap: 18px; height: 310px; padding-bottom: 8px;">
+                                    <div style="display: flex; flex-direction: column; align-items: center; width: 31%;">
+                                        <span style="font-size: 11px; font-weight: 800; color: #94A3B8; letter-spacing: 1px;">2º LUGAR</span>
+                                        <span style="font-size: 13px; font-weight: 700; color: #E2E8F0; margin: 4px 0 8px; text-align: center;">{n2}</span>
+                                        <div style="background: linear-gradient(180deg, rgba(51,65,85,0.95), rgba(15,23,42,0.98)); width: 100%; height: 145px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(148,163,184,0.35); border-top: 4px solid #94A3B8;">
+                                            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 32px; font-weight: 800; color: #F8FAFC;">{t2}</span>
+                                            <span style="font-size: 11px; color: #94A3B8; text-transform: uppercase; font-weight: 600;">RDCs Entregues</span>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; align-items: center; width: 36%;">
+                                        <span style="font-size: 11px; font-weight: 800; color: #FBBF24; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.4); padding: 2px 10px; border-radius: 5px; letter-spacing: 1px;">🏆 LÍDER DO MÊS</span>
+                                        <span style="font-size: 15px; font-weight: 800; color: #F8FAFC; margin: 6px 0 8px; text-align: center;">{n1}</span>
+                                        <div style="background: linear-gradient(180deg, rgba(120,53,15,0.82), rgba(15,23,42,0.98)); width: 100%; height: 200px; border-radius: 14px 14px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(251,191,36,0.5); border-top: 4px solid #F59E0B; box-shadow: 0 10px 30px rgba(245,158,11,0.22);">
+                                            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 42px; font-weight: 800; color: #FDE68A;">{t1}</span>
+                                            <span style="font-size: 11px; color: #FBBF24; text-transform: uppercase; font-weight: 700;">RDCs Entregues</span>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; align-items: center; width: 31%;">
+                                        <span style="font-size: 11px; font-weight: 800; color: #D97706; letter-spacing: 1px;">3º LUGAR</span>
+                                        <span style="font-size: 13px; font-weight: 700; color: #E2E8F0; margin: 4px 0 8px; text-align: center;">{n3}</span>
+                                        <div style="background: linear-gradient(180deg, rgba(67,20,7,0.78), rgba(15,23,42,0.98)); width: 100%; height: 115px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(217,119,6,0.35); border-top: 4px solid #D97706;">
+                                            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 800; color: #F8FAFC;">{t3}</span>
+                                            <span style="font-size: 11px; color: #FDBA74; text-transform: uppercase; font-weight: 600;">RDCs Entregues</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                     with cf2:
                         with st.container(border=True):
-                            st.markdown("<h4 style='margin: 0 0 10px 0; font-size: 15px; color: #f8fafc; font-weight: 700;'>🏁 Tabela Geral de Pilotos (Top 15)</h4>", unsafe_allow_html=True)
-                            ranking_tv["POS"] = [f"#{i+1}" for i in range(len(ranking_tv))]
-                            ranking_top15 = ranking_tv.head(15)[["POS", "ENCARREGADO", "ENTREGAS"]]
-                            st.dataframe(ranking_top15, use_container_width=True, height=295, hide_index=True)
+                            st.markdown("<h4 style='margin: 0 0 12px 0; font-size: 16px; color: #F8FAFC; font-weight: 800;'>🏁 Classificação Geral — Top 15 Encarregados</h4>", unsafe_allow_html=True)
+                            ranking_tv["POSIÇÃO"] = [f"{i+1}º" for i in range(len(ranking_tv))]
+                            ranking_top15 = ranking_tv.head(15)[["POSIÇÃO", "ENCARREGADO", "ENTREGAS"]].rename(columns={"ENCARREGADO": "ENCARREGADO / LÍDER", "ENTREGAS": "RDCS ENTREGUES"})
+                            st.dataframe(ranking_top15, use_container_width=True, height=330, hide_index=True)
                 else:
-                    st.info("Nenhuma entrega registrada no mês atual.")
+                    st.info("Nenhuma entrega registrada no mês selecionado.")
             else:
                 st.info("Histórico F1 não carregado.")
 
         # =========================================================
-        # SLIDE 2: BRIEFING EXECUTIVO & IA GEMINI 3.7
+        # SLIDE 3: BRIEFING EXECUTIVO DIÁRIO
         # =========================================================
         else:
-            # Buscar briefing salvo de hoje ou o mais recente no banco permanente
             hoje_iso = datetime.date.today().strftime('%Y-%m-%d')
             briefing_tv = obter_briefing_dia(hoje_iso)
             if not briefing_tv:
@@ -4511,242 +4061,108 @@ Retorne apenas o JSON sem crases ou markdown."""
                 if briefings_todos_tv:
                     chaves_ord = sorted(briefings_todos_tv.keys(), reverse=True)
                     briefing_tv = briefings_todos_tv[chaves_ord[0]]
-            
+
             if briefing_tv:
                 avancos_tv = briefing_tv.get("avancos", [])
                 atencao_tv = briefing_tv.get("atencao", [])
                 bloqueios_tv = briefing_tv.get("bloqueios", [])
                 data_tv_brief_str = briefing_tv.get("data_formatada", datetime.date.today().strftime('%d/%m/%Y'))
-                origem_tv_str = briefing_tv.get("origem", "IA Gemini")
             else:
-                avancos_tv = [
-                    "Montagem Eletromecânica: Soldagem de tubulações de alta pressão concluída na Caldeira de Força (PB).",
-                    "Caldeiraria Pesada: Avanço no içamento das vigas estruturais da Caldeira de Recuperação (RB).",
-                    "Andaime & Apoio: 100% dos acessos de segurança liberados para inspeção e solda.",
-                    "Precipitador (ESP): Alinhamento de placas coletoras em ritmo acelerado."
-                ]
-                atencao_tv = [
-                    "Interferência de Área: Equipe de isolamento térmico necessita de liberação na elevação +32m.",
-                    "Logística de Almoxarifado: Monitorar reposição de eletrodos e discos de corte para o 2º turno.",
-                    "Clima & Segurança: Reforçar DDS sobre trabalho em altura com rajadas de vento."
-                ]
-                bloqueios_tv = [
-                    "Guindaste Principal: Aguardando liberação de plano de rigging para içamento do duto superior.",
-                    "Acesso Restrito: Teste hidrostático exige isolamento do módulo 04."
-                ]
+                avancos_tv = ["Ainda não há avanços consolidados para a data selecionada."]
+                atencao_tv = ["Gere o Briefing Executivo na tela principal do Dashboard para exibição no Modo TV."]
+                bloqueios_tv = ["Nenhum bloqueio crítico registrado."]
                 data_tv_brief_str = datetime.date.today().strftime('%d/%m/%Y')
-                origem_tv_str = "Diagnóstico Base"
 
-            st.markdown(f"""<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06);"><div><h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #ffffff;">🤖 Briefing Operacional & IA — <span style="background: linear-gradient(135deg, #a855f7, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{origem_tv_str}</span></h1><p style="color: #94a3b8; font-size: 13px; margin: 3px 0 0 0;">Data de Referência: <b style="color: #38bdf8;">{data_tv_brief_str}</b> · Análise Inteligente de RDCs e Restrições de Campo</p></div><div style="text-align: right;"><span style="font-size: 17px; font-weight: 700; color: #c084fc;">DIAGNÓSTICO DIÁRIO</span><span style="display: block; font-size: 11px; color: #64748b;">Sincronizado em Tempo Real</span></div></div>""", unsafe_allow_html=True)
-            
-            # 3 Colunas Executivas de Briefing
+            st.markdown(f"""
+            <div class="tv-slide-banner">
+                <div>
+                    <span style="font-size: 11px; font-weight: 700; color: #38BDF8; text-transform: uppercase; letter-spacing: 0.08em;">Reunião Matinal &amp; Alinhamento de Campo</span>
+                    <h3 style="margin: 2px 0 0 0; font-size: 1.35rem; font-weight: 800; color: #F8FAFC;">Briefing Executivo Operacional — {data_tv_brief_str}</h3>
+                </div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #94A3B8;">
+                    SÍNTESE EXECUTIVA DE CAMPO
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
             cb1, cb2, cb3 = st.columns(3)
-            
             with cb1:
                 with st.container(border=True):
-                    itens_av_html = "".join([f'<li style="margin-bottom: 6px;">{it}</li>' for it in avancos_tv])
-                    html_c1 = (
-                        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
-                        '<span style="font-size: 18px;">🟢</span>'
-                        '<h4 style="margin: 0; font-size: 15px; color: #10b981; font-weight: 800;">Principais Avanços</h4>'
-                        '</div>'
-                        f'<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_av_html}</ul>'
-                    )
-                    st.markdown(html_c1, unsafe_allow_html=True)
-                
+                    itens_av_html = "".join([f'<li style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(148,163,184,0.08);">{it}</li>' for it in avancos_tv])
+                    st.markdown(f"""
+                    <div style="border-top: 3px solid #10B981; padding-top: 10px;">
+                        <h4 style="margin: 0 0 12px 0; font-size: 16px; color: #10B981; font-weight: 800;">🟢 Principais Avanços Físicos</h4>
+                        <ul style="color: #E2E8F0; font-size: 13.5px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_av_html}</ul>
+                    </div>
+                    """, unsafe_allow_html=True)
             with cb2:
                 with st.container(border=True):
-                    itens_at_html = "".join([f'<li style="margin-bottom: 6px;">{it}</li>' for it in atencao_tv])
-                    html_c2 = (
-                        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
-                        '<span style="font-size: 18px;">🟡</span>'
-                        '<h4 style="margin: 0; font-size: 15px; color: #f59e0b; font-weight: 800;">Pontos de Atenção</h4>'
-                        '</div>'
-                        f'<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_at_html}</ul>'
-                    )
-                    st.markdown(html_c2, unsafe_allow_html=True)
-                
+                    itens_at_html = "".join([f'<li style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(148,163,184,0.08);">{it}</li>' for it in atencao_tv])
+                    st.markdown(f"""
+                    <div style="border-top: 3px solid #F59E0B; padding-top: 10px;">
+                        <h4 style="margin: 0 0 12px 0; font-size: 16px; color: #F59E0B; font-weight: 800;">🟡 Pontos de Atenção &amp; Produtividade</h4>
+                        <ul style="color: #E2E8F0; font-size: 13.5px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_at_html}</ul>
+                    </div>
+                    """, unsafe_allow_html=True)
             with cb3:
                 with st.container(border=True):
-                    itens_bl_html = "".join([f'<li style="margin-bottom: 6px;">{it}</li>' for it in bloqueios_tv])
-                    html_c3 = (
-                        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">'
-                        '<span style="font-size: 18px;">🔴</span>'
-                        '<h4 style="margin: 0; font-size: 15px; color: #ef4444; font-weight: 800;">Bloqueios & Restrições</h4>'
-                        '</div>'
-                        f'<ul style="color: #cbd5e1; font-size: 13px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_bl_html}</ul>'
-                    )
-                    st.markdown(html_c3, unsafe_allow_html=True)
-            
-            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-            col_tv_b1, col_tv_b2 = st.columns([1.5, 2.5])
-            with col_tv_b1:
+                    itens_bl_html = "".join([f'<li style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(148,163,184,0.08);">{it}</li>' for it in bloqueios_tv])
+                    st.markdown(f"""
+                    <div style="border-top: 3px solid #EF4444; padding-top: 10px;">
+                        <h4 style="margin: 0 0 12px 0; font-size: 16px; color: #EF4444; font-weight: 800;">🔴 Bloqueios &amp; Ações Necessárias</h4>
+                        <ul style="color: #E2E8F0; font-size: 13.5px; line-height: 1.6; padding-left: 18px; margin: 0;">{itens_bl_html}</ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # Auto-Rotação de Slides para TV (quando ativado)
+        if st.session_state.get("tv_auto_play", False):
+            import time as _tv_time
+            _tv_time.sleep(25)
+            st.session_state.tv_slide = (slide_atual + 1) % total_slides_tv
+            st.rerun()
+
+        st.stop()
+
+    # Navegação controlada integralmente pela barra lateral executiva.
+    pagina_sgo = st.session_state.get("pagina_sgo", "Dashboard")
+
+    if pagina_sgo == "Dashboard":
+        with st.container(border=True):
+            col_dash_tit, col_dash_qr, col_dash_btn_pdf, col_dash_btn_pptx = st.columns([2.4, 1.1, 1.1, 1.2], vertical_alignment="center")
+            with col_dash_tit:
+                st.markdown("""
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 11px; font-weight: 700; color: #38BDF8; letter-spacing: 0.08em; text-transform: uppercase;">Painel Executivo em Tempo Real</span>
+                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #F8FAFC;">Centro de Comando Operacional</h3>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_dash_qr:
+                if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_dash_open_qr", type="secondary"):
+                    modal_qr_code_mobile()
+            with col_dash_btn_pdf:
+                pdf_bytes = gerar_relatorio_pdf(df_atual)
+                st.download_button(
+                    label="📥 Exportar PDF",
+                    data=pdf_bytes,
+                    file_name=f"Relatorio_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="secondary"
+                )
+            with col_dash_btn_pptx:
                 try:
-                    pdf_op_tv = gerar_pdf_one_pager_executivo(
-                        df_dia_rdcs=None,
-                        df_f1=st.session_state.get("df_historico_f1", pd.DataFrame()),
-                        df_efetivo=st.session_state.get("df", None),
-                        data_str=data_tv_brief_str,
-                        nome_site=nome_site_display,
-                        briefing_data=briefing_tv,
-                        logo_path=caminho_logo_enesa
-                    )
+                    pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo_enesa, lista_completa_encarregados)
                     st.download_button(
-                        label="📑 Baixar Relatório Executivo One-Pager (PDF A4)",
-                        data=pdf_op_tv,
-                        file_name=f"Relatorio_Executivo_OnePager_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
-                        mime="application/pdf",
+                        label="📑 Apresentação (.pptx)",
+                        data=pptx_dash_bytes,
+                        file_name=f"Dashboard_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pptx",
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                         use_container_width=True,
                         type="primary"
                     )
-                except Exception as e_tv_op:
-                    st.caption(f"One-Pager: {e_tv_op}")
-            with col_tv_b2:
-                st.markdown("<p style='color: #94a3b8; font-size: 12px; margin: 8px 0 0 0;'>💡 <b>Dica para Apresentação:</b> Entregue 5 vias impressas deste One-Pager em papel couchê colorido na mesa dos diretores.</p>", unsafe_allow_html=True)
-        
-        st.stop()  # Impede o resto da página de renderizar
+                except Exception as e_pptx_dash:
+                    st.error(f"Erro ao gerar PPTX: {e_pptx_dash}")
 
-    # === NAVEGACAO HORIZONTAL DESATIVADA ===
-    st.markdown("""<style>.stTabs [data-baseweb="tab-list"]{display:none!important}</style>""", unsafe_allow_html=True)
-    # === CSS DE AGRUPAMENTO VISUAL DAS ABAS ===
-    st.markdown("""
-    <style>
-        /* --- AGRUPAMENTO DAS ABAS POR BLOCOS COLORIDOS --- */
-        div[data-baseweb="tab-list"] {
-            gap: 0px !important;
-            flex-wrap: wrap !important;
-            padding-bottom: 2px !important;
-        }
-        div[data-baseweb="tab-list"] button {
-            font-size: 13px !important;
-            padding: 8px 14px !important;
-            border-radius: 8px 8px 0 0 !important;
-            margin: 0 1px !important;
-            transition: all 0.2s ease !important;
-        }
-        /* 🔵 GESTÃO & BRIEFING (abas 1-3) */
-        div[data-baseweb="tab-list"] button:nth-child(1),
-        div[data-baseweb="tab-list"] button:nth-child(2),
-        div[data-baseweb="tab-list"] button:nth-child(3) {
-            border-top: 3px solid #3b82f6 !important;
-        }
-        /* Separador visual após bloco GESTÃO */
-        div[data-baseweb="tab-list"] button:nth-child(3) {
-            margin-right: 12px !important;
-            border-right: 2px solid rgba(59, 130, 246, 0.4) !important;
-            padding-right: 18px !important;
-        }
-        /* 🟢 CAMPO & OPERAÇÃO (abas 4-6) */
-        div[data-baseweb="tab-list"] button:nth-child(4),
-        div[data-baseweb="tab-list"] button:nth-child(5),
-        div[data-baseweb="tab-list"] button:nth-child(6) {
-            border-top: 3px solid #22c55e !important;
-        }
-        /* Separador visual após bloco CAMPO */
-        div[data-baseweb="tab-list"] button:nth-child(6) {
-            margin-right: 12px !important;
-            border-right: 2px solid rgba(34, 197, 94, 0.4) !important;
-            padding-right: 18px !important;
-        }
-        /* 🟣 IA & PROCESSAMENTO (abas 7-10) */
-        div[data-baseweb="tab-list"] button:nth-child(7),
-        div[data-baseweb="tab-list"] button:nth-child(8),
-        div[data-baseweb="tab-list"] button:nth-child(9),
-        div[data-baseweb="tab-list"] button:nth-child(10) {
-            border-top: 3px solid #a855f7 !important;
-        }
-        /* Separador visual após bloco IA */
-        div[data-baseweb="tab-list"] button:nth-child(10) {
-            margin-right: 12px !important;
-            border-right: 2px solid rgba(168, 85, 247, 0.4) !important;
-            padding-right: 18px !important;
-        }
-        /* ⚙️ CONFIGURAÇÃO & DADOS (abas 11-14) */
-        div[data-baseweb="tab-list"] button:nth-child(11),
-        div[data-baseweb="tab-list"] button:nth-child(12),
-        div[data-baseweb="tab-list"] button:nth-child(13),
-        div[data-baseweb="tab-list"] button:nth-child(14) {
-            border-top: 3px solid #64748b !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # === LEGENDA DOS BLOCOS ACIMA DAS ABAS ===
-    st.markdown("""
-    <div style="display: flex; gap: 24px; margin-bottom: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">
-        <span style="color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 2px;">🔵 Gestão</span>
-        <span style="color: #22c55e; border-bottom: 2px solid #22c55e; padding-bottom: 2px;">🟢 Campo</span>
-        <span style="color: #a855f7; border-bottom: 2px solid #a855f7; padding-bottom: 2px;">🟣 IA & Dados</span>
-        <span style="color: #64748b; border-bottom: 2px solid #64748b; padding-bottom: 2px;">⚙️ Config</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # === ABAS REORDENADAS POR BLOCOS ===
-    # BLOCO 1 - GESTÃO: Dashboard, Resumo, F1
-    # BLOCO 2 - CAMPO:  Emissão, Digital, Escala
-    # BLOCO 3 - IA:     Leitor IA, IA C.C, Banco RDCs, Gargalos
-    # BLOCO 4 - CONFIG:  C.C, PDE, Banco Dados, Admin
-    # A navegacao agora e controlada integralmente pela barra lateral.
-    pagina_sgo = st.session_state.get("pagina_sgo", "Dashboard")
-
-    # Navegacao lateral unica para acessos autorizados.
-
-    if pagina_sgo == "Dashboard":
-        # === RELÓGIO DIGITAL ===
-        import streamlit.components.v1 as components
-        html_relogio = """
-        <div id="clock_container" style="font-family: 'Courier New', Courier, monospace; font-size: 28px; color: #0ea5e9; font-weight: bold; text-shadow: 0 0 10px rgba(14, 165, 233, 0.8); text-align: center; background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9)); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(14, 165, 233, 0.4); width: fit-content; margin: 0 auto 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 10px rgba(14,165,233,0.1);">
-            <div id="time" style="letter-spacing: 2px;">--:--:--</div>
-            <div id="date" style="font-size: 14px; color: #94a3b8; font-weight: normal; text-shadow: none; font-family: 'Inter', sans-serif; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">Carregando...</div>
-        </div>
-        <script>
-            function updateClock() {
-                const now = new Date();
-                const timeStr = now.toLocaleTimeString('pt-BR');
-                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                let dateStr = now.toLocaleDateString('pt-BR', dateOptions);
-                document.getElementById('time').innerText = timeStr;
-                document.getElementById('date').innerText = dateStr;
-            }
-            setInterval(updateClock, 1000);
-            updateClock();
-        </script>
-        """
-        components.html(html_relogio, height=110)
-        
-        col_dash_tit, col_dash_qr, col_dash_btn_pdf, col_dash_btn_pptx = st.columns([2, 1.2, 1, 1])
-        with col_dash_tit:
-            st.markdown("### 🎛️ Centro de Comando (Overview)")
-        with col_dash_qr:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("📱 Acesso Mobile", use_container_width=True, key="btn_dash_open_qr", type="secondary"):
-                modal_qr_code_mobile()
-        with col_dash_btn_pdf:
-            st.markdown("<br>", unsafe_allow_html=True)
-            pdf_bytes = gerar_relatorio_pdf(df_atual)
-            st.download_button(
-                label="📥 Baixar PDF",
-                data=pdf_bytes,
-                file_name=f"Relatorio_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="secondary"
-            )
-        with col_dash_btn_pptx:
-            st.markdown("<br>", unsafe_allow_html=True)
-            try:
-                pptx_dash_bytes = gerar_relatorio_pptx_dashboard(df_atual, nome_site, caminho_logo_enesa, lista_completa_encarregados)
-                st.download_button(
-                    label="📑 PowerPoint (.pptx)",
-                    data=pptx_dash_bytes,
-                    file_name=f"Dashboard_Executivo_{datetime.date.today().strftime('%d_%m_%Y')}.pptx",
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    use_container_width=True,
-                    type="primary"
-                )
-            except Exception as e_pptx_dash:
-                st.error(f"Erro ao gerar PPTX: {e_pptx_dash}")
-        
         # Filtro de MOI / MOD, Local, Turno e Status com chaves explícitas
         col_filtros1, col_filtros2, col_filtros3, col_filtros4 = st.columns(4)
         with col_filtros1:
@@ -4835,7 +4251,7 @@ Retorne apenas o JSON sem crases ou markdown."""
         span_control = round(total_efetivo_dash / qtd_encarregados_dash, 1) if qtd_encarregados_dash > 0 else 0.0
         
         def card_kpi(titulo, valor, icone, cor):
-            return f"""<div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;"><p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p><h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2><div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div></div>"""
+            return f"""<div class="sgo-kpi-card"><div class="sgo-kpi-bar" style="background: linear-gradient(90deg, {cor}, transparent);"></div><div class="sgo-kpi-top"><p class="sgo-kpi-label">{titulo}</p><div class="sgo-kpi-icon" style="background: {cor}18; border: 1px solid {cor}38; color: {cor};">{icone}</div></div><h2 class="sgo-kpi-value">{valor}</h2></div>"""
             
         st.markdown("<br>", unsafe_allow_html=True)
         m1, m2, m3, m4, m5 = st.columns(5)
@@ -5141,42 +4557,47 @@ Retorne apenas o JSON sem crases ou markdown."""
         col_dash1, col_dash2, col_dash3 = st.columns([3, 3, 4])
         
         with col_dash1:
-            st.markdown(f"**Status Operacional ({filtro_dash_local})**")
-            if total_mo_dash > 0:
-                df_mo_pie = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_dash, qtd_moi_dash]})
-                fig_mo_g = px.pie(df_mo_pie, values="Quantidade", names="Tipo", hole=0.6, color="Tipo", color_discrete_map={"MOD": "#10b981", "MOI": "#ef4444"})
-                fig_mo_g.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-                st.plotly_chart(fig_mo_g, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-            else:
-                st.info("Sem dados de Mão de Obra para os filtros selecionados.")
+            with st.container(border=True):
+                st.markdown(f"**Status Operacional ({filtro_dash_local})**")
+                if total_mo_dash > 0:
+                    df_mo_pie = pd.DataFrame({"Tipo": ["MOD", "MOI"], "Quantidade": [qtd_mod_dash, qtd_moi_dash]})
+                    fig_mo_g = px.pie(df_mo_pie, values="Quantidade", names="Tipo", hole=0.64, color="Tipo", color_discrete_map={"MOD": "#2563EB", "MOI": "#0EA5E9"})
+                    fig_mo_g.update_traces(textinfo="percent+label", marker=dict(line=dict(color="#0F172A", width=2)))
+                    fig_mo_g.update_layout(margin=dict(l=15, r=15, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color="#E2E8F0"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.18, xanchor="center", x=0.5))
+                    st.plotly_chart(fig_mo_g, use_container_width=True, config={"displayModeBar": False, "responsive": True})
+                else:
+                    st.info("Sem dados de Mão de Obra para os filtros selecionados.")
                 
         with col_dash2:
-            st.markdown("**Efetivo por Área**")
-            df_area = df_dash.copy()
-            df_area['ÁREA_RESUMO'] = df_area['C.C'].apply(lambda x: 'PB' if '125.02' in str(x) and '.005' not in str(x) else ('RB' if '125.01' in str(x) and '.005' not in str(x) else ('ESP' if '.005' in str(x) else 'OUTROS')))
-            df_area_count = df_area[df_area['ÁREA_RESUMO'] != 'OUTROS'].groupby('ÁREA_RESUMO').size().reset_index(name='Quantidade')
-            
-            if not df_area_count.empty and df_area_count['Quantidade'].sum() > 0:
-                cores_areas = {'PB': '#3498db', 'RB': '#e67e22', 'ESP': '#9b59b6'}
-                fig_area = px.pie(df_area_count, values="Quantidade", names="ÁREA_RESUMO", hole=0.6, color="ÁREA_RESUMO", color_discrete_map=cores_areas)
-                fig_area.update_layout(margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-                st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-            else:
-                st.info("Áreas não identificadas.")
+            with st.container(border=True):
+                st.markdown("**Efetivo por Área Operacional**")
+                df_area = df_dash.copy()
+                df_area['ÁREA_RESUMO'] = df_area['C.C'].apply(lambda x: 'PB' if '125.02' in str(x) and '.005' not in str(x) else ('RB' if '125.01' in str(x) and '.005' not in str(x) else ('ESP' if '.005' in str(x) else 'OUTROS')))
+                df_area_count = df_area[df_area['ÁREA_RESUMO'] != 'OUTROS'].groupby('ÁREA_RESUMO').size().reset_index(name='Quantidade')
+                
+                if not df_area_count.empty and df_area_count['Quantidade'].sum() > 0:
+                    cores_areas = {'PB': '#2563EB', 'RB': '#10B981', 'ESP': '#F59E0B'}
+                    fig_area = px.pie(df_area_count, values="Quantidade", names="ÁREA_RESUMO", hole=0.64, color="ÁREA_RESUMO", color_discrete_map=cores_areas)
+                    fig_area.update_traces(textinfo="percent+label", marker=dict(line=dict(color="#0F172A", width=2)))
+                    fig_area.update_layout(margin=dict(l=15, r=15, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color="#E2E8F0"), height=280, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.18, xanchor="center", x=0.5))
+                    st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar": False, "responsive": True})
+                else:
+                    st.info("Áreas não identificadas.")
                 
         with col_dash3:
-            st.markdown(f"**Top 10 Maiores Equipes ({filtro_dash_mo})**")
-            df_enc_dash = df_dash[df_dash["ENCARREGADO"].astype(str).str.strip().isin(encs_unicos_dash)]
-            if not df_enc_dash.empty:
-                top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
-                top_enc.columns = ["Encarregado", "Efetivo"]
-                fig_top_enc = px.bar(top_enc, x="Efetivo", y="Encarregado", orientation="h", color="Efetivo", color_continuous_scale=[(0, "#0f172a"), (1, "#0ea5e9")], text="Efetivo")
-                fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=40, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"), height=280)
-                fig_top_enc.update_yaxes(categoryorder="total ascending")
-                fig_top_enc.update_xaxes(visible=False)
-                fig_top_enc.update_coloraxes(showscale=False)
-                fig_top_enc.update_traces(textposition='outside', cliponaxis=False)
-                st.plotly_chart(fig_top_enc, use_container_width=True, config={"displayModeBar": False, "responsive": True})
+            with st.container(border=True):
+                st.markdown(f"**Top 10 Maiores Equipes ({filtro_dash_mo})**")
+                df_enc_dash = df_dash[df_dash["ENCARREGADO"].astype(str).str.strip().isin(encs_unicos_dash)]
+                if not df_enc_dash.empty:
+                    top_enc = df_enc_dash["ENCARREGADO"].value_counts().head(10).reset_index()
+                    top_enc.columns = ["Encarregado", "Efetivo"]
+                    fig_top_enc = px.bar(top_enc, x="Efetivo", y="Encarregado", orientation="h", color="Efetivo", color_continuous_scale=[(0, "#1E3A8A"), (1, "#38BDF8")], text="Efetivo")
+                    fig_top_enc.update_layout(showlegend=False, xaxis_title="", yaxis_title="", margin=dict(l=0, r=42, t=10, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color="#E2E8F0"), height=280)
+                    fig_top_enc.update_yaxes(categoryorder="total ascending")
+                    fig_top_enc.update_xaxes(visible=False)
+                    fig_top_enc.update_coloraxes(showscale=False)
+                    fig_top_enc.update_traces(textposition='outside', cliponaxis=False, marker_line_width=0)
+                    st.plotly_chart(fig_top_enc, use_container_width=True, config={"displayModeBar": False, "responsive": True})
                 
         st.markdown("---")
         
@@ -5186,36 +4607,41 @@ Retorne apenas o JSON sem crases ou markdown."""
             st.markdown("**📈 Evolução Diária de Entregas de RDC (Semana)**")
             if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
                 df_hist_dash = st.session_state.df_historico_f1.copy()
-                df_hist_dash["DATA"] = pd.to_datetime(df_hist_dash["DATA"], errors='coerce')
+                def _parse_data_f1(val):
+                    s = str(val).strip()
+                    if "/" in s:
+                        return pd.to_datetime(s, dayfirst=True, errors="coerce")
+                    return pd.to_datetime(s, errors="coerce")
+                df_hist_dash["DATA"] = df_hist_dash["DATA"].apply(_parse_data_f1)
                 df_hist_dash = df_hist_dash.dropna(subset=["DATA"])
 
-                hoje_ref_semana = pd.Timestamp(datetime.date.today())
-                inicio_semana_atual = hoje_ref_semana - pd.Timedelta(days=hoje_ref_semana.weekday())
+                hoje_ref_semana = pd.Timestamp(datetime.date.today()).normalize()
+                inicio_semana_atual = (hoje_ref_semana - pd.Timedelta(days=hoje_ref_semana.weekday())).date()
                 semanas_disponiveis = []
                 if not df_hist_dash.empty:
-                    inicios = df_hist_dash["DATA"].dt.normalize() - pd.to_timedelta(df_hist_dash["DATA"].dt.weekday, unit="D")
-                    semanas_disponiveis = sorted(inicios.dropna().unique(), reverse=True)
-                if inicio_semana_atual.to_datetime64() not in semanas_disponiveis:
-                    semanas_disponiveis.insert(0, inicio_semana_atual.to_datetime64())
+                    inicios = (df_hist_dash["DATA"].dt.normalize() - pd.to_timedelta(df_hist_dash["DATA"].dt.weekday, unit="D")).dt.date
+                    semanas_disponiveis = sorted(list(set(inicios.dropna())), reverse=True)
+                if inicio_semana_atual not in semanas_disponiveis:
+                    semanas_disponiveis.insert(0, inicio_semana_atual)
 
                 def _rotulo_semana(dt_sem):
                     ini = pd.Timestamp(dt_sem)
-                    fim = ini + pd.Timedelta(days=6)
-                    prefixo = "Semana atual · " if ini.date() == inicio_semana_atual.date() else ""
-                    return f"{prefixo}{ini.strftime('%d/%m')} a {fim.strftime('%d/%m/%Y')}"
+                    fim = ini + pd.Timedelta(days=4)
+                    prefixo = "Semana atual · " if ini.date() == inicio_semana_atual else ""
+                    return f"{prefixo}{ini.strftime('%d/%m')} a {fim.strftime('%d/%m/%Y')} (Seg–Sex)"
 
                 semana_sel = st.selectbox(
-                    "Semana de referência:", semanas_disponiveis,
-                    format_func=_rotulo_semana, key="dash_semana_rdc_v95"
+                    "Semana de referência (Segunda a Sexta):", semanas_disponiveis,
+                    format_func=_rotulo_semana, key="dash_semana_rdc_seg_sex"
                 )
-                inicio_semana = pd.Timestamp(semana_sel)
-                fim_semana = inicio_semana + pd.Timedelta(days=6)
+                inicio_semana = pd.Timestamp(semana_sel).normalize()
+                fim_semana = inicio_semana + pd.Timedelta(days=4)
                 df_semana_dash = df_hist_dash[(df_hist_dash["DATA"] >= inicio_semana) & (df_hist_dash["DATA"] <= fim_semana + pd.Timedelta(hours=23, minutes=59, seconds=59))]
 
                 dias_semana = pd.date_range(inicio_semana, fim_semana, freq="D")
                 entregas_serie = df_semana_dash.groupby(df_semana_dash["DATA"].dt.normalize()).size().reindex(dias_semana, fill_value=0)
                 entregas_por_dia = entregas_serie.rename("Qtd Entregue").reset_index().rename(columns={"index":"Data"})
-                entregas_por_dia["Dia"] = entregas_por_dia["Data"].dt.strftime("%a %d/%m").replace({"Mon":"Seg", "Tue":"Ter", "Wed":"Qua", "Thu":"Qui", "Fri":"Sex", "Sat":"Sáb", "Sun":"Dom"}, regex=True)
+                entregas_por_dia["Dia"] = entregas_por_dia["Data"].dt.strftime("%a %d/%m").replace({"Mon":"Seg", "Tue":"Ter", "Wed":"Qua", "Thu":"Qui", "Fri":"Sex"}, regex=True)
 
                 total_semana_rdc = int(entregas_por_dia["Qtd Entregue"].sum())
                 dias_com_entrega = int((entregas_por_dia["Qtd Entregue"] > 0).sum())
@@ -5223,7 +4649,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 pico_row = entregas_por_dia.loc[entregas_por_dia["Qtd Entregue"].idxmax()]
                 pico_semana_rdc = int(pico_row["Qtd Entregue"])
                 pico_data = pd.Timestamp(pico_row["Data"])
-                pico_data_txt = pico_data.strftime("%d/%m/%Y")
+                pico_data_txt = pico_data.strftime("%d/%m/%Y") if pico_semana_rdc > 0 else "—"
 
                 sm1, sm2, sm3 = st.columns(3)
                 sm1.metric("RDCs entregues", total_semana_rdc)
@@ -5255,7 +4681,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.plotly_chart(fig_evolucao, use_container_width=True, config={"displayModeBar":False, "responsive":True})
 
                 hoje_ref = datetime.date.today()
-                dias_referencia = (hoje_ref - inicio_semana.date()).days + 1 if inicio_semana.date() <= hoje_ref <= fim_semana.date() else 7
+                dias_referencia = min(max((hoje_ref - inicio_semana.date()).days + 1, 1), 5) if inicio_semana.date() <= hoje_ref <= (inicio_semana + pd.Timedelta(days=6)).date() else 5
                 meta_semana = len(lista_completa_encarregados) * max(dias_referencia, 1)
                 atingimento = round(total_semana_rdc / meta_semana * 100, 1) if meta_semana else 0
                 valor_gauge = min(atingimento, 100)
@@ -5286,28 +4712,29 @@ Retorne apenas o JSON sem crases ou markdown."""
                 pct_engajamento = round((rdcs_entregues / rdcs_esperados) * 100, 1) if rdcs_esperados > 0 else 0
                 
                 import plotly.graph_objects as go
+                cor_eng_bar = "#10B981" if pct_engajamento >= 85 else ("#F59E0B" if pct_engajamento >= 60 else "#EF4444")
                 fig_gauge = go.Figure(go.Indicator(
                     mode = "gauge+number",
-                    value = pct_engajamento,
-                    number = {'suffix': "%", 'font': {'size': 30, 'color': '#e0e4ea'}},
+                    value = min(pct_engajamento, 100),
+                    number = {'suffix': "%", 'font': {'size': 36, 'color': '#F8FAFC', 'family': 'Plus Jakarta Sans'}},
+                    title = {'text': f"Taxa Global Acumulada<br><span style='font-size:12px;color:#94A3B8'>{rdcs_entregues} entregas registradas em {dias_unicos} dias</span>"},
                     domain = {'x': [0, 1], 'y': [0, 1]},
                     gauge = {
-                        'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
-                        'bar': {'color': "#2c3e50"},
-                        'bgcolor': "rgba(0,0,0,0)",
-                        'borderwidth': 2,
-                        'bordercolor': "gray",
+                        'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#64748B"},
+                        'bar': {'color': cor_eng_bar, 'thickness': 0.28},
+                        'bgcolor': "rgba(15, 23, 42, 0.35)",
+                        'borderwidth': 0,
                         'steps': [
-                            {'range': [0, 60], 'color': '#ef4444'},
-                            {'range': [60, 85], 'color': '#f59e0b'},
-                            {'range': [85, 100], 'color': '#10b981'}],
+                            {'range': [0, 60], 'color': 'rgba(239, 68, 68, 0.16)'},
+                            {'range': [60, 85], 'color': 'rgba(245, 158, 11, 0.16)'},
+                            {'range': [85, 100], 'color': 'rgba(16, 185, 129, 0.16)'}],
                         'threshold': {
-                            'line': {'color': "white", 'width': 4},
+                            'line': {'color': "#F8FAFC", 'width': 3},
                             'thickness': 0.75,
-                            'value': pct_engajamento}
+                            'value': 85}
                     }
                 ))
-                fig_gauge.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e4ea"))
+                fig_gauge.update_layout(height=280, margin=dict(l=35, r=35, t=65, b=15), paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color="#E2E8F0"))
                 st.plotly_chart(fig_gauge, use_container_width=True, config={"displayModeBar": False, "responsive": True})
             else:
                 st.info("Sem dados suficientes.")
@@ -5382,862 +4809,437 @@ Retorne apenas o JSON sem crases ou markdown."""
         st.dataframe(df_exibicao, hide_index=True, use_container_width=True)
         
 
-    if pagina_sgo == "Resumo Diário":
-        st.markdown("### 📅 Resumo Diário")
-        
-        # --- FIX: Filtro de data para ver o resumo de qualquer dia ---
-        data_resumo = st.date_input("Selecione a Data do Resumo:", datetime.date.today())
-        data_filtro_str = data_resumo.strftime("%Y-%m-%d")
-
-        # Ferramenta administrativa para remover todos os RDCs do dia selecionado.
-        with st.expander("🗑️ Limpar todas as entregas do dia", expanded=False):
-            qtd_dia_limpeza = 0
-            if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
-                _df_limpeza = st.session_state.df_historico_f1.copy()
-                _datas_limpeza = pd.to_datetime(_df_limpeza["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
-                qtd_dia_limpeza = int((_datas_limpeza == data_filtro_str).sum())
-            st.warning("Use esta função somente para corrigir um dia lançado por engano.")
-            st.info(f"📅 **{data_resumo.strftime('%d/%m/%Y')}** · **{qtd_dia_limpeza} entrega(s)** encontrada(s).")
-            confirmar_limpeza = st.checkbox(
-                f"Confirmo a exclusão de TODAS as {qtd_dia_limpeza} entregas desta data",
-                key=f"confirmar_limpeza_{data_filtro_str}"
-            )
-            if st.button("🗑️ APAGAR TODAS AS ENTREGAS DESTE DIA", type="primary", use_container_width=True,
-                         disabled=(qtd_dia_limpeza == 0 or not confirmar_limpeza), key=f"limpar_dia_{data_filtro_str}"):
-                try:
-                    _df_original = st.session_state.df_historico_f1.copy()
-                    _datas_original = pd.to_datetime(_df_original["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
-                    _mask_apagar = _datas_original == data_filtro_str
-                    _qtd_apagada = int(_mask_apagar.sum())
-                    _df_novo = _df_original.loc[~_mask_apagar].copy().reset_index(drop=True)
-                    _df_novo.to_csv(caminho_historico_f1_csv, index=False)
-                    st.session_state.df_historico_f1 = _df_novo
-
-                    # Exclusao intencional: sobrescreve a nuvem diretamente.
-                    # Nao usa salvar_f1_seguro porque a protecao anti-perda pode restaurar o dia apagado.
-                    _salvou_nuvem = False
-                    _erro_nuvem = ""
-                    try:
-                        _sh_limpeza = obter_planilha_google()
-                        if _sh_limpeza:
-                            _ws_limpeza = _sh_limpeza.worksheet("Historico_F1")
-                            _valores = [["DATA", "ENCARREGADO"]] + _df_novo[["DATA", "ENCARREGADO"]].astype(str).values.tolist()
-                            _ws_limpeza.clear()
-                            _ws_limpeza.update(values=_valores, range_name=f"A1:B{len(_valores)}")
-                            _salvou_nuvem = True
-                    except Exception as _e:
-                        _erro_nuvem = str(_e)
-
-                    if not _salvou_nuvem and conn is not None:
-                        try:
-                            conn.update(worksheet="Historico_F1", data=_df_novo)
-                            _salvou_nuvem = True
-                        except Exception as _e2:
-                            _erro_nuvem = str(_e2)
-
-                    if not _salvou_nuvem:
-                        st.error(f"❌ A nuvem nao confirmou a exclusao: {_erro_nuvem}")
-                        st.stop()
-
-                    # Confere a propria aba Historico_F1 apos a gravacao.
-                    try:
-                        _sh_check = obter_planilha_google()
-                        _registros_check = _sh_check.worksheet("Historico_F1").get_all_records() if _sh_check else []
-                        _df_check = pd.DataFrame(_registros_check)
-                        if not _df_check.empty and "DATA" in _df_check.columns:
-                            _datas_check = pd.to_datetime(_df_check["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
-                            _restantes = int((_datas_check == data_filtro_str).sum())
-                        else:
-                            _restantes = 0
-                    except Exception as _echeck:
-                        st.error(f"❌ A exclusao foi enviada, mas nao foi possivel confirmar a nuvem: {_echeck}")
-                        st.stop()
-
-                    if _restantes != 0:
-                        st.error(f"❌ Exclusao incompleta: ainda existem {_restantes} registro(s) de {data_resumo.strftime('%d/%m/%Y')} na nuvem.")
-                        st.stop()
-
-                    # Limpa cache de leitura para impedir que a tela reutilize os 42 registros antigos.
-                    try:
-                        st.cache_data.clear()
-                    except Exception:
-                        pass
-                    st.success(f"✅ {_qtd_apagada} entrega(s) de {data_resumo.strftime('%d/%m/%Y')} apagada(s) do sistema e da nuvem.")
-                    st.toast("Exclusao confirmada. O grafico semanal sera atualizado.", icon="✅")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Falha ao limpar o dia: {e}")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        st.markdown("---")
-
-        if st.toggle("➕ Lançar RDC Manualmente (Para papéis ilegíveis ou atrasados)", key="toggle_manual_resumo"):
-            with st.form("form_resumo_manual"):
-                st.info("💡 Você pode colar a lista inteira de encarregados aqui (um por linha ou separados por vírgula). O robô vai verificar: se a IA já tiver lido, ele ignora. Se faltou, ele adiciona!")
-                col_m1, col_m2 = st.columns([1, 2])
-                with col_m1:
-                    data_manual_resumo = st.date_input("Data do RDC a lançar:", value=data_resumo, key="data_manual_resumo")
-                with col_m2:
-                    nomes_colados_resumo = st.text_area("Cole os nomes dos Encarregados", height=120, key="nomes_colados_resumo")
-                
-                btn_manual_resumo = st.form_submit_button("Processar Lista e Lançar no Sistema")
-                if btn_manual_resumo and nomes_colados_resumo.strip():
-                    import re
-                    import difflib
-                    data_str_resumo = data_manual_resumo.strftime("%Y-%m-%d")
-                    
-                    lista_suja = [n.strip().upper() for n in re.split(r'[\n,;]', nomes_colados_resumo) if n.strip()]
-                    
-                    novos_registros = []
-                    nomes_ja_existentes = 0
-                    nomes_nao_encontrados = []
-                    
-                    for nome_sujo in lista_suja:
-                        match = difflib.get_close_matches(nome_sujo, lista_completa_encarregados, n=1, cutoff=0.55)
-                        if match:
-                            nome_oficial = match[0]
-                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_str_resumo) & (st.session_state.df_historico_f1["ENCARREGADO"] == nome_oficial)).any()
-                            if ja_existe:
-                                nomes_ja_existentes += 1
-                            else:
-                                novos_registros.append({"DATA": data_str_resumo, "ENCARREGADO": nome_oficial})
-                        else:
-                            nomes_nao_encontrados.append(nome_sujo)
-                            
-                    if novos_registros:
-                        df_novos = pd.DataFrame(novos_registros)
-                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                        st.session_state.df_historico_f1 = df_final
-                        salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                        st.toast(f"{len(novos_registros)} novos RDCs sincronizados! ({nomes_ja_existentes} já constavam).", icon="✅")
-                    elif nomes_ja_existentes > 0:
-                        st.warning(f"⚠️ Todos os nomes reconhecidos ({nomes_ja_existentes}) já estavam devidamente lançados neste dia!")
-                        
-                    if nomes_nao_encontrados:
-                        st.error(f"❌ Não encontrei na lista oficial (verifique a escrita): {', '.join(nomes_nao_encontrados)}")
-                        
-                    time.sleep(3)
-                    st.rerun()
-                    
-        st.markdown("<hr style='margin-top:0px; margin-bottom:20px'>", unsafe_allow_html=True)
-
-        
-        df_hoje = pd.DataFrame()
-        if "df_historico_f1" in st.session_state and not st.session_state.df_historico_f1.empty:
-            df_hist = st.session_state.df_historico_f1.copy()
-            df_hist["DATA_STR"] = pd.to_datetime(df_hist["DATA"], errors="coerce").dt.strftime("%Y-%m-%d")
-            df_hoje = df_hist[df_hist["DATA_STR"] == data_filtro_str]
-            
-        encarregados_esperados = len(lista_completa_encarregados)
-        entregues_hoje_lista = [e for e in df_hoje["ENCARREGADO"].unique() if e in lista_completa_encarregados] if not df_hoje.empty else []
-        encarregados_entregues = len(entregues_hoje_lista)
-        encarregados_pendentes = encarregados_esperados - encarregados_entregues
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("🎯 Esperados", encarregados_esperados)
-        c2.metric("✅ Entregues", encarregados_entregues)
-        c3.metric("⏳ Pendentes", encarregados_pendentes)
-        
-        st.markdown("---")
-        if encarregados_pendentes > 0:
-            st.error(f"**Atenção:** {encarregados_pendentes} encarregados ainda não entregaram o RDC nesta data ({data_filtro_str}).")
-            entregues_list = df_hoje["ENCARREGADO"].unique() if not df_hoje.empty else []
-            pendentes_list = [e for e in lista_completa_encarregados if e not in entregues_list]
-            
-            # Botão de Gerar PDF
-            col_pdf, col_gap = st.columns([2, 3])
-            with col_pdf:
-                if st.button("📄 Gerar PDF de Cobrança", use_container_width=True):
-                    from fpdf import FPDF
-                    import tempfile
-                    
-                    class PDF(FPDF):
-                        def header(self):
-                            self.set_font('Helvetica', 'B', 15)
-                            self.set_text_color(0, 0, 0)
-                            self.cell(0, 10, 'Relatorio de Pendencias - RDC', 0, 1, 'C')
-                            self.set_font('Helvetica', 'I', 10)
-                            self.cell(0, 10, f'Data Referencia: {data_resumo.strftime("%d/%m/%Y")} (Gerado em: {agora_local_sgo().strftime("%d/%m/%Y %H:%M")})', 0, 1, 'C')
-                            self.ln(5)
-                    
-                    pdf = PDF()
-                    pdf.add_page()
-                    pdf.set_font('Helvetica', 'B', 12)
-                    pdf.set_text_color(200, 0, 0)
-                    pdf.cell(0, 10, f'{len(pendentes_list)} Encarregados nao entregaram o RDC nesta data ({data_filtro_str}):', 0, 1, 'L')
-                    pdf.ln(2)
-                    
-                    pdf.set_font('Helvetica', '', 10)
-                    pdf.set_text_color(0, 0, 0)
-                    for pendente in sorted(pendentes_list):
-                        # Evitar problemas de encoding no PDF básico
-                        nome_p = str(pendente).encode('latin-1', 'replace').decode('latin-1')
-                        pdf.cell(0, 8, f'- {nome_p}', 0, 1, 'L')
-                        
-                    nome_pdf = f"Cobranca_RDC_{data_filtro_str}.pdf"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                        pdf.output(tmp.name)
-                        with open(tmp.name, "rb") as f:
-                            pdf_bytes = f.read()
-                            
-                        # Backup Drive
-                        success, msg = backup_google_drive(tmp.name, "application/pdf", nome_pdf)
-                        if success:
-                            st.toast("☁️ Relatório PDF salvo no Drive!")
-                    
-                    st.download_button(
-                        label="⬇️ Baixar PDF",
-                        data=pdf_bytes,
-                        file_name=nome_pdf,
-                        mime="application/pdf",
-                        type="primary",
-                        use_container_width=True
-                    )
-                    
-            st.markdown("<br>", unsafe_allow_html=True)
-            df_pend = pd.DataFrame({f"Encarregados Pendentes ({data_filtro_str})": sorted(pendentes_list)})
-            st.dataframe(df_pend, hide_index=True, use_container_width=True)
-        else:
-            st.success(f"🎉 Todos os RDCs desta data ({data_filtro_str}) já foram entregues!")
-
-        # 📸 Galeria de Fotos de Campo do Dia
-        pasta_fotos_dia = os.path.join(pasta_base, "fotos_rdc")
-        if os.path.exists(pasta_fotos_dia):
-            fotos_encontradas = [
-                f for f in os.listdir(pasta_fotos_dia) 
-                if f.startswith(data_filtro_str) and f.lower().endswith(('.jpg', '.jpeg', '.png'))
-            ]
-            if fotos_encontradas:
-                st.markdown("<br>", unsafe_allow_html=True)
-                with st.expander(f"📸 Evidências Fotográficas de Campo ({len(fotos_encontradas)} fotos)", expanded=True):
-                    cols_fotos = st.columns(min(3, len(fotos_encontradas)))
-                    for idx_f, f_nome in enumerate(fotos_encontradas):
-                        c_alvo = cols_fotos[idx_f % len(cols_fotos)]
-                        c_img = os.path.join(pasta_fotos_dia, f_nome)
-                        
-                        # Buscar informações do RDC
-                        info_rdc_foto = ""
-                        try:
-                            if os.path.exists(caminho_rdc_registros_csv):
-                                df_rdcs_temp = pd.read_csv(caminho_rdc_registros_csv)
-                                if "FOTO" in df_rdcs_temp.columns and f_nome in df_rdcs_temp["FOTO"].values:
-                                    row_f = df_rdcs_temp[df_rdcs_temp["FOTO"] == f_nome].iloc[0]
-                                    enc_f = row_f.get("ENCARREGADO", "")
-                                    disc_f = row_f.get("DISCIPLINA", "")
-                                    area_f = row_f.get("LOCAL", "")
-                                    info_rdc_foto = f"👤 {enc_f} · 📍 {area_f} ({disc_f})"
-                        except:
-                            pass
-                        
-                        if not info_rdc_foto:
-                            partes = f_nome.replace(data_filtro_str + "_", "").replace(".jpg", "").split("_")
-                            nome_p = " ".join([p for p in partes if not p.isdigit() or len(p) != 6])
-                            hora_p = [p for p in partes if p.isdigit() and len(p) == 6]
-                            hora_str = f" às {hora_p[0][:2]}:{hora_p[0][2:4]}" if hora_p else ""
-                            info_rdc_foto = f"👤 {nome_p}{hora_str}"
-                            
-                        with c_alvo:
-                            st.image(c_img, caption=info_rdc_foto, use_container_width=True)
-
-    # =================================================================
-    # 📱 RDC DIGITAL (LANÇAMENTO DE CAMPO INTEGRADO)
-    # =================================================================
-    if pagina_sgo == "RDC Digital":
-        st.markdown("### <span class='material-symbols-rounded' style='vertical-align: middle; color: #0ea5e9; font-size: 32px;'>phone_iphone</span> Lançamento de RDC Digital", unsafe_allow_html=True)
-        st.caption("Preenchimento rápido de Relatório Diário de Campo com chamada nominal da equipe, cálculo automático de HH e envio instantâneo.")
-        
-        caminho_presenca_csv = os.path.join(pasta_base, "presenca_diaria.csv")
-        
-        with st.container(border=True):
-            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">👤 1. Identificação & Frente de Serviço</h4>', unsafe_allow_html=True)
-            col_d1, col_d2 = st.columns([1.5, 1])
-            with col_d1:
-                rdc_dig_enc = st.selectbox(
-                    "Selecione o Encarregado:",
-                    [""] + lista_encarregados_base,
-                    key="rdc_dig_enc_sel",
-                    help="Escolha o encarregado para carregar a equipe dele automaticamente."
-                )
-            with col_d2:
-                rdc_dig_data = st.date_input("Data do Turno:", datetime.date.today(), key="rdc_dig_dt")
-                
-            col_d3, col_d4, col_d5 = st.columns(3)
-            with col_d3:
-                rdc_dig_turno = st.selectbox("Turno:", ["1º TURNO", "2º TURNO", "3º TURNO", "DIURNO", "NOTURNO", "MISTO"], key="rdc_dig_tur")
-            with col_d4:
-                rdc_dig_caldeira = st.selectbox("Caldeira / Área:", ["PB", "RB", "ESP", "LAYDOWN 1", "LAYDOWN 2", "OFICINA", "GERAL / OUTRO"], key="rdc_dig_cald")
-            with col_d5:
-                disc_padrao = "TUBULAÇÃO"
-                if rdc_dig_enc and df_atual is not None and not df_atual.empty and "ENCARREGADO" in df_atual.columns and "DISCIPLINA" in df_atual.columns:
-                    m_d = df_atual[df_atual["ENCARREGADO"] == rdc_dig_enc]["DISCIPLINA"].mode()
-                    if len(m_d) > 0 and m_d[0]: disc_padrao = m_d[0]
-                opcs_disc = ["TUBULAÇÃO", "ESTRUTURA METÁLICA", "DUTOS", "SOLDA", "PRESSÃO - TUBULAÇÃO", "PRESSÃO - MECÂNICA", "PRESSÃO - FORNALHA", "ANDAIME", "EQUIPAMENTOS", "PRECIPITADOR", "PINTURA", "CIVIL", "MECÂNICA", "ELÉTRICA", "OUTRA"]
-                if disc_padrao not in opcs_disc: opcs_disc = [disc_padrao] + opcs_disc
-                rdc_dig_disc = st.selectbox("Disciplina Principal:", opcs_disc, index=opcs_disc.index(disc_padrao) if disc_padrao in opcs_disc else 0, key="rdc_dig_disc_sel")
-                
-            rdc_dig_elev = st.text_input("Local Específico / Elevação / Linha:", placeholder="Ex: Elevação +24.000m, Linha de Vapor 12\", Duto Superior...", key="rdc_dig_elev_input")
-
-        # 2. Chamada da Equipe
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.container(border=True):
-            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">👥 2. Chamada da Equipe & Presença</h4>', unsafe_allow_html=True)
-            
-            if not rdc_dig_enc:
-                st.info("👆 Selecione um encarregado no Passo 1 para carregar a lista de colaboradores.")
-                eq_dig_colabs = pd.DataFrame()
-                status_chamada_dig = {}
-            else:
-                df_at_p = df_atual[df_atual["STATUS"].astype(str).str.upper() == "ATIVO"] if "STATUS" in df_atual.columns else df_atual
-                eq_dig_colabs = df_at_p[df_at_p["ENCARREGADO"] == rdc_dig_enc].copy().reset_index(drop=True)
-                
-                if eq_dig_colabs.empty:
-                    st.warning(f"Nenhum colaborador ATIVO no PDE para **{rdc_dig_enc}**.")
-                    c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-                    with c_m1: man_p = st.number_input("👥 Presentes:", min_value=0, value=1, step=1, key="man_p_dig")
-                    with c_m2: man_f = st.number_input("❌ Faltas:", min_value=0, value=0, step=1, key="man_f_dig")
-                    with c_m3: man_fo = st.number_input("🏖️ Folgas:", min_value=0, value=0, step=1, key="man_fo_dig")
-                    with c_m4: man_a = st.number_input("🏥 Atestados:", min_value=0, value=0, step=1, key="man_a_dig")
-                    status_chamada_dig = {}
-                else:
-                    st.caption(f"Equipe no PDE: **{len(eq_dig_colabs)} colaboradores**. Marque quem faltou ou folgou:")
-                    k_cham = f"dig_chamada_{rdc_dig_enc}_{rdc_dig_data}"
-                    if k_cham not in st.session_state:
-                        st.session_state[k_cham] = {str(row.get("MATRICULA", i)): "PRESENTE" for i, row in eq_dig_colabs.iterrows()}
-                    status_chamada_dig = st.session_state[k_cham]
-                    
-                    if st.button("✅ Marcar Todos como Presentes", key="btn_all_pres_dig"):
-                        for i, row in eq_dig_colabs.iterrows():
-                            status_chamada_dig[str(row.get("MATRICULA", i))] = "PRESENTE"
-                        st.session_state[k_cham] = status_chamada_dig
-                        st.rerun()
-                        
-                    for i, row in eq_dig_colabs.iterrows():
-                        m_k = str(row.get("MATRICULA", i))
-                        n_c = str(row.get("NOME", "Colaborador"))
-                        f_c = str(row.get("FUNÇÃO", "Mão de Obra"))
-                        
-                        col_i, col_s = st.columns([2.5, 1.2])
-                        with col_i:
-                            st.markdown(f"**{n_c}**  \n<span style='color: #94a3b8; font-size: 11px;'>Matrícula: {m_k} · {f_c}</span>", unsafe_allow_html=True)
-                        with col_s:
-                            v_st = status_chamada_dig.get(m_k, "PRESENTE")
-                            opcs_st = ["PRESENTE", "FALTA", "FOLGA", "ATESTADO"]
-                            idx_s = opcs_st.index(v_st) if v_st in opcs_st else 0
-                            novo_s = st.selectbox(f"St_{m_k}", opcs_st, index=idx_s, key=f"sel_st_dig_{m_k}_{rdc_dig_data}", label_visibility="collapsed")
-                            status_chamada_dig[m_k] = novo_s
-                            
-                    st.session_state[k_cham] = status_chamada_dig
-                    
-                    tot_p = sum([1 for v in status_chamada_dig.values() if v == "PRESENTE"])
-                    tot_f = sum([1 for v in status_chamada_dig.values() if v == "FALTA"])
-                    tot_fo = sum([1 for v in status_chamada_dig.values() if v == "FOLGA"])
-                    tot_at = sum([1 for v in status_chamada_dig.values() if v == "ATESTADO"])
-                    hh_calc = tot_p * 8.8
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    kp1, kp2, kp3, kp4, kp5 = st.columns(5)
-                    with kp1: st.metric("👥 Presentes", tot_p)
-                    with kp2: st.metric("❌ Faltas", tot_f)
-                    with kp3: st.metric("🏖️ Folgas", tot_fo)
-                    with kp4: st.metric("🏥 Atestados", tot_at)
-                    with kp5: st.metric("⏱️ HH Produção", f"{hh_calc:.1f} HH")
-
-        # 3. Atividades & Segurança
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.container(border=True):
-            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">📝 3. Diálogo de Segurança (DDS) & Atividades</h4>', unsafe_allow_html=True)
-            rdc_dig_dds = st.text_input("Tópico do DDS (Segurança):", placeholder="Ex: Trabalho a Quente, Bloqueio de Válvulas...", key="rdc_dig_dds_in")
-            rdc_dig_ativ = st.text_area("Atividades Executadas no Turno (Obrigatório):", height=120, placeholder="Descreva os serviços realizados pela equipe...", key="rdc_dig_ativ_in")
-            
-            st.markdown('<h5 style="color: #f87171; margin-top: 15px;">⚠️ Problemas / Bloqueios (Se houver)</h5>', unsafe_allow_html=True)
-            rdc_dig_tags_prob = st.multiselect("Classificação de Bloqueio:", ["Falta de Material / Consumível", "Aguardando Liberação / Montagem de Andaime", "Interferência de Outra Equipe", "Chuva / Clima Adverso", "Problema com Guindaste / Içamento", "Falta de PT / Liberação", "Equipamento Danificado", "Outro"], key="rdc_dig_tags")
-            rdc_dig_prob_txt = st.text_area("Detalhes do Problema / Restrição Técnica:", height=65, placeholder="Explique o que travou a equipe e tempo parado...", key="rdc_dig_prob_in")
-
-        # 4. Foto de Evidência de Campo
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.container(border=True):
-            st.markdown('<h4 style="color: #38bdf8; margin: 0 0 10px 0;">📸 4. Foto de Evidência de Campo (Opcional)</h4>', unsafe_allow_html=True)
-            foto_dig_in = st.camera_input("Tire uma foto da frente de serviço:", key="cam_rdc_dig_main")
-            if not foto_dig_in:
-                foto_dig_in = st.file_uploader("Ou anexe uma foto da galeria:", type=["jpg", "jpeg", "png"], key="up_rdc_dig_main")
-            if foto_dig_in:
-                st.image(foto_dig_in, caption="Evidência Fotográfica Anexada", use_container_width=True)
-
-        # 5. Botão de Envio
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🚀 SALVAR E TRANSMITIR RDC DIGITAL", type="primary", use_container_width=True, key="btn_submit_rdc_dig"):
-            if not rdc_dig_enc:
-                st.error("❌ Selecione o Encarregado.")
-            elif not rdc_dig_ativ.strip():
-                st.error("❌ Preencha as Atividades Executadas.")
-            else:
-                if not eq_dig_colabs.empty and status_chamada_dig:
-                    val_pres = sum([1 for v in status_chamada_dig.values() if v == "PRESENTE"])
-                    val_falt = sum([1 for v in status_chamada_dig.values() if v == "FALTA"])
-                    val_folg = sum([1 for v in status_chamada_dig.values() if v == "FOLGA"])
-                    val_ates = sum([1 for v in status_chamada_dig.values() if v == "ATESTADO"])
-                    val_prev = len(eq_dig_colabs)
-                else:
-                    val_pres = man_p if 'man_p' in locals() else 1
-                    val_falt = man_f if 'man_f' in locals() else 0
-                    val_folg = man_fo if 'man_fo' in locals() else 0
-                    val_ates = man_a if 'man_a' in locals() else 0
-                    val_prev = val_pres + val_falt + val_folg + val_ates
-
-                d_iso = rdc_dig_data.strftime("%Y-%m-%d")
-                d_br = rdc_dig_data.strftime("%d/%m/%Y")
-                
-                txt_prob = ""
-                if rdc_dig_tags_prob: txt_prob = f"[{', '.join(rdc_dig_tags_prob)}] "
-                if rdc_dig_prob_txt.strip(): txt_prob += rdc_dig_prob_txt.strip()
-                
-                # Salvar foto se houver
-                nome_foto_dig = ""
-                if foto_dig_in:
-                    try:
-                        import re
-                        pasta_fotos_sys = os.path.join(pasta_base, "fotos_rdc")
-                        os.makedirs(pasta_fotos_sys, exist_ok=True)
-                        enc_c = re.sub(r'[^a-zA-Z0-9]', '_', rdc_dig_enc)
-                        ts_c = datetime.datetime.now().strftime('%H%M%S')
-                        nome_foto_dig = f"{d_iso}_{enc_c}_{ts_c}.jpg"
-                        with open(os.path.join(pasta_fotos_sys, nome_foto_dig), "wb") as f_out:
-                            f_out.write(foto_dig_in.getvalue())
-                    except:
-                        pass
-                
-                novo_rdc_row = {
-                    "DATA": d_iso,
-                    "DISCIPLINA": rdc_dig_disc,
-                    "ENCARREGADO": rdc_dig_enc,
-                    "TURNO": rdc_dig_turno,
-                    "EFETIVO_PREVISTO": str(val_prev),
-                    "EFETIVO_PRESENTE": str(val_pres),
-                    "FALTAS": str(val_falt),
-                    "FOLGAS": str(val_folg),
-                    "ATESTADOS": str(val_ates),
-                    "DDS": rdc_dig_dds.strip() if rdc_dig_dds.strip() else "Não Informado",
-                    "TRANSCRICAO": rdc_dig_ativ.strip(),
-                    "ATIVIDADE": rdc_dig_ativ.strip()[:200].upper(),
-                    "PROBLEMAS": txt_prob,
-                    "LOCAL": rdc_dig_caldeira,
-                    "AREA": rdc_dig_disc,
-                    "CALDEIRA": rdc_dig_caldeira if rdc_dig_caldeira in ["PB", "RB", "ESP"] else "",
-                    "FOTO": nome_foto_dig,
-                    "CRIADO_EM": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                
-                try:
-                    df_novo_r = pd.DataFrame([novo_rdc_row])
-                    if os.path.exists(caminho_rdc_registros_csv):
-                        df_ex = pd.read_csv(caminho_rdc_registros_csv)
-                        df_s = pd.concat([df_ex, df_novo_r], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO", "ATIVIDADE"])
-                    else:
-                        df_s = df_novo_r
-                    df_s.to_csv(caminho_rdc_registros_csv, index=False)
-                except Exception as e_s_rdc:
-                    st.warning(f"Erro ao salvar RDC: {e_s_rdc}")
-                    
-                # Atualizar F1
-                try:
-                    f1_item = {"DATA": d_iso, "ENCARREGADO": rdc_dig_enc}
-                    if os.path.exists(caminho_historico_f1_csv):
-                        df_f1_loc = pd.read_csv(caminho_historico_f1_csv)
-                        if not ((df_f1_loc["DATA"] == d_iso) & (df_f1_loc["ENCARREGADO"] == rdc_dig_enc)).any():
-                            pd.concat([df_f1_loc, pd.DataFrame([f1_item])], ignore_index=True).to_csv(caminho_historico_f1_csv, index=False)
-                    else:
-                        pd.DataFrame([f1_item]).to_csv(caminho_historico_f1_csv, index=False)
-                    # Atualizar session_state da F1 para o Radar refletir na hora
-                    if st.session_state.df_historico_f1 is not None:
-                        if not ((st.session_state.df_historico_f1["DATA"] == d_iso) & (st.session_state.df_historico_f1["ENCARREGADO"] == rdc_dig_enc)).any():
-                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, pd.DataFrame([f1_item])], ignore_index=True)
-                except:
-                    pass
-                    
-                st.success(f"🎉 **RDC Digital de {rdc_dig_enc} transmitido e salvo com sucesso!**")
-                st.balloons()
-                
-                # Texto para WhatsApp
-                zap = f"*📋 COMPROVANTE DE RDC DIGITAL — ENESA*\n"
-                zap += f"👤 *Líder:* {rdc_dig_enc}\n"
-                zap += f"📅 *Data:* {d_br} | *Turno:* {rdc_dig_turno}\n"
-                zap += f"📍 *Área/Disciplina:* {rdc_dig_caldeira} · {rdc_dig_disc}\n"
-                zap += f"👥 *Efetivo:* {val_pres} Presentes | {val_falt} Faltas | {val_folg} Folgas | {val_ates} Atestados\n"
-                zap += f"⏱️ *HH Comprovado:* {val_pres * 8.8:.1f} HH\n\n"
-                zap += f"*📝 Atividades:*\n{rdc_dig_ativ.strip()}\n"
-                if txt_prob: zap += f"\n*⚠️ Bloqueios:*\n{txt_prob}\n"
-                zap += f"\n_Transmitido via SGO RDC Digital_"
-                
-                st.markdown("### 📲 Comprovante Formatado para WhatsApp:")
-                st.code(zap, language="text")
-                st.caption("💡 Copie o texto acima e envie no grupo da obra.")
-
     if pagina_sgo == "Emissão de RDC":
-        st.markdown("### Emissão de RDC")
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(19, 32, 58, 0.90) 100%); border: 1px solid rgba(56, 189, 248, 0.24); border-left: 4px solid #2563EB; border-radius: 14px; padding: 18px 22px; margin-bottom: 18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; color:#38BDF8; letter-spacing:1.2px; text-transform:uppercase;">CENTRAL DE IMPRESSÃO &amp; APROPRIAÇÃO DE CAMPO</div>
+                    <h3 style="margin:3px 0 2px 0; font-size:1.4rem; font-weight:800; color:#F8FAFC;">🖨️ Emissão de RDC — Diário &amp; Kit Semanal (Seg a Sex + Sem Data)</h3>
+                    <p style="margin:0; font-size:0.84rem; color:#94A3B8;">Gere RDCs individuais ou o <strong>Pacote Semanal Completo por Encarregado</strong> (2 vias datadas de Segunda a Sexta + 2 vias sem data para Sábado, Domingo e Escala).</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         if not lista_encarregados_base:
             st.warning("Nenhum encarregado encontrado na base.")
         else:
-            encarregados_sel = st.multiselect("Escolha o(s) Encarregado(s) (deixe vazio para gerar todos):", lista_encarregados_base, default=[lista_encarregados_base[0]] if lista_encarregados_base else [])
-            lista_alvo = encarregados_sel if encarregados_sel else lista_encarregados_base
-            
+            # --- BARRA DE FILTROS INTELIGENTES DE SELEÇÃO DE EQUIPES ---
+            with st.container(border=True):
+                st.markdown("**🎯 1. Seleção de Equipes / Encarregados**")
+                f_em1, f_em2, f_em3 = st.columns([1.2, 1.5, 1.3])
+                with f_em1:
+                    filtro_area_em = st.selectbox(
+                        "Filtrar por Área:",
+                        ["Todas as Áreas", "PB (Caldeira)", "RB (Retorta)", "ESP (Precipitador)"],
+                        key="emissao_filtro_area"
+                    )
+                with f_em2:
+                    discs_em = ["Todas as Disciplinas"]
+                    if "DISCIPLINA" in df_atual.columns:
+                        discs_em += sorted([str(d).strip() for d in df_atual["DISCIPLINA"].dropna().unique() if str(d).strip() and str(d).strip() != "nan"])
+                    filtro_disc_em = st.selectbox("Filtrar por Disciplina:", discs_em, key="emissao_filtro_disc")
+                with f_em3:
+                    modo_sel_em = st.radio(
+                        "Modo de Seleção:",
+                        ["Selecionar Encarregados", "Todos do Filtro"],
+                        horizontal=True,
+                        key="emissao_modo_sel"
+                    )
+
+                df_base_em = df_atual[df_atual["ENCARREGADO"].astype(str).str.strip() != ""].copy()
+                if filtro_area_em == "PB (Caldeira)" and "C.C" in df_base_em.columns:
+                    df_base_em = df_base_em[df_base_em["C.C"].astype(str).apply(lambda x: "125.02" in x and ".005" not in x)]
+                elif filtro_area_em == "RB (Retorta)" and "C.C" in df_base_em.columns:
+                    df_base_em = df_base_em[df_base_em["C.C"].astype(str).apply(lambda x: "125.01" in x and ".005" not in x)]
+                elif filtro_area_em == "ESP (Precipitador)" and "C.C" in df_base_em.columns:
+                    df_base_em = df_base_em[df_base_em["C.C"].astype(str).apply(lambda x: ".005" in x)]
+
+                if filtro_disc_em != "Todas as Disciplinas" and "DISCIPLINA" in df_base_em.columns:
+                    df_base_em = df_base_em[df_base_em["DISCIPLINA"].astype(str).str.strip() == filtro_disc_em]
+
+                encs_filtrados_disp = sorted([str(e).strip() for e in df_base_em["ENCARREGADO"].unique() if str(e).strip()])
+                if not encs_filtrados_disp:
+                    encs_filtrados_disp = lista_encarregados_base
+
+                if modo_sel_em == "Todos do Filtro":
+                    lista_alvo = encs_filtrados_disp
+                    st.caption(f"✅ **{len(lista_alvo)} encarregado(s)** selecionados automaticamente pelo filtro.")
+                else:
+                    encarregados_sel = st.multiselect(
+                        "Escolha o(s) Encarregado(s) (deixe vazio para incluir todos do filtro):",
+                        encs_filtrados_disp,
+                        default=[encs_filtrados_disp[0]] if encs_filtrados_disp else [],
+                        key="emissao_multiselect_enc"
+                    )
+                    lista_alvo = encarregados_sel if encarregados_sel else encs_filtrados_disp
+
             equipe = df_atual[df_atual["ENCARREGADO"].isin(lista_alvo)]
-            st.markdown("")
-            texto_enc = ", ".join(lista_alvo) if len(lista_alvo) <= 3 else f"{len(lista_alvo)} Encarregados Selecionados"
-            st.markdown(f"""<div style="background: {cor_card}; border-radius: 10px; padding: 20px; border: 1px solid {cor_borda}; margin-bottom: 16px;"><div style="text-align: center; border-bottom: 2px solid {cor_azul}; padding-bottom: 12px; margin-bottom: 12px;"><h3 style="margin: 0; font-size: 1.2rem; color: {cor_texto} !important;">RDC - Relatório Diário de Campo</h3><p style="color: {cor_texto_sub}; margin: 4px 0 0 0; font-size: 0.85rem;">{nome_site}</p></div><table style="width: 100%; color: {cor_texto}; font-size: 0.9rem;"><tr><td style="padding: 4px 0;"><strong>Encarregado(s):</strong></td><td>{texto_enc}</td></tr><tr><td style="padding: 4px 0;"><strong>Data:</strong></td><td>{datetime.datetime.now().strftime("%d/%m/%Y")}</td></tr><tr><td style="padding: 4px 0;"><strong>Efetivo:</strong></td><td>{len(equipe)} colaborador(es)</td></tr></table></div>""", unsafe_allow_html=True)
-            
-            if "ENCARREGADO" not in equipe.columns:
-                st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
-            else:
-                st.dataframe(equipe[["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]].reset_index(drop=True), hide_index=True, use_container_width=True)
-            
-            st.markdown("")
-            
-            col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
-            with col_btn1:
-                if st.button("🟢 GERAR EXCEL", type="primary", use_container_width=True):
-                    if len(lista_alvo) == 1:
-                        enc = lista_alvo[0]
-                        eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                        wb = preencher_excel(eq, enc)
-                        if wb:
-                            nome_limpo = enc.replace(" ", "_")
-                            nome_arquivo = f"RDC_{nome_limpo}.xlsx"
-                            buffer = io.BytesIO()
-                            wb.save(buffer)
-                            wb.close()
+            qtd_encs_alvo = len(lista_alvo)
+            total_folhas_kit = qtd_encs_alvo * 12
+
+            # --- 4 KPIS DE RESUMO DO LOTE DE IMPRESSÃO ---
+            ek1, ek2, ek3, ek4 = st.columns(4)
+            with ek1:
+                st.markdown(f"""<div class="sgo-kpi-card"><div class="sgo-kpi-bar" style="background:linear-gradient(90deg,#2563EB,transparent);"></div><div class="sgo-kpi-top"><p class="sgo-kpi-label">ENCARREGADOS NO LOTE</p><div class="sgo-kpi-icon" style="background:#2563EB18;border:1px solid #2563EB38;color:#3B82F6;">badge</div></div><h2 class="sgo-kpi-value">{qtd_encs_alvo}</h2></div>""", unsafe_allow_html=True)
+            with ek2:
+                st.markdown(f"""<div class="sgo-kpi-card"><div class="sgo-kpi-bar" style="background:linear-gradient(90deg,#10B981,transparent);"></div><div class="sgo-kpi-top"><p class="sgo-kpi-label">EFETIVO TOTAL ALOCADO</p><div class="sgo-kpi-icon" style="background:#10B98118;border:1px solid #10B98138;color:#10B981;">groups</div></div><h2 class="sgo-kpi-value">{len(equipe)} <span style="font-size:13px;font-weight:600;color:#94A3B8;">colab.</span></h2></div>""", unsafe_allow_html=True)
+            with ek3:
+                st.markdown(f"""<div class="sgo-kpi-card"><div class="sgo-kpi-bar" style="background:linear-gradient(90deg,#0EA5E9,transparent);"></div><div class="sgo-kpi-top"><p class="sgo-kpi-label">KIT SEMANAL POR ENCARREGADO</p><div class="sgo-kpi-icon" style="background:#0EA5E918;border:1px solid #0EA5E938;color:#0EA5E9;">date_range</div></div><h2 class="sgo-kpi-value">12 <span style="font-size:13px;font-weight:600;color:#94A3B8;">vias (10 Seg–Sex + 2 s/ data)</span></h2></div>""", unsafe_allow_html=True)
+            with ek4:
+                st.markdown(f"""<div class="sgo-kpi-card"><div class="sgo-kpi-bar" style="background:linear-gradient(90deg,#F59E0B,transparent);"></div><div class="sgo-kpi-top"><p class="sgo-kpi-label">TOTAL DE PÁGINAS NO KIT SEMANAL</p><div class="sgo-kpi-icon" style="background:#F59E0B18;border:1px solid #F59E0B38;color:#F59E0B;">print</div></div><h2 class="sgo-kpi-value">{total_folhas_kit} <span style="font-size:13px;font-weight:600;color:#94A3B8;">páginas A4</span></h2></div>""", unsafe_allow_html=True)
+
+            st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+
+            # --- ABAS DE MODALIDADE DE EMISSÃO ---
+            tab_kit_semanal, tab_emissao_diaria, tab_conferencia_eq = st.tabs([
+                "📅 1. Pacote Semanal (2x Seg a Sex + 2 Sem Data p/ Sáb, Dom e Escala)",
+                "📄 2. Emissão Diária / Avulsa (1 Via por Encarregado)",
+                "👷 3. Conferência da Equipe Selecionada"
+            ])
+
+            # =================================================================
+            # SUB-ABA 1: PACOTE SEMANAL (2 DE CADA DIA SEG-SEX + 2 SEM DATA)
+            # =================================================================
+            with tab_kit_semanal:
+                hoje_em = datetime.date.today()
+                dias_ate_seg = -hoje_em.weekday() if hoje_em.weekday() <= 4 else (7 - hoje_em.weekday())
+                segunda_sugerida = hoje_em + datetime.timedelta(days=dias_ate_seg)
+
+                col_cfg_sem1, col_cfg_sem2, col_cfg_sem3 = st.columns([1.6, 1.2, 1.2])
+                with col_cfg_sem1:
+                    dt_inicio_kit = st.date_input(
+                        "📅 Escolha a Segunda-feira (Início da Semana do Pacote):",
+                        value=segunda_sugerida,
+                        key="dt_inicio_kit_semanal"
+                    )
+                    segunda_kit = dt_inicio_kit - datetime.timedelta(days=dt_inicio_kit.weekday())
+                    sexta_kit = segunda_kit + datetime.timedelta(days=4)
+                    domingo_kit = sexta_kit
+                    if dt_inicio_kit != segunda_kit:
+                        st.caption(f"ℹ️ Ajustado automaticamente para a Segunda-feira da semana escolhida: **{segunda_kit.strftime('%d/%m/%Y')} a {sexta_kit.strftime('%d/%m/%Y')}**")
+                with col_cfg_sem2:
+                    vias_por_dia = st.number_input("Vias por dia útil (Seg a Sex):", min_value=1, max_value=5, value=2, step=1, key="vias_por_dia_kit")
+                with col_cfg_sem3:
+                    vias_sem_data = st.number_input("Vias SEM DATA (Sáb/Dom/Escala):", min_value=0, max_value=10, value=2, step=1, key="vias_sem_data_kit")
+
+                # Montar a estrutura exata de páginas do Kit por Encarregado (Seg a Sex datados + Sem Data em branco)
+                nomes_5_dias = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira"]
+                nomes_curtos = ["SEG", "TER", "QUA", "QUI", "SEX"]
+                plano_kit_datas = []
+                for d_i in range(5):
+                    dt_corrente = segunda_kit + datetime.timedelta(days=d_i)
+                    dt_str_fmt = dt_corrente.strftime("%d/%m/%Y")
+                    for v_i in range(int(vias_por_dia)):
+                        plano_kit_datas.append({
+                            "dia_nome": nomes_5_dias[d_i],
+                            "dia_curto": nomes_curtos[d_i],
+                            "data_str": dt_str_fmt,
+                            "via_num": v_i + 1,
+                            "tipo": "DATADO"
+                        })
+                for v_s in range(int(vias_sem_data)):
+                    plano_kit_datas.append({
+                        "dia_nome": "Sáb / Dom / Escala (Sem Data)",
+                        "dia_curto": "SEM DATA",
+                        "data_str": "",
+                        "via_num": v_s + 1,
+                        "tipo": "ESCALA"
+                    })
+
+                total_vias_por_enc = len(plano_kit_datas)
+                total_geral_paginas = total_vias_por_enc * len(lista_alvo)
+
+                # Visualização dos 6 blocos do pacote (Seg a Sex + Sem Data para Sáb/Dom/Escala)
+                st.markdown(f"**📋 Estrutura do Kit por Encarregado: {total_vias_por_enc} Folhas ({int(vias_por_dia)*5} datadas de Segunda a Sexta + {int(vias_sem_data)} sem data para Sábado, Domingo e Escala)**")
+                cols_preview_kit = st.columns(6)
+                for d_i in range(5):
+                    dt_c = segunda_kit + datetime.timedelta(days=d_i)
+                    cor_card_k = "#38BDF8"
+                    bg_card_k = "rgba(14, 165, 233, 0.10)"
+                    with cols_preview_kit[d_i]:
+                        st.markdown(f"""
+                        <div style="background:{bg_card_k}; border:1px solid {cor_card_k}40; border-top:3px solid {cor_card_k}; border-radius:10px; padding:10px 8px; text-align:center;">
+                            <div style="font-size:11px; font-weight:800; color:{cor_card_k};">{nomes_curtos[d_i]}</div>
+                            <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:#F8FAFC; margin:3px 0;">{dt_c.strftime('%d/%m/%Y')}</div>
+                            <div style="font-size:11px; font-weight:700; color:#CBD5E1; background:rgba(15,23,42,0.65); border-radius:5px; padding:2px 6px;">{int(vias_por_dia)} vias datadas</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                with cols_preview_kit[5]:
+                    st.markdown(f"""
+                    <div style="background:rgba(16, 185, 129, 0.12); border:1px solid rgba(16, 185, 129, 0.45); border-top:3px solid #10B981; border-radius:10px; padding:10px 8px; text-align:center;">
+                        <div style="font-size:11px; font-weight:800; color:#34D399;">SÁB / DOM / ESCALA</div>
+                        <div style="font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:700; color:#F8FAFC; margin:3px 0;">DATA EM BRANCO</div>
+                        <div style="font-size:11px; font-weight:700; color:#A7F3D0; background:rgba(15,23,42,0.65); border-radius:5px; padding:2px 6px;">+{int(vias_sem_data)} vias s/ data</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+
+                col_kit_btn1, col_kit_btn2 = st.columns(2)
+                with col_kit_btn1:
+                    if st.button(
+                        f"🖨️ GERAR PDF ÚNICO DO KIT SEMANAL ({total_geral_paginas} páginas prontas p/ imprimir)",
+                        type="primary",
+                        use_container_width=True,
+                        key="btn_kit_semanal_pdf_unico"
+                    ):
+                        with st.spinner(f"Montando Kit Semanal ({total_vias_por_enc} vias para cada um dos {len(lista_alvo)} encarregados)..."):
                             try:
-                                hoje = datetime.datetime.now()
-                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
-                                os.makedirs(pasta_hist, exist_ok=True)
-                                caminho_local = os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
-                                with open(caminho_local, "wb") as f:
-                                    f.write(buffer.getvalue())
-                                success, msg = backup_google_drive(caminho_local, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", f"{hoje.strftime('%d_%H%M')}_{nome_arquivo}")
-                                if success:
-                                    st.toast("☁️ Backup salvo no Google Drive!")
-                            except Exception:
-                                pass
-                            buffer.seek(0)
-                            st.download_button("⬇️ Baixar Planilha", data=buffer, file_name=nome_arquivo, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-                            st.success("✅ Gerado!")
+                                import fitz  # PyMuPDF
+                                pdf_kit_final = fitz.open()
+                                qtd_enc_processados = 0
+                                total_pags_geradas = 0
+                                for enc in lista_alvo:
+                                    eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                    if len(eq) == 0:
+                                        continue
+                                    # Cache por data para não recriar o mesmo PDF 2 vezes para o mesmo dia
+                                    cache_pdf_dia = {}
+                                    for item_k in plano_kit_datas:
+                                        dt_k = item_k["data_str"]
+                                        if dt_k not in cache_pdf_dia:
+                                            cache_pdf_dia[dt_k] = gerar_pdf_rdc(
+                                                eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa, data_rdc=dt_k
+                                            )
+                                        pdf_b = cache_pdf_dia[dt_k]
+                                        if pdf_b:
+                                            doc_temp = fitz.open(stream=pdf_b, filetype="pdf")
+                                            pdf_kit_final.insert_pdf(doc_temp)
+                                            doc_temp.close()
+                                            total_pags_geradas += 1
+                                    qtd_enc_processados += 1
+
+                                if total_pags_geradas > 0:
+                                    buf_kit_unico = io.BytesIO(pdf_kit_final.tobytes(deflate=True))
+                                    pdf_kit_final.close()
+                                    suff_nome = lista_alvo[0].replace(" ", "_") if len(lista_alvo) == 1 else f"{qtd_enc_processados}_ENCARREGADOS"
+                                    nome_arq_kit = f"KIT_SEMANAL_RDC_{suff_nome}_{segunda_kit.strftime('%d_%m')}_a_{domingo_kit.strftime('%d_%m_%Y')}.pdf"
+                                    st.download_button(
+                                        f"⬇️ Baixar PDF do Kit Semanal ({total_pags_geradas} folhas · {qtd_enc_processados} encarregado(s))",
+                                        data=buf_kit_unico,
+                                        file_name=nome_arq_kit,
+                                        mime="application/pdf",
+                                        type="primary",
+                                        use_container_width=True,
+                                        key="dl_kit_semanal_pdf_unico"
+                                    )
+                                    st.success(f"✅ Kit Semanal pronto! Cada encarregado contém {int(vias_por_dia)} vias de Segunda ({segunda_kit.strftime('%d/%m')}) a Sexta ({sexta_kit.strftime('%d/%m')}) + {int(vias_sem_data)} vias sem data para Escala.")
+                                else:
+                                    pdf_kit_final.close()
+                                    st.warning("⚠️ Nenhuma página gerada.")
+                            except Exception as e:
+                                st.error(f"Erro ao gerar Kit Semanal em PDF único: {e}")
+
+                with col_kit_btn2:
+                    if st.button(
+                        f"📦 GERAR PACOTE .ZIP (1 PDF de {total_vias_por_enc} págs separado por Encarregado)",
+                        use_container_width=True,
+                        key="btn_kit_semanal_zip"
+                    ):
+                        with st.spinner("Gerando arquivos PDF individuais do Kit Semanal por Encarregado..."):
+                            try:
+                                import fitz
+                                zip_kit_buf = io.BytesIO()
+                                qtd_z = 0
+                                with zipfile.ZipFile(zip_kit_buf, "w", zipfile.ZIP_DEFLATED) as zf_k:
+                                    for enc in lista_alvo:
+                                        eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                        if len(eq) == 0:
+                                            continue
+                                        doc_enc_kit = fitz.open()
+                                        cache_pdf_dia = {}
+                                        for item_k in plano_kit_datas:
+                                            dt_k = item_k["data_str"]
+                                            if dt_k not in cache_pdf_dia:
+                                                cache_pdf_dia[dt_k] = gerar_pdf_rdc(
+                                                    eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa, data_rdc=dt_k
+                                                )
+                                            pdf_b = cache_pdf_dia[dt_k]
+                                            if pdf_b:
+                                                d_tmp = fitz.open(stream=pdf_b, filetype="pdf")
+                                                doc_enc_kit.insert_pdf(d_tmp)
+                                                d_tmp.close()
+                                        if len(doc_enc_kit) > 0:
+                                            nome_limpo = enc.replace(" ", "_")
+                                            zf_k.writestr(
+                                                f"KIT_SEMANAL_{nome_limpo}_{segunda_kit.strftime('%d_%m')}_a_{domingo_kit.strftime('%d_%m')}.pdf",
+                                                doc_enc_kit.tobytes(deflate=True)
+                                            )
+                                            qtd_z += 1
+                                        doc_enc_kit.close()
+                                if qtd_z > 0:
+                                    zip_kit_buf.seek(0)
+                                    nome_zip_k = f"KITS_SEMANAIS_RDC_{segunda_kit.strftime('%d_%m')}_a_{domingo_kit.strftime('%d_%m_%Y')}.zip"
+                                    st.download_button(
+                                        f"⬇️ Baixar ZIP com {qtd_z} Kits Semanais (.zip)",
+                                        data=zip_kit_buf,
+                                        file_name=nome_zip_k,
+                                        mime="application/zip",
+                                        type="primary",
+                                        use_container_width=True,
+                                        key="dl_kit_semanal_zip"
+                                    )
+                                    st.success(f"✅ {qtd_z} Kits Semanais gerados e separados por encarregado!")
+                            except Exception as e:
+                                st.error(f"Erro ao gerar pacote ZIP semanal: {e}")
+
+            # =================================================================
+            # SUB-ABA 2: EMISSÃO DIÁRIA / AVULSA (1 VIA POR ENCARREGADO)
+            # =================================================================
+            with tab_emissao_diaria:
+                cd1, cd2 = st.columns([1.5, 2.5])
+                with cd1:
+                    usar_data_avulsa = st.checkbox("Imprimir Data no Cabeçalho do RDC", value=True, key="chk_data_avulsa")
+                with cd2:
+                    dt_avulsa = st.date_input("Data de Emissão Diária:", datetime.date.today(), disabled=not usar_data_avulsa, key="dt_emissao_avulsa")
+                dt_avulsa_str = dt_avulsa.strftime("%d/%m/%Y") if usar_data_avulsa else ""
+
+                col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+                with col_btn1:
+                    if st.button("🟢 GERAR EXCEL", type="primary", use_container_width=True, key="btn_em_excel_avulso"):
+                        if len(lista_alvo) == 1:
+                            enc = lista_alvo[0]
+                            eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                            wb = preencher_excel(eq, enc, data_rdc=dt_avulsa_str)
+                            if wb:
+                                nome_limpo = enc.replace(" ", "_")
+                                nome_arquivo = f"RDC_{nome_limpo}.xlsx"
+                                buffer = io.BytesIO()
+                                wb.save(buffer)
+                                wb.close()
+                                buffer.seek(0)
+                                st.download_button("⬇️ Baixar Planilha", data=buffer, file_name=nome_arquivo, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+                                st.success("✅ Gerado!")
+                            else:
+                                st.error("Modelo não encontrado.")
                         else:
-                            st.error("Modelo não encontrado.")
-                    else:
-                        with st.spinner("Gerando planilhas Excel em Lote..."):
+                            with st.spinner("Gerando planilhas Excel em Lote..."):
+                                zip_buffer = io.BytesIO()
+                                qtd = 0
+                                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                                    for enc in lista_alvo:
+                                        eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                        if len(eq) > 0:
+                                            wb_e = preencher_excel(eq, enc, data_rdc=dt_avulsa_str)
+                                            if wb_e:
+                                                buf = io.BytesIO()
+                                                wb_e.save(buf)
+                                                wb_e.close()
+                                                n = enc.replace(" ", "_")
+                                                zf.writestr(f"RDC_{n}.xlsx", buf.getvalue())
+                                                qtd += 1
+                                if qtd > 0:
+                                    zip_buffer.seek(0)
+                                    nome_zip = f"LOTE_EXCEL_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                                    st.download_button(f"⬇️ Baixar Planilhas ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
+                                    st.success(f"✅ {qtd} Planilhas Excel geradas no ZIP!")
+
+                with col_btn2:
+                    if st.button("📄 GERAR PDF", use_container_width=True, key="btn_em_pdf_avulso"):
+                        if len(lista_alvo) == 1:
+                            enc = lista_alvo[0]
+                            eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                            pdf_bytes = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa, data_rdc=dt_avulsa_str)
+                            if pdf_bytes:
+                                nome_limpo = enc.replace(" ", "_")
+                                nome_pdf = f"RDC_{nome_limpo}.pdf"
+                                st.download_button("⬇️ Baixar PDF", data=pdf_bytes, file_name=nome_pdf, mime="application/pdf", use_container_width=True)
+                                st.success("✅ PDF gerado!")
+                        else:
+                            with st.spinner("Gerando PDFs em Lote..."):
+                                zip_buffer = io.BytesIO()
+                                qtd = 0
+                                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                                    for enc in lista_alvo:
+                                        eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                        if len(eq) > 0:
+                                            pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa, data_rdc=dt_avulsa_str)
+                                            if pdf_b:
+                                                zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
+                                                qtd += 1
+                                if qtd > 0:
+                                    zip_buffer.seek(0)
+                                    nome_zip = f"LOTE_PDF_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
+                                    st.download_button(f"⬇️ Baixar PDFs ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
+                                    st.success(f"✅ {qtd} PDFs gerados no ZIP!")
+
+                with col_btn3:
+                    if st.button("🚀 GERAR LOTE (.ZIP)", use_container_width=True, key="btn_em_zip_avulso"):
+                        with st.spinner("Gerando PDFs e planilhas..."):
                             zip_buffer = io.BytesIO()
                             qtd = 0
                             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                                 for enc in lista_alvo:
                                     eq = df_atual[df_atual["ENCARREGADO"] == enc]
                                     if len(eq) > 0:
-                                        wb_e = preencher_excel(eq, enc)
+                                        wb_e = preencher_excel(eq, enc, data_rdc=dt_avulsa_str)
                                         if wb_e:
                                             buf = io.BytesIO()
                                             wb_e.save(buf)
                                             wb_e.close()
-                                            n = enc.replace(" ", "_")
-                                            zf.writestr(f"RDC_{n}.xlsx", buf.getvalue())
-                                            qtd += 1
-                                            try:
-                                                hoje = datetime.datetime.now()
-                                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
-                                                os.makedirs(pasta_hist, exist_ok=True)
-                                                with open(os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_RDC_{n}.xlsx"), "wb") as f:
-                                                    f.write(buf.getvalue())
-                                            except Exception:
-                                                pass
-                            if qtd > 0:
-                                zip_buffer.seek(0)
-                                nome_zip = f"LOTE_EXCEL_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
-                                st.download_button(f"⬇️ Baixar Planilhas ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
-                                st.success(f"✅ {qtd} Planilhas Excel geradas no ZIP!")
-                            else:
-                                st.warning("Nenhuma planilha gerada.")
-
-            with col_btn2:
-                if st.button("📄 GERAR PDF", use_container_width=True):
-                    if len(lista_alvo) == 1:
-                        enc = lista_alvo[0]
-                        eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                        pdf_bytes = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
-                        if pdf_bytes:
-                            nome_limpo = enc.replace(" ", "_")
-                            nome_pdf = f"RDC_{nome_limpo}.pdf"
-                            st.download_button("⬇️ Baixar PDF", data=pdf_bytes, file_name=nome_pdf, mime="application/pdf", use_container_width=True)
-                            st.success("✅ PDF gerado!")
-                        else:
-                            st.error("Erro ao gerar PDF.")
-                    else:
-                        with st.spinner("Gerando PDFs em Lote..."):
-                            zip_buffer = io.BytesIO()
-                            qtd = 0
-                            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                                for enc in lista_alvo:
-                                    eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                                    if len(eq) > 0:
-                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
+                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}.xlsx", buf.getvalue())
+                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa, data_rdc=dt_avulsa_str)
                                         if pdf_b:
                                             zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
-                                            qtd += 1
-                            if qtd > 0:
-                                zip_buffer.seek(0)
-                                nome_zip = f"LOTE_PDF_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
-                                st.download_button(f"⬇️ Baixar PDFs ({qtd})", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
-                                st.success(f"✅ {qtd} PDFs gerados no ZIP!")
-                            else:
-                                st.warning("Nenhum PDF gerado.")
-
-            with col_btn3:
-                if st.button("🚀 GERAR LOTE (.ZIP)", use_container_width=True):
-                    with st.spinner("Gerando PDFs e planilhas..."):
-                        try:
-                            zip_buffer = io.BytesIO()
-                            qtd = 0
-                            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                                for enc in lista_alvo:
-                                    eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                                    if len(eq) > 0:
-                                        wb_e = preencher_excel(eq, enc)
-                                        if wb_e:
-                                            buf = io.BytesIO()
-                                            wb_e.save(buf)
-                                            wb_e.close()
-                                            n = enc.replace(" ", "_")
-                                            zf.writestr(f"RDC_{n}.xlsx", buf.getvalue())
-                                            try:
-                                                hoje = datetime.datetime.now()
-                                                pasta_hist = os.path.join(pasta_base, "Historico_RDC", str(hoje.year), f"{hoje.month:02d}_{hoje.strftime('%B')}")
-                                                os.makedirs(pasta_hist, exist_ok=True)
-                                                with open(os.path.join(pasta_hist, f"{hoje.strftime('%d_%H%M')}_RDC_{n}.xlsx"), "wb") as f:
-                                                    f.write(buf.getvalue())
-                                            except Exception:
-                                                pass
-                                        
-                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
-                                        if pdf_b:
-                                            zf.writestr(f"RDC_{enc.replace(' ', '_')}.pdf", pdf_b)
-                                        
                                         qtd += 1
                             if qtd > 0:
                                 zip_buffer.seek(0)
                                 nome_zip = f"LOTE_RDC_COMPLETO_{datetime.datetime.now().strftime('%d_%m_%Y')}.zip"
-                                st.download_button(f"⬇️ Baixar Lote ({qtd} pastas/encarregados)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
-                                
-                                try:
-                                    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip:
-                                        tmp_zip.write(zip_buffer.getvalue())
-                                        tmp_zip_path = tmp_zip.name
-                                    success, msg = backup_google_drive(tmp_zip_path, "application/zip", nome_zip)
-                                    if success:
-                                        st.toast("☁️ Lote salvo no Google Drive!")
-                                    os.remove(tmp_zip_path)
-                                except:
-                                    pass
-                                    
+                                st.download_button(f"⬇️ Baixar Lote ({qtd} encarregados)", data=zip_buffer, file_name=nome_zip, mime="application/zip", use_container_width=True)
                                 st.success(f"✅ Arquivos de {qtd} encarregados gerados no ZIP!")
-                            else:
-                                st.warning("Nenhuma planilha gerada.")
-                        except Exception as e:
-                            st.error(f"Erro: {e}")
 
-            with col_btn4:
-                if st.button("🖨️ PDF ÚNICO (Impressão)", use_container_width=True):
-                    with st.spinner("Gerando PDF único..."):
-                        try:
-                            import fitz  # PyMuPDF
-                            pdf_final = fitz.open()
-                            qtd_enc = 0
-                            for enc in lista_alvo:
-                                eq = df_atual[df_atual["ENCARREGADO"] == enc]
-                                if len(eq) > 0:
-                                    pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa)
-                                    if pdf_b:
-                                        pdf_individual = fitz.open(stream=pdf_b, filetype="pdf")
-                                        pdf_final.insert_pdf(pdf_individual)
-                                        pdf_individual.close()
-                                        qtd_enc += 1
-                            if qtd_enc > 0:
-                                buffer_pdf_unico = io.BytesIO(pdf_final.tobytes(deflate=True))
-                                pdf_final.close()
-                                nome_pdf_unico = f"TODOS_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.pdf"
-                                st.download_button(
-                                    f"⬇️ Baixar PDF Único ({qtd_enc} encarregados)",
-                                    data=buffer_pdf_unico,
-                                    file_name=nome_pdf_unico,
-                                    mime="application/pdf",
-                                    use_container_width=True
-                                )
-                                st.success(f"✅ PDF único gerado com {qtd_enc} RDCs!")
-                            else:
-                                pdf_final.close()
-                                st.warning("⚠️ Nenhum RDC encontrado.")
-                        except Exception as e:
-                            st.error(f"Erro ao gerar PDF único: {e}")
+                with col_btn4:
+                    if st.button("🖨️ PDF ÚNICO (1 Via/Enc.)", use_container_width=True, key="btn_em_pdf_unico_avulso"):
+                        with st.spinner("Gerando PDF único diário..."):
+                            try:
+                                import fitz
+                                pdf_final = fitz.open()
+                                qtd_enc = 0
+                                for enc in lista_alvo:
+                                    eq = df_atual[df_atual["ENCARREGADO"] == enc]
+                                    if len(eq) > 0:
+                                        pdf_b = gerar_pdf_rdc(eq, enc, nome_empresa=nome_site, logo_path=caminho_logo_enesa, data_rdc=dt_avulsa_str)
+                                        if pdf_b:
+                                            pdf_individual = fitz.open(stream=pdf_b, filetype="pdf")
+                                            pdf_final.insert_pdf(pdf_individual)
+                                            pdf_individual.close()
+                                            qtd_enc += 1
+                                if qtd_enc > 0:
+                                    buffer_pdf_unico = io.BytesIO(pdf_final.tobytes(deflate=True))
+                                    pdf_final.close()
+                                    nome_pdf_unico = f"TODOS_RDC_{datetime.datetime.now().strftime('%d_%m_%Y')}.pdf"
+                                    st.download_button(
+                                        f"⬇️ Baixar PDF Único ({qtd_enc} encarregados)",
+                                        data=buffer_pdf_unico,
+                                        file_name=nome_pdf_unico,
+                                        mime="application/pdf",
+                                        use_container_width=True
+                                    )
+                                    st.success(f"✅ PDF único gerado com {qtd_enc} RDCs!")
+                            except Exception as e:
+                                st.error(f"Erro ao gerar PDF único: {e}")
 
-    if pagina_sgo == "Escala":
-        st.markdown("### 📋 Escala Diária de Efetivo")
-        st.markdown("Marque quem da equipe está escalado para trabalhar no dia selecionado. Os dados são salvos para controle do apontamento.")
-        
-        col_esc1, col_esc2 = st.columns(2)
-        with col_esc1:
-            data_escala = st.date_input("Data da Escala:", datetime.date.today(), key="data_escala_input")
-            data_esc_str = data_escala.strftime("%Y-%m-%d")
-        with col_esc2:
-            if not lista_encarregados_base:
-                st.warning("Nenhum encarregado encontrado na base.")
-                enc_escala_sel = None
-            else:
-                enc_escala_sel = st.selectbox("Escolha o Encarregado:", lista_encarregados_base, key="enc_escala_sel")
-                
-        if enc_escala_sel:
-            # Pegar a equipe atual do encarregado selecionado da base PDE (df_atual)
-            equipe_base = df_atual[df_atual["ENCARREGADO"] == enc_escala_sel][["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]].copy()
-            
-            # Carregar o arquivo de escala, se existir
-            if os.path.exists(caminho_escala_csv):
-                try:
-                    df_escala_hist = pd.read_csv(caminho_escala_csv)
-                except Exception:
-                    df_escala_hist = pd.DataFrame(columns=["DATA", "MATRICULA", "NOME", "ENCARREGADO", "ESCALADO"])
-            else:
-                df_escala_hist = pd.DataFrame(columns=["DATA", "MATRICULA", "NOME", "ENCARREGADO", "ESCALADO"])
-                
-            # Filtrar histórico de escala para a data e encarregado específicos
-            df_escala_hoje = df_escala_hist[(df_escala_hist["DATA"] == data_esc_str) & (df_escala_hist["ENCARREGADO"] == enc_escala_sel)]
-            
-            # Se já houver salvamento para este dia, usar o valor salvo. Senão, todos "Sim" (True)
-            if not df_escala_hoje.empty:
-                # Forçar tipo string na matrícula para evitar erros de merge no pandas
-                equipe_base['MATRICULA'] = equipe_base['MATRICULA'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                df_escala_hoje_tmp = df_escala_hoje[["MATRICULA", "ESCALADO"]].copy()
-                df_escala_hoje_tmp['MATRICULA'] = df_escala_hoje_tmp['MATRICULA'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-                
-                # Merge base com histórico
-                equipe_edit = pd.merge(equipe_base, df_escala_hoje_tmp, on="MATRICULA", how="left")
-                # Quem não estava no histórico, recebe True como padrão
-                equipe_edit["ESCALADO"] = equipe_edit["ESCALADO"].fillna(True)
-            else:
-                equipe_edit = equipe_base.copy()
-                equipe_edit["ESCALADO"] = True
-                
-            # Organizar colunas
-            equipe_edit = equipe_edit[["ESCALADO", "MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO"]]
-            
-            # Mostrar editor interativo (data_editor)
-            st.markdown(f"**Equipe de {enc_escala_sel} ({len(equipe_edit)} pessoas)**")
-            
-            # Desabilitar edição das colunas de identificação
-            config_colunas = {
-                "ESCALADO": st.column_config.CheckboxColumn("Escalado (Sim/Não)?", help="Marque se o funcionário vai trabalhar hoje.", default=True),
-                "MATRICULA": st.column_config.TextColumn("Matrícula", disabled=True),
-                "NOME": st.column_config.TextColumn("Nome", disabled=True),
-                "FUNÇÃO": st.column_config.TextColumn("Função", disabled=True),
-                "ENCARREGADO": None # Ocultar coluna
-            }
-            
-            edited_df = st.data_editor(
-                equipe_edit,
-                column_config=config_colunas,
-                hide_index=True,
-                use_container_width=True,
-                key=f"editor_escala_{enc_escala_sel}_{data_esc_str}"
-            )
-            
-            # Botões de Ação
-            col_action1, col_action2 = st.columns(2)
-            with col_action1:
-                if st.button("💾 Salvar Escala da Equipe", type="primary", use_container_width=True):
-                    try:
-                        # Preparar os dados editados
-                        edited_df["DATA"] = data_esc_str
-                        edited_df["ENCARREGADO"] = enc_escala_sel
-                        
-                        novos_dados = edited_df[["DATA", "MATRICULA", "NOME", "ENCARREGADO", "ESCALADO"]].copy()
-                        
-                        if not df_escala_hist.empty:
-                            # Remover os dados antigos deste encarregado neste dia
-                            mask_remover = (df_escala_hist["DATA"] == data_esc_str) & (df_escala_hist["ENCARREGADO"] == enc_escala_sel)
-                            df_escala_hist = df_escala_hist[~mask_remover]
-                            
-                            # Concatenar
-                            df_final = pd.concat([df_escala_hist, novos_dados], ignore_index=True)
-                        else:
-                            df_final = novos_dados
-                            
-                        # Salvar CSV Local
-                        df_final.to_csv(caminho_escala_csv, index=False)
-                        
-                        # Backup Google Drive
-                        success, msg = backup_google_drive(caminho_escala_csv, "text/csv", f"escala_diaria_{datetime.datetime.now().strftime('%d%m%Y')}.csv")
-                        if success:
-                            st.toast("☁️ Escala salva na nuvem com sucesso!")
-                            
-                        st.success(f"✅ Escala da equipe de **{enc_escala_sel}** para o dia **{data_escala.strftime('%d/%m/%Y')}** salva com sucesso!")
-                        time.sleep(2)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar a escala: {e}")
-                        
-            with col_action2:
-                # Gerar Excel em memória para download
-                try:
-                    buffer_escala = io.BytesIO()
-                    with pd.ExcelWriter(buffer_escala, engine='openpyxl') as writer:
-                        # Formatar DataFrame para Excel (remover colunas indesejadas, traduzir booleanos)
-                        df_excel = edited_df.copy()
-                        df_excel.insert(0, "DATA", data_esc_str) # Adiciona a data como primeira coluna
-                        df_excel["ESCALADO"] = df_excel["ESCALADO"].apply(lambda x: "SIM" if x else "NÃO")
-                        df_excel.to_excel(writer, index=False, sheet_name="Escala")
-                    buffer_escala.seek(0)
-                    
-                    st.download_button(
-                        label="⬇️ Baixar Escala em Excel",
-                        data=buffer_escala,
-                        file_name=f"Escala_{enc_escala_sel.replace(' ', '_')}_{data_esc_str}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                except Exception as e:
-                    st.error(f"Erro ao gerar Excel: {e}")
-
-        # === VISUALIZADOR DE ESCALAS SALVAS ===
-        st.markdown("---")
-        with st.expander("📂 Ver Banco de Dados da Escala (Histórico)", expanded=False):
-            if os.path.exists(caminho_escala_csv):
-                try:
-                    df_historico_view = pd.read_csv(caminho_escala_csv)
-                    if not df_historico_view.empty:
-                        col_filtro1, col_filtro2 = st.columns(2)
-                        with col_filtro1:
-                            filtro_data = st.date_input("Filtrar por Data:", value=None, key="filtro_data_hist")
-                        with col_filtro2:
-                            encarregados_hist = ["Todos"] + sorted(df_historico_view['ENCARREGADO'].dropna().unique().tolist())
-                            filtro_enc = st.selectbox("Filtrar por Encarregado:", encarregados_hist, key="filtro_enc_hist")
-                            
-                        df_view_filtrado = df_historico_view.copy()
-                        if filtro_data:
-                            df_view_filtrado = df_view_filtrado[df_view_filtrado["DATA"] == filtro_data.strftime("%Y-%m-%d")]
-                        if filtro_enc != "Todos":
-                            df_view_filtrado = df_view_filtrado[df_view_filtrado["ENCARREGADO"] == filtro_enc]
-                            
-                        st.dataframe(df_view_filtrado, use_container_width=True, hide_index=True)
-                        
-                        # Resumo
-                        if 'ESCALADO' in df_view_filtrado.columns:
-                            qtd_escalados = len(df_view_filtrado[df_view_filtrado['ESCALADO'] == True])
-                            st.caption(f"Mostrando {len(df_view_filtrado)} registros no total. (Pessoas escaladas: {qtd_escalados})")
-                    else:
-                        st.info("Nenhuma escala salva ainda.")
-                except Exception as e:
-                    st.error(f"Erro ao ler histórico: {e}")
-            else:
-                st.info("O banco de dados de escalas ainda não existe. Salve uma escala primeiro.")
+            # =================================================================
+            # SUB-ABA 3: CONFERÊNCIA DA EQUIPE SELECIONADA
+            # =================================================================
+            with tab_conferencia_eq:
+                cols_conf = [c for c in ["MATRICULA", "NOME", "FUNÇÃO", "ENCARREGADO", "C.C", "DISCIPLINA", "TURNO"] if c in equipe.columns]
+                st.dataframe(equipe[cols_conf].reset_index(drop=True), hide_index=True, use_container_width=True)
 
     if pagina_sgo == "Competição F1":
-        st.markdown("### 🏎️ Competição F1 — Entrega de RDC")
-        st.markdown("Acompanhamento mensal, ranking de pontualidade e assiduidade dos Encarregados na entrega dos Relatórios Diários de Campo.")
+        st.markdown(f"""
+        <div style="background: {cor_card_grad}; border: 1px solid {cor_borda}; border-left: 4px solid #F59E0B; border-radius: 14px; padding: 18px 22px; margin-bottom: 18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; color:#FBBF24; letter-spacing:1.2px; text-transform:uppercase;">GAMIFICAÇÃO &amp; RANKING DE LIDERANÇA DE CAMPO</div>
+                    <h3 style="margin:3px 0 2px 0; font-size:1.4rem; font-weight:800; color:{cor_texto};">🏆 Competição F1 — Assiduidade na Entrega de RDC</h3>
+                    <p style="margin:0; font-size:0.84rem; color:{cor_texto_sub};">Acompanhamento mensal e semanal (Segunda a Sexta), filtros por área (PB, RB, ESP) e ranking oficial dos Encarregados.</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # === SINCRONIZAÇÃO AUTOMÁTICA DO HISTÓRICO COM BANCO DE RDC ===
         if os.path.exists(caminho_rdc_registros_csv):
@@ -6481,9 +5483,28 @@ Retorne apenas o JSON sem crases ou markdown."""
         else:
             meses_disponiveis = sorted(meses_gerados, reverse=True)
             
-        col_f1_mes, col_f1_disc = st.columns([1, 1])
+        # Mapear também a Área (PB / RB / ESP) de cada encarregado para filtro no F1
+        dict_enc_area_f1 = {}
+        if "C.C" in df_atual.columns and "ENCARREGADO" in df_atual.columns:
+            for enc_n in df_atual["ENCARREGADO"].dropna().unique():
+                enc_n_s = str(enc_n).strip().upper()
+                sub_a = df_atual[df_atual["ENCARREGADO"].astype(str).str.upper().str.strip() == enc_n_s]
+                if not sub_a.empty:
+                    cc_v = sub_a[sub_a["C.C"].astype(str).str.strip() != ""]["C.C"]
+                    if not cc_v.empty:
+                        cc_m = str(cc_v.mode().iloc[0])
+                        if ".005" in cc_m:
+                            dict_enc_area_f1[enc_n_s] = "ESP"
+                        elif "125.02" in cc_m:
+                            dict_enc_area_f1[enc_n_s] = "PB"
+                        elif "125.01" in cc_m:
+                            dict_enc_area_f1[enc_n_s] = "RB"
+
+        col_f1_mes, col_f1_area, col_f1_disc = st.columns([1.1, 1.1, 1.3])
         with col_f1_mes:
             mes_selecionado = st.selectbox("📅 Selecione o Mês para Análise:", meses_disponiveis)
+        with col_f1_area:
+            filtro_f1_area = st.selectbox("🏗️ Filtrar por Área:", ["Todas as Áreas", "PB (Caldeira)", "RB (Retorta)", "ESP (Precipitador)"], key="f1_filtro_area_sel")
         with col_f1_disc:
             disciplinas_disponiveis = sorted(list(set([d for d in dict_enc_disciplina.values() if d and d != "GERAL"])))
             filtro_f1_disc = st.selectbox("🎯 Filtrar por Disciplina:", ["Todas as Disciplinas"] + disciplinas_disponiveis)
@@ -6502,6 +5523,14 @@ Retorne apenas o JSON sem crases ou markdown."""
         todos_encarregados_matriz = sorted(list(set(lista_completa_encarregados + encs_oficiais_validos + nomes_no_mes)))
         todos_encarregados_matriz = [e for e in todos_encarregados_matriz if eh_encarregado_valido(e)]
         
+        # Aplicar filtro por Área se selecionado
+        if filtro_f1_area == "PB (Caldeira)":
+            todos_encarregados_matriz = [e for e in todos_encarregados_matriz if dict_enc_area_f1.get(e, "") == "PB"]
+        elif filtro_f1_area == "RB (Retorta)":
+            todos_encarregados_matriz = [e for e in todos_encarregados_matriz if dict_enc_area_f1.get(e, "") == "RB"]
+        elif filtro_f1_area == "ESP (Precipitador)":
+            todos_encarregados_matriz = [e for e in todos_encarregados_matriz if dict_enc_area_f1.get(e, "") == "ESP"]
+
         # Aplicar filtro por disciplina se selecionado
         if filtro_f1_disc != "Todas as Disciplinas":
             todos_encarregados_matriz = [e for e in todos_encarregados_matriz if dict_enc_disciplina.get(e, "GERAL") == filtro_f1_disc]
@@ -6765,32 +5794,32 @@ Retorne apenas o JSON sem crases ou markdown."""
                 t3 = f"{top3.iloc[2]['ENTREGAS']} RDCs ({top3.iloc[2]['APROVEITAMENTO_STR']})"
                 
                 html_podio = f"""
-                <div style="display: flex; justify-content: center; align-items: flex-end; height: 210px; gap: 15px; margin-top: 30px; margin-bottom: 25px;">
+                <div style="display: flex; justify-content: center; align-items: flex-end; height: 220px; gap: 18px; margin-top: 24px; margin-bottom: 24px;">
                     <!-- 2 Lugar -->
-                    <div style="display: flex; flex-direction: column; align-items: center; width: 140px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 13px; color: #cbd5e1; font-weight: bold; text-align: center; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n2}</div>
-                        <div style="font-size: 28px; margin-bottom: -5px;">🥈</div>
-                        <div style="background: linear-gradient(180deg, rgba(148,163,184,0.8), rgba(71,85,105,0.8)); backdrop-filter: blur(5px); width: 100%; height: 95px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 800; font-size: 14px; box-shadow: 0 -5px 20px rgba(148,163,184,0.3); border: 1px solid rgba(255,255,255,0.3); border-bottom: none; padding: 5px;">
-                            <span style="font-size: 20px;">{top3.iloc[1]['ENTREGAS']}</span>
-                            <span style="font-size: 11px; color: #cbd5e1;">{top3.iloc[1]['APROVEITAMENTO_STR']}</span>
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 165px;">
+                        <span style="font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #94A3B8; text-transform: uppercase; margin-bottom: 2px;">2º LUGAR</span>
+                        <div style="font-size: 13px; color: #E2E8F0; font-weight: 700; text-align: center; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n2}</div>
+                        <div style="background: linear-gradient(180deg, rgba(51, 65, 85, 0.92), rgba(15, 23, 42, 0.95)); width: 100%; height: 105px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #F8FAFC; border: 1px solid rgba(148, 163, 184, 0.35); border-top: 3px solid #94A3B8; border-bottom: none; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
+                            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 24px; font-weight: 800;">{top3.iloc[1]['ENTREGAS']} <small style="font-size: 11px; font-weight: 600; color: #94A3B8;">RDCs</small></span>
+                            <span style="font-size: 11.5px; color: #CBD5E1; font-weight: 600; margin-top: 2px;">{top3.iloc[1]['APROVEITAMENTO_STR']}</span>
                         </div>
                     </div>
                     <!-- 1 Lugar -->
-                    <div style="display: flex; flex-direction: column; align-items: center; width: 150px; transform: translateY(-15px); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-20px)'" onmouseout="this.style.transform='translateY(-15px)'">
-                        <div style="font-size: 15px; color: #fbbf24; font-weight: bold; text-align: center; margin-bottom: 5px; text-shadow: 0 0 10px rgba(251, 191, 36, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n1}</div>
-                        <div style="font-size: 38px; margin-bottom: -5px;">👑</div>
-                        <div style="background: linear-gradient(180deg, rgba(251,191,36,0.9), rgba(180,83,9,0.9)); backdrop-filter: blur(5px); width: 100%; height: 135px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 800; font-size: 16px; box-shadow: 0 -5px 25px rgba(251,191,36,0.5); border: 1px solid rgba(255,255,255,0.5); border-bottom: none; padding: 5px;">
-                            <span style="font-size: 24px;">{top3.iloc[0]['ENTREGAS']}</span>
-                            <span style="font-size: 12px; color: #fef08a;">{top3.iloc[0]['APROVEITAMENTO_STR']}</span>
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 180px;">
+                        <span style="font-size: 10px; font-weight: 800; letter-spacing: 1.2px; color: #FBBF24; text-transform: uppercase; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); padding: 2px 8px; border-radius: 4px; margin-bottom: 4px;">🏆 1º LUGAR</span>
+                        <div style="font-size: 14px; color: #F8FAFC; font-weight: 800; text-align: center; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n1}</div>
+                        <div style="background: linear-gradient(180deg, rgba(120, 53, 15, 0.75), rgba(15, 23, 42, 0.95)); width: 100%; height: 140px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #F8FAFC; border: 1px solid rgba(251, 191, 36, 0.45); border-top: 3px solid #F59E0B; border-bottom: none; padding: 10px; box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);">
+                            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 800; color: #FDE68A;">{top3.iloc[0]['ENTREGAS']} <small style="font-size: 12px; font-weight: 600; color: #FBBF24;">RDCs</small></span>
+                            <span style="font-size: 12px; color: #FEF08A; font-weight: 700; margin-top: 4px;">{top3.iloc[0]['APROVEITAMENTO_STR']}</span>
                         </div>
                     </div>
                     <!-- 3 Lugar -->
-                    <div style="display: flex; flex-direction: column; align-items: center; width: 140px; transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 13px; color: #d97706; font-weight: bold; text-align: center; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n3}</div>
-                        <div style="font-size: 28px; margin-bottom: -5px;">🥉</div>
-                        <div style="background: linear-gradient(180deg, rgba(217,119,6,0.8), rgba(120,53,15,0.8)); backdrop-filter: blur(5px); width: 100%; height: 75px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 800; font-size: 14px; box-shadow: 0 -5px 20px rgba(217,119,6,0.3); border: 1px solid rgba(255,255,255,0.2); border-bottom: none; padding: 5px;">
-                            <span style="font-size: 18px;">{top3.iloc[2]['ENTREGAS']}</span>
-                            <span style="font-size: 11px; color: #fed7aa;">{top3.iloc[2]['APROVEITAMENTO_STR']}</span>
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 165px;">
+                        <span style="font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #D97706; text-transform: uppercase; margin-bottom: 2px;">3º LUGAR</span>
+                        <div style="font-size: 13px; color: #E2E8F0; font-weight: 700; text-align: center; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{n3}</div>
+                        <div style="background: linear-gradient(180deg, rgba(67, 20, 7, 0.72), rgba(15, 23, 42, 0.95)); width: 100%; height: 85px; border-radius: 12px 12px 0 0; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #F8FAFC; border: 1px solid rgba(217, 119, 6, 0.35); border-top: 3px solid #D97706; border-bottom: none; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
+                            <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800;">{top3.iloc[2]['ENTREGAS']} <small style="font-size: 11px; font-weight: 600; color: #FDBA74;">RDCs</small></span>
+                            <span style="font-size: 11.5px; color: #FED7AA; font-weight: 600; margin-top: 2px;">{top3.iloc[2]['APROVEITAMENTO_STR']}</span>
                         </div>
                     </div>
                 </div>
@@ -6916,10 +5945,17 @@ Retorne apenas o JSON sem crases ou markdown."""
             
         return None
 
-    if pagina_sgo == "Leitor de RDC (IA)":
-        st.markdown("### 🤖 Robô de Extração Inteligente (Google Gemini)")
-        st.markdown("<p style='margin-top: -15px; font-size: 14px; color: #888;'>Uma ideia original por <b>Caio Farisco</b></p>", unsafe_allow_html=True)
-        st.markdown("Arraste os formulários RDC físicos escaneados abaixo. A inteligência artificial irá extrair as informações e padronizar com a sua base de Encarregados.")
+    if pagina_sgo in ["Leitor de RDC", "Leitor de RDC (IA)"]:
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <span style="font-size: 11px; font-weight: 700; color: #38BDF8; letter-spacing: 0.08em; text-transform: uppercase;">Digitalização &amp; Apropriação Documental</span>
+                    <h3 style="margin: 2px 0 4px 0; font-size: 1.35rem; font-weight: 800; color: #F8FAFC;">Central de Leitura de RDC</h3>
+                    <p style="margin: 0; font-size: 0.84rem; color: #94A3B8;">Importe os formulários RDC digitalizados (PDF, JPG ou PNG) para extração automática, conferência e integração direta com o Resumo Diário e F1.</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         
         try:
             from google import genai
@@ -6936,20 +5972,20 @@ Retorne apenas o JSON sem crases ou markdown."""
             except Exception:
                 pass
             
-            st.markdown("#### Configuração e Upload")
-            if not chave_padrao:
-                chave_padrao = st.text_input("🔑 Cole suas Chaves da API Gemini (separadas por vírgula):", type="password", help="Se usar múltiplas chaves, o robô alterna em caso de limite.")
-            
-            if not chave_padrao:
-                st.info("☝️ Cole a(s) sua(s) chave(s) de API do Gemini acima para ativar o robô de leitura.")
-            
-            arquivos_scan = st.file_uploader("Upload de RDCs Escaneados (PDF, JPG, PNG)", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
-                
-            col_proc1, col_proc2 = st.columns([1.6, 1.4])
-            with col_proc1:
-                btn_processar = st.button("🚀 Processar Arquivos com IA", type="primary", use_container_width=True)
-            with col_proc2:
-                btn_demo_rapido = st.button("⚡ Demonstração Rápida (Plano B)", type="secondary", use_container_width=True, help="Carrega instantaneamente 3 RDCs de exemplo preenchidos para demonstrar o sistema ao vivo em 2 segundos sem precisar de arquivos")
+            with st.container(border=True):
+                st.markdown("#### 📂 1. Importação de Arquivos RDC")
+                if not chave_padrao:
+                    chave_padrao = st.text_input("🔑 Chave de Acesso do Motor de Leitura:", type="password")
+                if not chave_padrao:
+                    st.info("☝️ Informe a chave de acesso acima para habilitar o processamento de arquivos.")
+
+                arquivos_scan = st.file_uploader("Selecione ou arraste os arquivos RDC escaneados (PDF, JPG, PNG):", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True)
+
+                col_proc1, col_proc2 = st.columns([1.8, 1.2])
+                with col_proc1:
+                    btn_processar = st.button("📄 Processar Documentos RDC", type="primary", use_container_width=True)
+                with col_proc2:
+                    btn_demo_rapido = st.button("⚡ Carregar Lote de Exemplo", type="secondary", use_container_width=True, help="Carrega 3 RDCs de exemplo para validação imediata do fluxo")
                 
             if btn_demo_rapido:
                 data_hoje = datetime.date.today().strftime('%Y-%m-%d')
@@ -7114,7 +6150,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                         <div style="position: absolute; top: 20%; left: 20%; width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite;"></div>
                         <div style="position: absolute; top: 70%; left: 60%; width: 4px; height: 4px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 10px #4ade80; animation: blip 1.5s infinite 0.7s;"></div>
                     </div>
-                    <p style="color: #0ea5e9; margin-top: 20px; font-weight: bold; font-size: 16px; animation: pulse 1s infinite; margin-bottom: 0;">🤖 IA Processando Documentos...</p>
+                    <p style="color: #0ea5e9; margin-top: 20px; font-weight: bold; font-size: 16px; animation: pulse 1s infinite; margin-bottom: 0;">Processando Documentos RDC...</p>
                     <style>
                         @keyframes radar-spin { 100% { transform: rotate(360deg); } }
                         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -7125,7 +6161,7 @@ Retorne apenas o JSON sem crases ou markdown."""
                 animacao_placeholder = st.empty()
                 animacao_placeholder.markdown(animacao_html, unsafe_allow_html=True)
                 
-                with st.status("🤖 Robô iniciando análise...", expanded=True) as status:
+                with st.status("Iniciando leitura dos documentos...", expanded=True) as status:
                     progresso = st.progress(0)
                     total_arquivos = len(arquivos_scan)
                     
@@ -7442,196 +6478,215 @@ Retorne apenas o JSON sem crases ou markdown."""
                 st.session_state.force_use_local = True
                 
             if not st.session_state.df_ia.empty:
-                st.markdown("#### Dados Extraídos")
-                
                 lista_com_alerta = lista_encarregados_base + ["AJUSTAR NOME"]
-                df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)]
-                
-                # --- NOVO FILTRO DE DATA ---
-                datas_disponiveis = df_filtrado['DATA'].dropna().unique().tolist()
-                if datas_disponiveis:
-                    datas_sel = st.multiselect("📅 Filtrar Tabela por Data (Deixe em branco para ver todos):", sorted(datas_disponiveis, reverse=True), default=None)
-                    if datas_sel:
-                        df_filtrado = df_filtrado[df_filtrado['DATA'].isin(datas_sel)]
-                # ---------------------------
-                
-                col_dw1, col_dw2 = st.columns([1, 1])
-                with col_dw1:
-                    buffer_df = io.BytesIO()
-                    
-                    # Preparar Excel — Modelo simplificado (6 colunas)
-                    colunas_excel = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
-                    df_excel_ia = df_filtrado.copy()
-                    df_excel_ia = df_excel_ia[[c for c in colunas_excel if c in df_excel_ia.columns]]
-                    df_excel_ia.to_excel(buffer_df, index=False, engine='openpyxl')
-                    buffer_df.seek(0)
-                    st.download_button(
-                        label="⬇️ Baixar Planilha RDC Lida (.xlsx)",
-                        data=buffer_df,
-                        file_name=f"RDCs_Extraidos_{datetime.datetime.now().strftime('%d%m%Y_%H%M')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        type="primary"
-                    )
-                with col_dw2:
-                    if st.button("🗑️ Limpar Dados Lidos", use_container_width=True):
-                        st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
-                        st.rerun()
-                
-                st.info("✏️ **Dica:** Você pode editar os dados na tabela abaixo antes de confirmar. Dê dois cliques em qualquer célula para corrigir nomes errados, datas ou locais.")
-                
-                # === VISUALIZAÇÃO DOS RDCs LIDOS ===
-                with st.expander("🔍 Visualizar RDCs (Texto Original vs Resumo)", expanded=False):
-                    itens_unicos = df_filtrado['ITEM'].unique()
-                    for item_id in sorted(itens_unicos):
-                        bloco = df_filtrado[df_filtrado['ITEM'] == item_id]
-                        if not bloco.empty:
-                            enc = bloco.iloc[0].get('ENCARREGADO', '?')
-                            disc = bloco.iloc[0].get('DISCIPLINA', '?')
-                            data = bloco.iloc[0].get('DATA', '?')
-                            resumo = bloco.iloc[0].get('ATIVIDADE', '')
-                            transcricao = bloco.iloc[0].get('TRANSCRICAO', '')
-                            efet_pres = bloco.iloc[0].get('EFETIVO_PRESENTE', '')
-                            faltas_val = bloco.iloc[0].get('FALTAS', '0')
-                            folgas_val = bloco.iloc[0].get('FOLGAS', '0')
-                            atest_val = bloco.iloc[0].get('ATESTADOS', '0')
-                            
-                            tag_efetivo = ""
-                            
-                            st.markdown(f"""
-                            <div style="background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.25); border-radius: 12px; padding: 15px; margin-bottom: 12px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <span style="font-weight: 700; color: #0ea5e9; font-size: 15px;">📋 RDC #{int(item_id)} — {enc}</span>
-                                    <span style="color: #64748b; font-size: 12px;">{disc} · {data}</span>
-                                </div>
-                                {tag_efetivo}
-                                <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 5px 0;">📝 Resumo Final: {resumo}</p>
-                            """, unsafe_allow_html=True)
-                            
-                            if transcricao and str(transcricao).strip():
-                                st.markdown(f"""
-                                <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 8px; padding: 10px 14px; margin-top: 10px;">
-                                    <span style="color: #f59e0b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">✏️ Texto Original do RDC:</span>
-                                    <p style="color: #cbd5e1; font-size: 12px; margin: 6px 0 0 0; font-style: italic; line-height: 1.5;">{transcricao}</p>
-                                </div>
-                                """, unsafe_allow_html=True)
+                df_filtrado = st.session_state.df_ia[st.session_state.df_ia['ENCARREGADO'].isin(lista_com_alerta)].copy()
 
-                            prob_rdc = bloco.iloc[0].get('PROBLEMAS', '')
-                            if prob_rdc and str(prob_rdc).strip() and str(prob_rdc).lower() not in ["none", "nan", "nenhum", "-", "não informado", "nao informado", "sem problemas"]:
-                                st.markdown(f"""
-                                <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.35); border-radius: 8px; padding: 10px 14px; margin-top: 8px;">
-                                    <span style="color: #ef4444; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">⚠️ Problemas / Bloqueios Identificados:</span>
-                                    <p style="color: #fca5a5; font-size: 12px; margin: 4px 0 0 0; font-weight: 600; line-height: 1.4;">{prob_rdc}</p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
-                            st.markdown("</div>", unsafe_allow_html=True)
-                
-                # Preparar dados para edição
-                df_editavel = df_filtrado.copy()
-                colunas_mostrar = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
-                df_editavel = df_editavel[[c for c in colunas_mostrar if c in df_editavel.columns]]
-                
-                df_editado = st.data_editor(df_editavel, hide_index=True, use_container_width=True, key="editor_ia_df")
-                
-                if st.button("✅ Confirmar e Salvar no Sistema", type="primary", use_container_width=True):
-                    # Salvar atualizações no df_ia
-                    itens_processados = df_editavel['ITEM'].unique()
-                    df_restante = st.session_state.df_ia[~st.session_state.df_ia['ITEM'].isin(itens_processados)].copy()
-                    
-                    # Atualiza os dados do df_filtrado com as edições feitas na tabela
-                    for _, row_edit in df_editado.iterrows():
-                        item_id = row_edit['ITEM']
-                        idx = df_filtrado[df_filtrado['ITEM'] == item_id].index
-                        for col in ['DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']:
-                            if col in row_edit:
-                                df_filtrado.loc[idx, col] = row_edit[col]
-                                
-                    st.session_state.df_ia = pd.concat([df_restante, df_filtrado], ignore_index=True)
-                    
-                    # === PERSISTIR RDCs COMPLETOS NO BANCO DE DADOS ===
-                    try:
-                        colunas_rdc = ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA']
-                        df_salvar_rdc = df_filtrado.copy()
-                        df_salvar_rdc['DATA'] = df_salvar_rdc['DATA'].apply(normalizar_data_brasil)
-                        for col in colunas_rdc:
-                            if col not in df_salvar_rdc.columns:
-                                df_salvar_rdc[col] = ''
-                        df_salvar_rdc = df_salvar_rdc[colunas_rdc]
-                        df_salvar_rdc['CRIADO_EM'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        
-                        if os.path.exists(caminho_rdc_registros_csv):
-                            df_rdc_existente = pd.read_csv(caminho_rdc_registros_csv)
-                            df_rdc_final = pd.concat([df_rdc_existente, df_salvar_rdc], ignore_index=True).drop_duplicates(subset=['DATA', 'ENCARREGADO', 'ATIVIDADE'])
-                        else:
-                            df_rdc_final = df_salvar_rdc
-                        
-                        df_rdc_final.to_csv(caminho_rdc_registros_csv, index=False)
-                        st.toast(f"💾 {len(df_salvar_rdc)} RDCs salvos permanentemente no Banco de Dados!", icon="✅")
-                    except Exception as e_rdc_save:
-                        st.warning(f"⚠️ RDCs processados, mas erro ao salvar no banco permanente: {e_rdc_save}")
-                    
-                    # Salva no F1 e Resumo Diário (usando df_filtrado com DATA real)
-                    novos_registros = []
-                    for _, row in df_filtrado.iterrows():
-                        enc_lido = str(row.get('ENCARREGADO', '')).strip()
-                        if enc_lido and enc_lido in lista_encarregados_base:
-                            data_raw = str(row.get('DATA', '')).strip()
-                            data_registro = normalizar_data_brasil(data_raw)
-                            
-                            ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
-                            if not ja_existe:
-                                novos_registros.append({"DATA": data_registro, "ENCARREGADO": enc_lido})
-                                
-                    if novos_registros:
-                        df_novos = pd.DataFrame(novos_registros)
-                        if conn and not st.session_state.get('force_use_local', False):
-                            try:
-                                df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
-                                if not df_fresco.empty:
-                                    df_fresco = df_fresco.dropna(how='all')
-                                    df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                else:
-                                    df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                                
-                                ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
-                                if ok:
-                                    st.session_state.df_historico_f1 = df_final
-                                st.cache_data.clear()
-                                st.toast(f"{len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!", icon="✅")
-                            except Exception as e:
-                                st.error(f"Erro ao salvar na nuvem: {e}")
+                st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+                with st.container(border=True):
+                    st.markdown("#### 🧭 2. Painel de Controle do Lote Extraído")
+                    col_f_dt, col_f_busca, col_act_xlsx, col_act_clear = st.columns([2.2, 2.0, 1.4, 1.1], vertical_alignment="bottom")
+                    with col_f_dt:
+                        datas_disponiveis = sorted(df_filtrado['DATA'].dropna().unique().tolist(), reverse=True)
+                        datas_sel = st.multiselect("📅 Filtrar por Data:", datas_disponiveis, default=None, placeholder="Todas as datas")
+                        if datas_sel:
+                            df_filtrado = df_filtrado[df_filtrado['DATA'].isin(datas_sel)]
+                    with col_f_busca:
+                        busca_rdc_lido = st.text_input("🔍 Filtrar por Encarregado ou Disciplina:", placeholder="Digite para filtrar...", key="busca_leitor_rdc")
+                        if busca_rdc_lido.strip():
+                            termo_b = busca_rdc_lido.strip().upper()
+                            df_filtrado = df_filtrado[
+                                df_filtrado['ENCARREGADO'].astype(str).str.upper().str.contains(termo_b, na=False) |
+                                df_filtrado['DISCIPLINA'].astype(str).str.upper().str.contains(termo_b, na=False) |
+                                df_filtrado['ATIVIDADE'].astype(str).str.upper().str.contains(termo_b, na=False)
+                            ]
+                    with col_act_xlsx:
+                        buffer_df = io.BytesIO()
+                        colunas_excel = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
+                        df_excel_ia = df_filtrado[[c for c in colunas_excel if c in df_filtrado.columns]].copy()
+                        df_excel_ia.to_excel(buffer_df, index=False, engine='openpyxl')
+                        buffer_df.seek(0)
+                        st.download_button(
+                            label="⬇️ Exportar Excel (.xlsx)",
+                            data=buffer_df,
+                            file_name=f"RDCs_Extraidos_{datetime.datetime.now().strftime('%d%m%Y_%H%M')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            type="secondary"
+                        )
+                    with col_act_clear:
+                        if st.button("🗑️ Limpar Lote", use_container_width=True, type="secondary"):
+                            st.session_state.df_ia = pd.DataFrame(columns=['ITEM', 'SUB', 'DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'SUB_ATIVIDADE', 'LOCAL_ESPECIFICO', 'EFETIVO_ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA'])
+                            st.rerun()
+
+                    # KPIs rápidos do lote
+                    qtd_lote_total = len(df_filtrado)
+                    qtd_ajustar = int((df_filtrado['ENCARREGADO'] == 'AJUSTAR NOME').sum()) if 'ENCARREGADO' in df_filtrado.columns else 0
+                    qtd_discs_lote = int(df_filtrado['DISCIPLINA'].nunique()) if 'DISCIPLINA' in df_filtrado.columns else 0
+                    datas_unicas_lote = ", ".join(sorted(df_filtrado['DATA'].dropna().astype(str).unique())) if not df_filtrado.empty else "—"
+
+                    kl1, kl2, kl3, kl4 = st.columns(4)
+                    kl1.metric("📄 RDCs no Lote", qtd_lote_total)
+                    kl2.metric("🛠️ Disciplinas", qtd_discs_lote)
+                    kl3.metric("⚠️ Nomes para Revisar", qtd_ajustar)
+                    kl4.metric("📅 Data(s) do Lote", datas_unicas_lote)
+
+                # Sub-navegação organizada em 3 abas claras
+                tab_rev, tab_inspecao, tab_analytics = st.tabs([
+                    f"✏️ 1. Revisão & Salvamento ({len(df_filtrado)})",
+                    "🔍 2. Inspeção Detalhada (Texto Original vs Resumo)",
+                    "📊 3. Gráficos do Lote"
+                ])
+
+                with tab_rev:
+                    st.caption("💡 Dê dois cliques em qualquer célula abaixo para ajustar nomes, disciplinas ou atividades antes de salvar no sistema.")
+                    df_editavel = df_filtrado.copy()
+                    colunas_mostrar = ['ITEM', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']
+                    df_editavel = df_editavel[[c for c in colunas_mostrar if c in df_editavel.columns]]
+
+                    df_editado = st.data_editor(df_editavel, hide_index=True, use_container_width=True, key="editor_ia_df", height=min(max(len(df_editavel) * 42 + 60, 220), 520))
+
+                    if st.button("✅ Confirmar e Salvar no Sistema", type="primary", use_container_width=True):
+                        itens_processados = df_editavel['ITEM'].unique()
+                        df_restante = st.session_state.df_ia[~st.session_state.df_ia['ITEM'].isin(itens_processados)].copy()
+
+                        for _, row_edit in df_editado.iterrows():
+                            item_id = row_edit['ITEM']
+                            idx = df_filtrado[df_filtrado['ITEM'] == item_id].index
+                            for col in ['DISCIPLINA', 'ENCARREGADO', 'TURNO', 'ATIVIDADE', 'CALDEIRA']:
+                                if col in row_edit:
+                                    df_filtrado.loc[idx, col] = row_edit[col]
+
+                        st.session_state.df_ia = pd.concat([df_restante, df_filtrado], ignore_index=True)
+
+                        # Persistir RDCs completos no banco de dados
+                        try:
+                            colunas_rdc = ['DATA', 'DISCIPLINA', 'ENCARREGADO', 'TURNO', 'EFETIVO_PREVISTO', 'EFETIVO_PRESENTE', 'FALTAS', 'FOLGAS', 'ATESTADOS', 'DDS', 'TRANSCRICAO', 'ATIVIDADE', 'PROBLEMAS', 'LOCAL', 'AREA', 'CALDEIRA']
+                            df_salvar_rdc = df_filtrado.copy()
+                            df_salvar_rdc['DATA'] = df_salvar_rdc['DATA'].apply(normalizar_data_brasil)
+                            for col in colunas_rdc:
+                                if col not in df_salvar_rdc.columns:
+                                    df_salvar_rdc[col] = ''
+                            df_salvar_rdc = df_salvar_rdc[colunas_rdc]
+                            df_salvar_rdc['CRIADO_EM'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                            if os.path.exists(caminho_rdc_registros_csv):
+                                df_rdc_existente = pd.read_csv(caminho_rdc_registros_csv)
+                                df_rdc_final = pd.concat([df_rdc_existente, df_salvar_rdc], ignore_index=True).drop_duplicates(subset=['DATA', 'ENCARREGADO', 'ATIVIDADE'])
+                            else:
+                                df_rdc_final = df_salvar_rdc
+
+                            df_rdc_final.to_csv(caminho_rdc_registros_csv, index=False)
+                            threading.Thread(target=_executar_salvamento_nuvem_rdc_registros, args=(df_rdc_final.copy(),), daemon=True).start()
+                            st.toast(f"☁️ {len(df_salvar_rdc)} RDCs salvos e sincronizados em tempo real na Nuvem!", icon="✅")
+                        except Exception as e_rdc_save:
+                            st.warning(f"⚠️ RDCs processados, mas erro ao salvar no banco permanente: {e_rdc_save}")
+
+                        # Salvar no F1 e Resumo Diário
+                        novos_registros = []
+                        for _, row in df_filtrado.iterrows():
+                            enc_lido = str(row.get('ENCARREGADO', '')).strip()
+                            if enc_lido and enc_lido in lista_encarregados_base:
+                                data_raw = str(row.get('DATA', '')).strip()
+                                data_registro = normalizar_data_brasil(data_raw)
+
+                                ja_existe = ((st.session_state.df_historico_f1["DATA"] == data_registro) & (st.session_state.df_historico_f1["ENCARREGADO"] == enc_lido)).any()
+                                if not ja_existe:
+                                    novos_registros.append({"DATA": data_registro, "ENCARREGADO": enc_lido})
+
+                        if novos_registros:
+                            df_novos = pd.DataFrame(novos_registros)
+                            if conn and not st.session_state.get('force_use_local', False):
+                                try:
+                                    df_fresco = conn.read(worksheet="Historico_F1", ttl=0)
+                                    if not df_fresco.empty:
+                                        df_fresco = df_fresco.dropna(how='all')
+                                        df_final = pd.concat([df_fresco, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                    else:
+                                        df_final = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+
+                                    ok, msg = salvar_f1_seguro(conn, df_final, caminho_historico_f1_csv)
+                                    if ok:
+                                        st.session_state.df_historico_f1 = df_final
+                                    st.cache_data.clear()
+                                    st.toast(f"{len(novos_registros)} RDCs registrados no Resumo Diário e sincronizados com a nuvem!", icon="✅")
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar na nuvem: {e}")
+                                    st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
+                                    st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                            else:
                                 st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
                                 st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
+                                st.toast(f"{len(novos_registros)} RDCs registrados localmente no Resumo Diário!", icon="✅")
                         else:
-                            st.session_state.df_historico_f1 = pd.concat([st.session_state.df_historico_f1, df_novos], ignore_index=True).drop_duplicates(subset=["DATA", "ENCARREGADO"])
-                            st.session_state.df_historico_f1.to_csv(caminho_historico_f1_csv, index=False)
-                            st.toast(f"{len(novos_registros)} RDCs registrados localmente no Resumo Diário!", icon="✅")
-                    else:
-                        st.info("ℹ️ Os dados foram processados, mas os Encarregados dessa lista já haviam sido contabilizados.")
+                            st.info("ℹ️ Os dados foram salvos, e os Encarregados desta lista já estavam contabilizados na data correspondente.")
 
-                # === DASHBOARD ANALÍTICO DO LOTE ===
-                with st.expander("📊 Analytics do Lote Lido", expanded=True):
+                with tab_inspecao:
+                    itens_unicos = sorted(df_filtrado['ITEM'].unique())
+                    if not itens_unicos:
+                        st.info("Nenhum RDC para inspecionar com o filtro atual.")
+                    else:
+                        for item_id in itens_unicos:
+                            bloco = df_filtrado[df_filtrado['ITEM'] == item_id]
+                            if not bloco.empty:
+                                enc = bloco.iloc[0].get('ENCARREGADO', '?')
+                                disc = bloco.iloc[0].get('DISCIPLINA', '?')
+                                data = bloco.iloc[0].get('DATA', '?')
+                                cald = bloco.iloc[0].get('CALDEIRA', '')
+                                resumo = bloco.iloc[0].get('ATIVIDADE', '')
+                                transcricao = bloco.iloc[0].get('TRANSCRICAO', '')
+                                prob_rdc = bloco.iloc[0].get('PROBLEMAS', '')
+
+                                st.markdown(f"""
+                                <div style="background: rgba(15, 23, 42, 0.78); border: 1px solid rgba(148, 163, 184, 0.16); border-left: 3px solid #2563EB; border-radius: 11px; padding: 14px 18px; margin-bottom: 12px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">
+                                        <span style="font-weight: 700; color: #F8FAFC; font-size: 14.5px;">📄 RDC #{int(item_id)} — {enc}</span>
+                                        <span style="font-family: 'JetBrains Mono', monospace; color: #38BDF8; font-size: 11.5px; background: rgba(14,165,233,0.12); padding: 2px 8px; border-radius: 5px;">{disc} · {cald or 'GERAL'} · {data}</span>
+                                    </div>
+                                    <p style="color: #E2E8F0; font-size: 13px; margin: 4px 0;"><strong>Resumo Padronizado:</strong> {resumo}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                                if transcricao and str(transcricao).strip():
+                                    st.markdown(f"""
+                                    <div style="background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(148, 163, 184, 0.14); border-radius: 8px; padding: 10px 14px; margin: -6px 0 12px 12px;">
+                                        <span style="color: #94A3B8; font-weight: 600; font-size: 11px; text-transform: uppercase;">Texto Original Transcrito:</span>
+                                        <p style="color: #CBD5E1; font-size: 12.5px; margin: 4px 0 0 0; line-height: 1.5;">{transcricao}</p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                                if prob_rdc and str(prob_rdc).strip() and str(prob_rdc).lower() not in ["none", "nan", "nenhum", "-", "não informado", "nao informado", "sem problemas"]:
+                                    st.markdown(f"""
+                                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 9px 14px; margin: -6px 0 12px 12px;">
+                                        <span style="color: #EF4444; font-weight: 700; font-size: 11px; text-transform: uppercase;">⚠️ Ocorrência / Bloqueio Relatado:</span>
+                                        <p style="color: #FCA5A5; font-size: 12.5px; margin: 3px 0 0 0; font-weight: 600;">{prob_rdc}</p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                with tab_analytics:
                     if not df_filtrado.empty:
                         col_dash1, col_dash2 = st.columns(2)
                         with col_dash1:
                             st.markdown("**Frentes de Serviço por Encarregado**")
                             enc_count = df_filtrado['ENCARREGADO'].replace('', 'Não Informado').value_counts()
-                            st.bar_chart(enc_count, color="#0ea5e9")
-                            
+                            st.bar_chart(enc_count, color="#2563EB")
                         with col_dash2:
                             st.markdown("**Frentes por Disciplina**")
                             disc_count = df_filtrado['DISCIPLINA'].replace('', 'Não Informado').value_counts()
-                            st.bar_chart(disc_count, color="#4ade80")
-                            
-                        st.markdown("**Distribuição por Caldeira (PB/RB/ESP)**")
-                        caldeira_count = df_filtrado['CALDEIRA'].copy()
-                        caldeira_count = caldeira_count.replace('', 'Não Identificada').value_counts()
-                        st.bar_chart(caldeira_count, color="#f59e0b")
+                            st.bar_chart(disc_count, color="#10B981")
+
+                        st.markdown("**Distribuição por Área / Caldeira (PB / RB / ESP)**")
+                        caldeira_count = df_filtrado['CALDEIRA'].replace('', 'Não Identificada').value_counts()
+                        st.bar_chart(caldeira_count, color="#0EA5E9")
 
     # Modulo removido da navegacao operacional.
     if pagina_sgo == "Controle de C.C":
-        st.markdown("### 💰 Controle de Centro de Custo (C.C)")
+        col_cc_hdr1, col_cc_hdr2 = st.columns([3.2, 1.8], vertical_alignment="center")
+        with col_cc_hdr1:
+            st.markdown("### 💰 Controle de Centro de Custo (C.C)")
+        with col_cc_hdr2:
+            if st.button("✅ Conferir / Auditar Efetivo vs. PDE Mestre", type="primary", use_container_width=True, key="btn_atalho_auditoria_cc"):
+                st.session_state.pagina_sgo = "Auditoria de Efetivo"
+                st.rerun()
         
         # === ÚLTIMA ATUALIZAÇÃO ===
         ultima_base = ""
@@ -7781,14 +6836,8 @@ Retorne apenas o JSON sem crases ou markdown."""
                 else: return str(cc_code)
             
             # Métricas gerais Customizadas
-            def card_kpi_cc(titulo, valor, cor):
-                return f"""
-                <div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; overflow: hidden; height: 110px; transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0px)'">
-                    <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{titulo}</p>
-                    <h2 style="margin: 5px 0 0 0; font-size: 34px; font-weight: 700; color: #f8fafc; text-shadow: 0 0 15px {cor}60;">{valor}</h2>
-                    <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, {cor}, transparent); box-shadow: 0 -2px 10px {cor}80;"></div>
-                </div>
-                """
+            def card_kpi_cc(titulo, valor, cor, icone="account_tree"):
+                return f"""<div class="sgo-kpi-card"><div class="sgo-kpi-bar" style="background: linear-gradient(90deg, {cor}, transparent);"></div><div class="sgo-kpi-top"><p class="sgo-kpi-label">{titulo}</p><div class="sgo-kpi-icon" style="background: {cor}18; border: 1px solid {cor}38; color: {cor};">{icone}</div></div><h2 class="sgo-kpi-value">{valor}</h2></div>"""
                 
             mc1, mc2, mc3, mc4, mc5 = st.columns(5)
             with mc1: st.markdown(card_kpi_cc(t("Centros de Custo"), len(lista_cc), "#8b5cf6"), unsafe_allow_html=True)
@@ -7958,703 +7007,663 @@ Retorne apenas o JSON sem crases ou markdown."""
     # Modulo removido da navegacao operacional.
     # Modulo removido da navegacao operacional.
     # Modulo removido da navegacao operacional.
-    if pagina_sgo == "Análise de Gargalos":
-        st.markdown("### 🔍 Análise de Gargalos — Inteligência dos RDCs")
-        st.markdown("Dashboard analítico gerado automaticamente a partir dos RDCs processados pela IA. Identifique os maiores gargalos da obra em segundos.")
 
+    # ==============================================================
+    # AUDITORIA E CONFERIDOR INTELIGENTE DE EFETIVO VS. PDE MESTRE
+    # ==============================================================
+    if pagina_sgo == "Auditoria de Efetivo":
+        import unicodedata
         try:
-            if os.path.exists(caminho_rdc_registros_csv):
-                df_gargalos = pd.read_csv(caminho_rdc_registros_csv)
+            import pde_engine
+            HAS_PDE_ENGINE_AUD = True
+        except Exception:
+            HAS_PDE_ENGINE_AUD = False
 
-                if not df_gargalos.empty and len(df_gargalos) > 0:
-                    # === PREPARAR COLUNA DE DATA ===
-                    df_gargalos["_DATA_DT"] = pd.to_datetime(df_gargalos["DATA"], errors='coerce')
+        def _norm_aud(txt):
+            if not txt or pd.isna(txt):
+                return ""
+            s = str(txt).strip().upper()
+            return unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('utf-8')
 
-                    # === FILTROS ===
-                    st.markdown("#### 🎛️ Filtros")
-                    datas_disponiveis_g = sorted(df_gargalos["_DATA_DT"].dropna().dt.strftime("%d/%m/%Y").unique().tolist(), key=lambda x: pd.to_datetime(x, format="%d/%m/%Y"), reverse=True)
-                    col_f1, col_f2 = st.columns(2)
-                    with col_f1:
-                        datas_sel_g = st.multiselect("📅 Selecione a(s) Data(s):", datas_disponiveis_g, default=[], key="garg_datas", help="Deixe vazio para ver todos os RDCs")
-                    with col_f2:
-                        disc_opcoes_g = sorted(df_gargalos["DISCIPLINA"].dropna().unique().tolist())
-                        disc_sel_g = st.multiselect("Disciplina:", disc_opcoes_g, default=[], key="garg_disc")
+        def _fmt_cc_aud(cc_code):
+            if not cc_code or str(cc_code).strip() in ["", "nan", "NONE"]:
+                return "(Sem C.C)"
+            c_str = str(cc_code).strip()
+            if c_str.startswith("("):
+                return c_str
+            local = "PB" if "125.02" in c_str else ("RB" if "125.01" in c_str else "")
+            sufixo = c_str.split('.')[-1] if '.' in c_str else c_str
+            mapa_sufixo_nome = {
+                '001': 'Equipamentos', '002': 'Dutos', '003': 'Tubulação',
+                '004': 'Estrutura Metálica', '005': 'Precipitador', '006': 'Pressão - Mecânica',
+                '007': 'Pressão - Tubulação', '008': 'Pressão - Fornalha', '009': 'Pintura',
+                '010': 'Comissionamento', '011': 'Op. Assistida', '012': 'Lavagem Química',
+                '013': 'Sopragem', '014': 'Andaime', '015': 'Operadores', '016': 'Fora de Escopo',
+                '101': 'Gerência', '102': 'Produção', '103': 'Garantia da Qualidade',
+                '104': 'Planejamento', '105': 'Administração', '106': 'Segurança e Medicina',
+                '107': 'Infraestrutura', '108': 'Almoxarifado', '109': 'Almoxarifado Materiais',
+                '110': 'Manut. Elétrica Provisória', '111': 'Topografia', '112': 'Movimentação de Cargas',
+                '113': 'Medição/Contratos'
+            }
+            nome = mapa_sufixo_nome.get(sufixo, '')
+            if nome and local:
+                return f"{c_str} - {nome} ({local})"
+            elif nome:
+                return f"{c_str} - {nome}"
+            elif local:
+                return f"{c_str} ({local})"
+            return c_str
 
-                    df_g = df_gargalos.copy()
-                    if datas_sel_g:
-                        datas_filtro = [pd.to_datetime(d, format="%d/%m/%Y").date() for d in datas_sel_g]
-                        df_g = df_g[df_g["_DATA_DT"].dt.date.isin(datas_filtro)]
-                    if disc_sel_g:
-                        df_g = df_g[df_g["DISCIPLINA"].isin(disc_sel_g)]
+        # Cabeçalho Executivo
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <span style="font-size: 11px; font-weight: 800; color: #10B981; letter-spacing: 0.1em; text-transform: uppercase;">AUDITORIA EM TEMPO REAL · CONFERIDOR DE FRENTE &amp; EFETIVO</span>
+                    <h3 style="margin: 2px 0 4px 0; font-size: 1.4rem; font-weight: 800; color: #F8FAFC;">✅ Auditor de Efetivo por Encarregado vs. PDE Mestre</h3>
+                    <p style="margin: 0; font-size: 0.86rem; color: #94A3B8;">Cole ou envie a lista de efetivo real de qualquer Encarregado. O sistema lê automaticamente, cruza com o <b>PDE Mestre</b>, notifica se há divergências de equipe ou Frente de Serviço (C.C) e corrige sozinho com a sua permissão ou manualmente.</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-                    # === CATEGORIZAR PROBLEMAS ===
-                    def categorizar_problema(texto):
-                        if pd.isna(texto) or str(texto).strip() == "" or str(texto).strip().lower() in ["nan", "não informado", "nenhum", "n/a", "nao informado", "sem problemas", "-", "nenhum problema"]:
-                            return None
-                        texto = str(texto).upper()
-                        if any(p in texto for p in ["CHUVA", "TEMPORAL", "INTEMPÉRIE", "INTEMPERIE", "TEMPO", "CLIMÁT", "CLIMAT"]):
-                            return "☁️ Chuva / Intempérie"
-                        if any(p in texto for p in ["MATERIAL", "CONSUMÍVEL", "CONSUMIVEL", "ELETRODO", "FALTA DE PEÇA", "FALTA DE PECA", "INSUMO", "SUPRIMENTO"]):
-                            return "🔧 Falta de Material"
-                        if any(p in texto for p in ["EQUIPAMENTO", "MÁQUINA", "MAQUINA", "QUEBRA", "DEFEITO", "PANE", "MANUTENÇÃO", "MANUTENCAO", "GUINDASTE", "GUINCHO", "MUNCK"]):
-                            return "⚡ Quebra / Falta de Equipamento"
-                        if any(p in texto for p in ["EFETIVO", "MÃO DE OBRA", "MAO DE OBRA", "FALTA DE PESSOAL", "FALTA PESSOAL", "ABSENTEÍSMO", "ABSENTEISMO", "ATESTADO", "AFASTADO"]):
-                            return "👷 Falta de Efetivo"
-                        if any(p in texto for p in ["ACESSO", "LIBERAÇÃO", "LIBERACAO", "PERMISSÃO", "PERMISSAO", "ANDAIME", "BLOQUEIO", "ISOLAMENTO", "SEGURANÇA", "SEGURANCA", "PT"]):
-                            return "🚫 Falta de Acesso / Liberação"
-                        if any(p in texto for p in ["ENERGIA", "ELÉTRIC", "ELETRIC", "SOLDA", "REDE", "TOMADA", "EXTENSÃO", "EXTENSAO"]):
-                            return "⚡ Energia / Elétrica"
-                        if any(p in texto for p in ["PROJETO", "DESENHO", "INFORMAÇÃO", "INFORMACAO", "ENGENHARIA"]):
-                            return "📐 Falta de Projeto / Info"
-                        return "📋 Outros"
+        # Preparar base do PDE Mestre para cruzamento rápido
+        df_pde_mestre = df_atual.copy()
+        df_pde_mestre["_MAT_CLEAN"] = df_pde_mestre["MATRICULA"].astype(str).str.strip().str.replace(".0", "", regex=False)
+        df_pde_mestre["_NOME_CLEAN"] = df_pde_mestre["NOME"].astype(str).str.strip().str.upper()
+        df_pde_mestre["_NOME_NORM"] = df_pde_mestre["_NOME_CLEAN"].apply(_norm_aud)
+        df_pde_mestre["_ENC_CLEAN"] = df_pde_mestre["ENCARREGADO"].astype(str).str.strip().str.upper()
+        df_pde_mestre["_CC_CLEAN"] = df_pde_mestre["C.C"].astype(str).str.strip() if "C.C" in df_pde_mestre.columns else ""
+        df_pde_mestre["_TURNO_CLEAN"] = df_pde_mestre["TURNO"].astype(str).str.strip().str.upper() if "TURNO" in df_pde_mestre.columns else ""
+        df_pde_mestre["_STATUS_CLEAN"] = df_pde_mestre["STATUS"].astype(str).str.strip().str.upper() if "STATUS" in df_pde_mestre.columns else "ATIVO"
 
-                    df_g["_CATEGORIA_PROB"] = df_g["PROBLEMAS"].apply(categorizar_problema)
-                    df_com_problema = df_g[df_g["_CATEGORIA_PROB"].notna()].copy()
-                    total_rdcs = len(df_g)
-                    total_com_prob = len(df_com_problema)
-                    pct_prob = (total_com_prob / total_rdcs * 100) if total_rdcs > 0 else 0
+        lista_encs_aud = sorted([str(e).strip().upper() for e in df_pde_mestre["_ENC_CLEAN"].unique() if str(e).strip() and eh_encarregado_valido(e)])
+        for e_of in lista_completa_encarregados:
+            if e_of not in lista_encs_aud and eh_encarregado_valido(e_of):
+                lista_encs_aud.append(e_of)
+        lista_encs_aud = sorted(list(set(lista_encs_aud)))
 
-                    # === MÉTRICAS ===
-                    st.markdown("---")
-                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                    with col_m1:
-                        st.metric("📑 RDCs Analisados", f"{total_rdcs}")
-                    with col_m2:
-                        st.metric("⚠️ RDCs com Problemas", f"{total_com_prob}")
-                    with col_m3:
-                        st.metric("📊 % com Problemas", f"{pct_prob:.1f}%")
-                    with col_m4:
-                        if not df_com_problema.empty and "DISCIPLINA" in df_com_problema.columns:
-                            disc_top = df_com_problema["DISCIPLINA"].value_counts().idxmax()
-                            st.metric("🏗️ Disciplina Crítica", disc_top)
-                        else:
-                            st.metric("🏗️ Disciplina Crítica", "N/A")
+        lista_ccs_aud = sorted([str(c).strip() for c in df_pde_mestre["_CC_CLEAN"].unique() if str(c).strip() and str(c).strip() not in ["nan", "NONE", "-"]])
 
-                    st.markdown("---")
+        # ==============================================================
+        # PASSO 1: SELEÇÃO DO ENCARREGADO E FRENTE DE SERVIÇO (C.C)
+        # ==============================================================
+        with st.container(border=True):
+            st.markdown("#### 1️⃣ Selecione o Encarregado e a Frente de Serviço (C.C) Esperada")
+            col_s1, col_s2, col_s3 = st.columns([2.2, 2.0, 1.3])
+            with col_s1:
+                enc_aud_sel = st.selectbox(
+                    "👷 Encarregado para Conferência:",
+                    lista_encs_aud,
+                    key="sel_enc_auditoria_pde"
+                )
 
-                    # === GRÁFICOS ===
-                    if not df_com_problema.empty:
-                        col_g1, col_g2 = st.columns(2)
+            # Descobrir o C.C e Turno atuais predominantes desse encarregado no PDE Mestre
+            df_equipe_pde_atual = df_pde_mestre[
+                (df_pde_mestre["_ENC_CLEAN"] == enc_aud_sel) &
+                (~df_pde_mestre["_STATUS_CLEAN"].str.contains("DEMIT|INATIV|DESLIG|RESCIS|TRANSFERID|BAIXA", regex=True))
+            ].copy()
 
-                        # PIZZA: Categorias de Problemas
-                        with col_g1:
-                            st.markdown("#### 🥧 Categorias de Problemas")
-                            cat_counts = df_com_problema["_CATEGORIA_PROB"].value_counts().reset_index()
-                            cat_counts.columns = ["Categoria", "Quantidade"]
-                            fig_pie = px.pie(
-                                cat_counts,
-                                names="Categoria",
-                                values="Quantidade",
-                                hole=0.4,
-                                color_discrete_sequence=px.colors.qualitative.Set2
-                            )
-                            fig_pie.update_layout(
-                                paper_bgcolor="rgba(0,0,0,0)",
-                                plot_bgcolor="rgba(0,0,0,0)",
-                                font_color="#e0e4ea",
-                                legend=dict(font=dict(size=11)),
-                                margin=dict(t=30, b=30, l=10, r=10),
-                                height=400
-                            )
-                            st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False, "responsive": True})
+            cc_predominante = ""
+            turno_predominante = "1º TURNO"
+            if not df_equipe_pde_atual.empty:
+                ccs_eq = [c for c in df_equipe_pde_atual["_CC_CLEAN"].tolist() if c and c not in ["nan", "NONE"]]
+                if ccs_eq:
+                    cc_predominante = pd.Series(ccs_eq).value_counts().index[0]
+                turnos_eq = [t for t in df_equipe_pde_atual["_TURNO_CLEAN"].tolist() if t and t not in ["NAN", "NONE"]]
+                if turnos_eq:
+                    turno_predominante = pd.Series(turnos_eq).value_counts().index[0]
 
-                        # BARRAS: Problemas por Disciplina
-                        with col_g2:
-                            st.markdown("#### 📊 Problemas por Disciplina")
-                            disc_prob = df_com_problema.groupby("DISCIPLINA")["_CATEGORIA_PROB"].count().reset_index()
-                            disc_prob.columns = ["Disciplina", "Ocorrências"]
-                            disc_prob = disc_prob.sort_values("Ocorrências", ascending=True)
-                            fig_bar = px.bar(
-                                disc_prob,
-                                x="Ocorrências",
-                                y="Disciplina",
-                                orientation="h",
-                                color="Ocorrências",
-                                color_continuous_scale=["#0ea5e9", "#f59e0b", "#ef4444"]
-                            )
-                            fig_bar.update_layout(
-                                paper_bgcolor="rgba(0,0,0,0)",
-                                plot_bgcolor="rgba(0,0,0,0)",
-                                font_color="#e0e4ea",
-                                showlegend=False,
-                                margin=dict(t=30, b=30, l=10, r=10),
-                                height=400,
-                                yaxis=dict(tickfont=dict(size=11))
-                            )
-                            fig_bar.update_coloraxes(showscale=False)
-                            st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-
-                        # LINHA: Evolução Temporal de Problemas
-                        st.markdown("#### 📈 Evolução de Problemas ao Longo do Tempo")
-                        df_tempo = df_com_problema.copy()
-                        df_tempo["_SEMANA"] = df_tempo["_DATA_DT"].dt.to_period("W").apply(lambda r: r.start_time)
-                        evolucao = df_tempo.groupby("_SEMANA").size().reset_index(name="Problemas")
-                        evolucao.columns = ["Semana", "Problemas"]
-                        if len(evolucao) > 1:
-                            fig_line = px.area(
-                                evolucao,
-                                x="Semana",
-                                y="Problemas",
-                                markers=True,
-                                color_discrete_sequence=["#0ea5e9"]
-                            )
-                            fig_line.update_layout(
-                                paper_bgcolor="rgba(0,0,0,0)",
-                                plot_bgcolor="rgba(0,0,0,0)",
-                                font_color="#e0e4ea",
-                                margin=dict(t=30, b=30, l=10, r=10),
-                                height=350,
-                                xaxis_title="Semana",
-                                yaxis_title="Nº de Problemas"
-                            )
-                            st.plotly_chart(fig_line, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-                        else:
-                            st.info("📅 Dados insuficientes para gerar a evolução temporal. Continue processando RDCs para ver a tendência.")
-
-                        # BARRAS: Categorias cruzadas por Disciplina (Stacked)
-                        st.markdown("#### 🧩 Mapa de Calor: Problema × Disciplina")
-                        cross = df_com_problema.groupby(["DISCIPLINA", "_CATEGORIA_PROB"]).size().reset_index(name="Qtd")
-                        cross.columns = ["Disciplina", "Categoria", "Qtd"]
-                        fig_stack = px.bar(
-                            cross,
-                            x="Disciplina",
-                            y="Qtd",
-                            color="Categoria",
-                            barmode="stack",
-                            color_discrete_sequence=px.colors.qualitative.Set2
-                        )
-                        fig_stack.update_layout(
-                            paper_bgcolor="rgba(0,0,0,0)",
-                            plot_bgcolor="rgba(0,0,0,0)",
-                            font_color="#e0e4ea",
-                            margin=dict(t=30, b=30, l=10, r=10),
-                            height=400,
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10))
-                        )
-                        st.plotly_chart(fig_stack, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-
-                        # TABELA: Top 10 Problemas Recentes
-                        st.markdown("#### 📋 Últimos Problemas Reportados")
-                        df_recentes = df_com_problema.sort_values("_DATA_DT", ascending=False).head(10)
-                        cols_mostrar = ["DATA", "ENCARREGADO", "DISCIPLINA", "_CATEGORIA_PROB", "PROBLEMAS"]
-                        cols_existe = [c for c in cols_mostrar if c in df_recentes.columns]
-                        df_mostrar = df_recentes[cols_existe].copy()
-                        df_mostrar = df_mostrar.rename(columns={"_CATEGORIA_PROB": "CATEGORIA"})
-                        st.dataframe(df_mostrar, hide_index=True, use_container_width=True)
-
-                    else:
-                        st.success("🎉 Nenhum problema identificado nos RDCs filtrados! Excelente resultado operacional.")
-
-                    # === NUVEM DE ATIVIDADES (Barras Horizontais) ===
-                    st.markdown("---")
-                    st.markdown("#### 🏗️ Atividades Mais Frequentes nos RDCs")
-                    if "ATIVIDADE" in df_g.columns:
-                        import re as re_mod
-                        stopwords = {"DE", "DO", "DA", "DOS", "DAS", "E", "EM", "NO", "NA", "NOS", "NAS", "COM", "PARA", "POR", "UM", "UMA", "O", "A", "OS", "AS", "AO", "À", "SE", "QUE", "SÃO", "FOI", "SER", "TER", "ESTÁ", "COMO"}
-                        all_text = " ".join(df_g["ATIVIDADE"].dropna().astype(str).tolist()).upper()
-                        words = re_mod.findall(r"[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}", all_text)
-                        words = [w for w in words if w not in stopwords and len(w) > 3]
-                        if words:
-                            from collections import Counter
-                            word_counts = Counter(words).most_common(15)
-                            df_words = pd.DataFrame(word_counts, columns=["Atividade", "Frequência"])
-                            df_words = df_words.sort_values("Frequência", ascending=True)
-                            fig_words = px.bar(
-                                df_words,
-                                x="Frequência",
-                                y="Atividade",
-                                orientation="h",
-                                color="Frequência",
-                                color_continuous_scale=["#22c55e", "#0ea5e9", "#8b5cf6"]
-                            )
-                            fig_words.update_layout(
-                                paper_bgcolor="rgba(0,0,0,0)",
-                                plot_bgcolor="rgba(0,0,0,0)",
-                                font_color="#e0e4ea",
-                                showlegend=False,
-                                margin=dict(t=10, b=30, l=10, r=10),
-                                height=450,
-                                yaxis=dict(tickfont=dict(size=12))
-                            )
-                            fig_words.update_coloraxes(showscale=False)
-                            st.plotly_chart(fig_words, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-                        else:
-                            st.info("Sem dados de atividades suficientes para gerar o gráfico.")
-                    else:
-                        st.info("Coluna ATIVIDADE não encontrada nos dados.")
-
-                    # === DDS: Temas mais abordados ===
-                    st.markdown("#### 🦺 Temas de DDS Mais Abordados")
-                    if "DDS" in df_g.columns:
-                        dds_validos = df_g["DDS"].dropna().astype(str)
-                        dds_validos = dds_validos[~dds_validos.str.strip().str.lower().isin(["nan", "", "não informado", "nao informado", "-", "n/a"])]
-                        if len(dds_validos) > 0:
-                            dds_counts = dds_validos.str.upper().value_counts().head(10).reset_index()
-                            dds_counts.columns = ["Tema DDS", "Frequência"]
-                            fig_dds = px.bar(
-                                dds_counts,
-                                x="Frequência",
-                                y="Tema DDS",
-                                orientation="h",
-                                color_discrete_sequence=["#f59e0b"]
-                            )
-                            fig_dds.update_layout(
-                                paper_bgcolor="rgba(0,0,0,0)",
-                                plot_bgcolor="rgba(0,0,0,0)",
-                                font_color="#e0e4ea",
-                                showlegend=False,
-                                margin=dict(t=10, b=30, l=10, r=10),
-                                height=350,
-                                yaxis=dict(tickfont=dict(size=11))
-                            )
-                            st.plotly_chart(fig_dds, use_container_width=True, config={"displayModeBar": False, "responsive": True})
-                        else:
-                            st.info("Nenhum tema de DDS registrado nos RDCs filtrados.")
-                    else:
-                        st.info("Coluna DDS não encontrada nos dados.")
-
-                    # === BOTÃO: GERAR RELATÓRIO EXECUTIVO EM POWERPOINT ===
-                    st.markdown("---")
-                    st.markdown("#### 📑 Relatório Executivo")
-                    if st.button("📑 GERAR APRESENTAÇÃO POWERPOINT (.PPTX)", type="primary", use_container_width=True, key="btn_gerar_pptx"):
-                        with st.spinner("Gerando apresentação executiva..."):
-                            try:
-                                from pptx import Presentation as PptxPresentation
-                                from pptx.util import Inches, Pt, Emu
-                                from pptx.dml.color import RGBColor
-                                from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-                                from pptx.enum.chart import XL_CHART_TYPE
-                                
-                                prs = PptxPresentation()
-                                prs.slide_width = Inches(13.333)
-                                prs.slide_height = Inches(7.5)
-                                
-                                # Cores padrão
-                                COR_FUNDO = RGBColor(15, 23, 42)
-                                COR_AZUL = RGBColor(14, 165, 233)
-                                COR_BRANCO = RGBColor(224, 228, 234)
-                                COR_CINZA = RGBColor(148, 163, 184)
-                                COR_VERDE = RGBColor(34, 197, 94)
-                                COR_AMARELO = RGBColor(245, 158, 11)
-                                COR_VERMELHO = RGBColor(239, 68, 68)
-                                COR_CARD_BG = RGBColor(30, 41, 59)
-                                
-                                def set_slide_bg(slide, cor):
-                                    background = slide.background
-                                    fill = background.fill
-                                    fill.solid()
-                                    fill.fore_color.rgb = cor
-                                
-                                def add_text_box(slide, left, top, width, height, text, font_size=18, bold=False, color=COR_BRANCO, alignment=PP_ALIGN.LEFT):
-                                    txBox = slide.shapes.add_textbox(left, top, width, height)
-                                    tf = txBox.text_frame
-                                    tf.word_wrap = True
-                                    p = tf.paragraphs[0]
-                                    p.text = text
-                                    p.font.size = Pt(font_size)
-                                    p.font.bold = bold
-                                    p.font.color.rgb = color
-                                    p.alignment = alignment
-                                    return txBox
-                                
-                                def add_card(slide, left, top, width, height, titulo, valor, cor_valor=COR_AZUL):
-                                    shape = slide.shapes.add_shape(1, left, top, width, height)
-                                    shape.fill.solid()
-                                    shape.fill.fore_color.rgb = COR_CARD_BG
-                                    shape.line.color.rgb = RGBColor(51, 65, 85)
-                                    shape.line.width = Pt(1)
-                                    
-                                    txBox = slide.shapes.add_textbox(left + Inches(0.2), top + Inches(0.15), width - Inches(0.4), Inches(0.4))
-                                    tf = txBox.text_frame
-                                    p = tf.paragraphs[0]
-                                    p.text = titulo
-                                    p.font.size = Pt(11)
-                                    p.font.color.rgb = COR_CINZA
-                                    
-                                    txBox2 = slide.shapes.add_textbox(left + Inches(0.2), top + Inches(0.5), width - Inches(0.4), Inches(0.6))
-                                    tf2 = txBox2.text_frame
-                                    p2 = tf2.paragraphs[0]
-                                    p2.text = str(valor)
-                                    p2.font.size = Pt(28)
-                                    p2.font.bold = True
-                                    p2.font.color.rgb = cor_valor
-                                
-                                # ============================================
-                                # SLIDE 1: CAPA
-                                # ============================================
-                                slide1 = prs.slides.add_slide(prs.slide_layouts[6])
-                                set_slide_bg(slide1, COR_FUNDO)
-                                
-                                # Logo
-                                if os.path.exists(caminho_logo):
-                                    try:
-                                        slide1.shapes.add_picture(caminho_logo, Inches(5.4), Inches(0.8), height=Inches(1.5))
-                                    except:
-                                        pass
-                                
-                                # Linha decorativa
-                                line = slide1.shapes.add_shape(1, Inches(3), Inches(2.8), Inches(7.333), Inches(0.04))
-                                line.fill.solid()
-                                line.fill.fore_color.rgb = COR_AZUL
-                                line.line.fill.background()
-                                
-                                add_text_box(slide1, Inches(1.5), Inches(3.0), Inches(10.333), Inches(1.2),
-                                    f"RELATÓRIO EXECUTIVO DE OBRA", font_size=36, bold=True, color=COR_BRANCO, alignment=PP_ALIGN.CENTER)
-                                add_text_box(slide1, Inches(1.5), Inches(4.0), Inches(10.333), Inches(0.8),
-                                    nome_site, font_size=24, bold=False, color=COR_AZUL, alignment=PP_ALIGN.CENTER)
-                                
-                                datas_texto = ""
-                                if datas_sel_g:
-                                    datas_texto = ", ".join(datas_sel_g)
-                                else:
-                                    datas_texto = f"Todos os dados até {datetime.datetime.now().strftime('%d/%m/%Y')}"
-                                add_text_box(slide1, Inches(1.5), Inches(4.8), Inches(10.333), Inches(0.6),
-                                    f"Período: {datas_texto}", font_size=16, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
-                                add_text_box(slide1, Inches(1.5), Inches(5.5), Inches(10.333), Inches(0.5),
-                                    f"Gerado em: {agora_local_sgo().strftime('%d/%m/%Y às %H:%M')}", font_size=12, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
-                                
-                                # ============================================
-                                # SLIDE 2: MÉTRICAS GERAIS
-                                # ============================================
-                                slide2 = prs.slides.add_slide(prs.slide_layouts[6])
-                                set_slide_bg(slide2, COR_FUNDO)
-                                
-                                add_text_box(slide2, Inches(0.5), Inches(0.3), Inches(12), Inches(0.7),
-                                    "INDICADORES GERAIS", font_size=28, bold=True, color=COR_BRANCO)
-                                
-                                line2 = slide2.shapes.add_shape(1, Inches(0.5), Inches(1.0), Inches(12.333), Inches(0.03))
-                                line2.fill.solid()
-                                line2.fill.fore_color.rgb = COR_AZUL
-                                line2.line.fill.background()
-                                
-                                card_w = Inches(2.8)
-                                card_h = Inches(1.2)
-                                card_y = Inches(1.4)
-                                gap = Inches(0.3)
-                                start_x = Inches(0.7)
-                                
-                                disc_top_val = "N/A"
-                                if not df_com_problema.empty and "DISCIPLINA" in df_com_problema.columns:
-                                    try:
-                                        disc_top_val = df_com_problema["DISCIPLINA"].value_counts().idxmax()
-                                    except:
-                                        pass
-                                
-                                add_card(slide2, start_x, card_y, card_w, card_h, "RDCs Analisados", total_rdcs, COR_AZUL)
-                                add_card(slide2, start_x + card_w + gap, card_y, card_w, card_h, "RDCs com Problemas", total_com_prob, COR_AMARELO)
-                                add_card(slide2, start_x + 2*(card_w + gap), card_y, card_w, card_h, "% com Problemas", f"{pct_prob:.1f}%", COR_VERMELHO if pct_prob > 30 else COR_VERDE)
-                                add_card(slide2, start_x + 3*(card_w + gap), card_y, card_w, card_h, "Disciplina Crítica", disc_top_val, COR_AMARELO)
-                                
-                                # Disciplinas resumo
-                                if "DISCIPLINA" in df_g.columns:
-                                    disc_resumo = df_g["DISCIPLINA"].value_counts().head(8)
-                                    add_text_box(slide2, Inches(0.5), Inches(3.0), Inches(6), Inches(0.6),
-                                        "RDCS POR DISCIPLINA", font_size=18, bold=True, color=COR_AZUL)
-                                    
-                                    tbl_rows = len(disc_resumo) + 1
-                                    tbl = slide2.shapes.add_table(tbl_rows, 2, Inches(0.5), Inches(3.6), Inches(5.5), Inches(0.4 * tbl_rows)).table
-                                    tbl.columns[0].width = Inches(3.5)
-                                    tbl.columns[1].width = Inches(2.0)
-                                    
-                                    # Header
-                                    for j, hdr in enumerate(["Disciplina", "Quantidade"]):
-                                        cell = tbl.cell(0, j)
-                                        cell.text = hdr
-                                        cell.fill.solid()
-                                        cell.fill.fore_color.rgb = COR_AZUL
-                                        for paragraph in cell.text_frame.paragraphs:
-                                            paragraph.font.size = Pt(11)
-                                            paragraph.font.bold = True
-                                            paragraph.font.color.rgb = COR_FUNDO
-                                    
-                                    for i, (disc_name, qtd) in enumerate(disc_resumo.items()):
-                                        row_idx = i + 1
-                                        for j, val in enumerate([str(disc_name), str(qtd)]):
-                                            cell = tbl.cell(row_idx, j)
-                                            cell.text = val
-                                            cell.fill.solid()
-                                            cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
-                                            for paragraph in cell.text_frame.paragraphs:
-                                                paragraph.font.size = Pt(10)
-                                                paragraph.font.color.rgb = COR_BRANCO
-                                
-                                # Caldeira resumo
-                                if "CALDEIRA" in df_g.columns:
-                                    cald_resumo = df_g["CALDEIRA"].replace("", "N/I").value_counts().head(5)
-                                    add_text_box(slide2, Inches(7), Inches(3.0), Inches(6), Inches(0.6),
-                                        "DISTRIBUIÇÃO POR CALDEIRA", font_size=18, bold=True, color=COR_AZUL)
-                                    
-                                    tbl_rows2 = len(cald_resumo) + 1
-                                    tbl2 = slide2.shapes.add_table(tbl_rows2, 2, Inches(7), Inches(3.6), Inches(5.5), Inches(0.4 * tbl_rows2)).table
-                                    tbl2.columns[0].width = Inches(3.5)
-                                    tbl2.columns[1].width = Inches(2.0)
-                                    
-                                    for j, hdr in enumerate(["Caldeira", "RDCs"]):
-                                        cell = tbl2.cell(0, j)
-                                        cell.text = hdr
-                                        cell.fill.solid()
-                                        cell.fill.fore_color.rgb = COR_AMARELO
-                                        for paragraph in cell.text_frame.paragraphs:
-                                            paragraph.font.size = Pt(11)
-                                            paragraph.font.bold = True
-                                            paragraph.font.color.rgb = COR_FUNDO
-                                    
-                                    for i, (cald_name, qtd) in enumerate(cald_resumo.items()):
-                                        row_idx = i + 1
-                                        for j, val in enumerate([str(cald_name), str(qtd)]):
-                                            cell = tbl2.cell(row_idx, j)
-                                            cell.text = val
-                                            cell.fill.solid()
-                                            cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
-                                            for paragraph in cell.text_frame.paragraphs:
-                                                paragraph.font.size = Pt(10)
-                                                paragraph.font.color.rgb = COR_BRANCO
-                                
-                                # ============================================
-                                # SLIDE 3: ANÁLISE DE GARGALOS
-                                # ============================================
-                                slide3 = prs.slides.add_slide(prs.slide_layouts[6])
-                                set_slide_bg(slide3, COR_FUNDO)
-                                
-                                add_text_box(slide3, Inches(0.5), Inches(0.3), Inches(12), Inches(0.7),
-                                    "ANÁLISE DE GARGALOS", font_size=28, bold=True, color=COR_BRANCO)
-                                
-                                line3 = slide3.shapes.add_shape(1, Inches(0.5), Inches(1.0), Inches(12.333), Inches(0.03))
-                                line3.fill.solid()
-                                line3.fill.fore_color.rgb = COR_AZUL
-                                line3.line.fill.background()
-                                
-                                if not df_com_problema.empty:
-                                    # Tabela de categorias de problemas
-                                    cat_counts_pptx = df_com_problema["_CATEGORIA_PROB"].value_counts()
-                                    add_text_box(slide3, Inches(0.5), Inches(1.3), Inches(6), Inches(0.5),
-                                        "CATEGORIAS DE PROBLEMAS IDENTIFICADOS", font_size=16, bold=True, color=COR_AZUL)
-                                    
-                                    tbl_rows3 = len(cat_counts_pptx) + 1
-                                    tbl3 = slide3.shapes.add_table(tbl_rows3, 3, Inches(0.5), Inches(1.9), Inches(6), Inches(0.4 * tbl_rows3)).table
-                                    tbl3.columns[0].width = Inches(3.2)
-                                    tbl3.columns[1].width = Inches(1.4)
-                                    tbl3.columns[2].width = Inches(1.4)
-                                    
-                                    for j, hdr in enumerate(["Categoria", "Ocorrências", "% do Total"]):
-                                        cell = tbl3.cell(0, j)
-                                        cell.text = hdr
-                                        cell.fill.solid()
-                                        cell.fill.fore_color.rgb = COR_VERMELHO
-                                        for paragraph in cell.text_frame.paragraphs:
-                                            paragraph.font.size = Pt(11)
-                                            paragraph.font.bold = True
-                                            paragraph.font.color.rgb = RGBColor(255, 255, 255)
-                                    
-                                    for i, (cat_name, qtd) in enumerate(cat_counts_pptx.items()):
-                                        row_idx = i + 1
-                                        pct = (qtd / total_com_prob * 100) if total_com_prob > 0 else 0
-                                        for j, val in enumerate([str(cat_name), str(qtd), f"{pct:.1f}%"]):
-                                            cell = tbl3.cell(row_idx, j)
-                                            cell.text = val
-                                            cell.fill.solid()
-                                            cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
-                                            for paragraph in cell.text_frame.paragraphs:
-                                                paragraph.font.size = Pt(10)
-                                                paragraph.font.color.rgb = COR_BRANCO
-                                    
-                                    # Problemas por disciplina
-                                    disc_prob_pptx = df_com_problema["DISCIPLINA"].value_counts().head(6)
-                                    if not disc_prob_pptx.empty:
-                                        add_text_box(slide3, Inches(7), Inches(1.3), Inches(6), Inches(0.5),
-                                            "PROBLEMAS POR DISCIPLINA", font_size=16, bold=True, color=COR_AZUL)
-                                        
-                                        tbl_rows4 = len(disc_prob_pptx) + 1
-                                        tbl4 = slide3.shapes.add_table(tbl_rows4, 2, Inches(7), Inches(1.9), Inches(5.5), Inches(0.4 * tbl_rows4)).table
-                                        tbl4.columns[0].width = Inches(3.5)
-                                        tbl4.columns[1].width = Inches(2.0)
-                                        
-                                        for j, hdr in enumerate(["Disciplina", "Problemas"]):
-                                            cell = tbl4.cell(0, j)
-                                            cell.text = hdr
-                                            cell.fill.solid()
-                                            cell.fill.fore_color.rgb = COR_AMARELO
-                                            for paragraph in cell.text_frame.paragraphs:
-                                                paragraph.font.size = Pt(11)
-                                                paragraph.font.bold = True
-                                                paragraph.font.color.rgb = COR_FUNDO
-                                        
-                                        for i, (d_name, qtd) in enumerate(disc_prob_pptx.items()):
-                                            row_idx = i + 1
-                                            for j, val in enumerate([str(d_name), str(qtd)]):
-                                                cell = tbl4.cell(row_idx, j)
-                                                cell.text = val
-                                                cell.fill.solid()
-                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
-                                                for paragraph in cell.text_frame.paragraphs:
-                                                    paragraph.font.size = Pt(10)
-                                                    paragraph.font.color.rgb = COR_BRANCO
-                                    
-                                    # Últimos problemas
-                                    df_ult_prob = df_com_problema.sort_values("_DATA_DT", ascending=False).head(6)
-                                    if not df_ult_prob.empty:
-                                        add_text_box(slide3, Inches(0.5), Inches(1.9 + 0.4 * tbl_rows3 + 0.3), Inches(12), Inches(0.5),
-                                            "ÚLTIMOS PROBLEMAS REPORTADOS", font_size=16, bold=True, color=COR_AMARELO)
-                                        
-                                        y_tbl5 = Inches(1.9 + 0.4 * tbl_rows3 + 0.8)
-                                        rows5 = min(len(df_ult_prob), 6) + 1
-                                        tbl5 = slide3.shapes.add_table(rows5, 4, Inches(0.5), y_tbl5, Inches(12.333), Inches(0.38 * rows5)).table
-                                        tbl5.columns[0].width = Inches(1.5)
-                                        tbl5.columns[1].width = Inches(3.0)
-                                        tbl5.columns[2].width = Inches(2.5)
-                                        tbl5.columns[3].width = Inches(5.333)
-                                        
-                                        for j, hdr in enumerate(["Data", "Encarregado", "Disciplina", "Problema"]):
-                                            cell = tbl5.cell(0, j)
-                                            cell.text = hdr
-                                            cell.fill.solid()
-                                            cell.fill.fore_color.rgb = COR_AZUL
-                                            for paragraph in cell.text_frame.paragraphs:
-                                                paragraph.font.size = Pt(10)
-                                                paragraph.font.bold = True
-                                                paragraph.font.color.rgb = COR_FUNDO
-                                        
-                                        for i, (_, row_p) in enumerate(df_ult_prob.head(6).iterrows()):
-                                            row_idx = i + 1
-                                            vals = [
-                                                str(row_p.get("DATA", ""))[:10],
-                                                str(row_p.get("ENCARREGADO", "")),
-                                                str(row_p.get("DISCIPLINA", "")),
-                                                str(row_p.get("PROBLEMAS", ""))[:80]
-                                            ]
-                                            for j, val in enumerate(vals):
-                                                cell = tbl5.cell(row_idx, j)
-                                                cell.text = val
-                                                cell.fill.solid()
-                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
-                                                for paragraph in cell.text_frame.paragraphs:
-                                                    paragraph.font.size = Pt(9)
-                                                    paragraph.font.color.rgb = COR_BRANCO
-                                else:
-                                    add_text_box(slide3, Inches(1.5), Inches(2.5), Inches(10), Inches(1),
-                                        "Nenhum problema identificado nos RDCs do período selecionado.\nExcelente resultado operacional!",
-                                        font_size=20, color=COR_VERDE, alignment=PP_ALIGN.CENTER)
-                                
-                                # ============================================
-                                # SLIDE 4: ATIVIDADES REALIZADAS
-                                # ============================================
-                                slide4 = prs.slides.add_slide(prs.slide_layouts[6])
-                                set_slide_bg(slide4, COR_FUNDO)
-                                
-                                add_text_box(slide4, Inches(0.5), Inches(0.3), Inches(12), Inches(0.7),
-                                    "ATIVIDADES REALIZADAS", font_size=28, bold=True, color=COR_BRANCO)
-                                
-                                line4 = slide4.shapes.add_shape(1, Inches(0.5), Inches(1.0), Inches(12.333), Inches(0.03))
-                                line4.fill.solid()
-                                line4.fill.fore_color.rgb = COR_AZUL
-                                line4.line.fill.background()
-                                
-                                # Top atividades
-                                if "ATIVIDADE" in df_g.columns:
-                                    import re as re_mod2
-                                    stopwords2 = {"DE", "DO", "DA", "DOS", "DAS", "E", "EM", "NO", "NA", "NOS", "NAS", "COM", "PARA", "POR", "UM", "UMA", "O", "A", "OS", "AS", "AO", "SE", "QUE", "FOI", "SER", "TER", "COMO", "ESTÁ", "SÃO"}
-                                    all_text2 = " ".join(df_g["ATIVIDADE"].dropna().astype(str).tolist()).upper()
-                                    words2 = re_mod2.findall(r"[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{4,}", all_text2)
-                                    words2 = [w for w in words2 if w not in stopwords2 and len(w) > 3]
-                                    if words2:
-                                        from collections import Counter as Counter2
-                                        word_counts2 = Counter2(words2).most_common(12)
-                                        
-                                        add_text_box(slide4, Inches(0.5), Inches(1.3), Inches(6), Inches(0.5),
-                                            "PALAVRAS-CHAVE MAIS FREQUENTES", font_size=16, bold=True, color=COR_AZUL)
-                                        
-                                        tbl_rows6 = len(word_counts2) + 1
-                                        tbl6 = slide4.shapes.add_table(tbl_rows6, 2, Inches(0.5), Inches(1.9), Inches(5.5), Inches(0.35 * tbl_rows6)).table
-                                        tbl6.columns[0].width = Inches(3.5)
-                                        tbl6.columns[1].width = Inches(2.0)
-                                        
-                                        for j, hdr in enumerate(["Atividade", "Frequência"]):
-                                            cell = tbl6.cell(0, j)
-                                            cell.text = hdr
-                                            cell.fill.solid()
-                                            cell.fill.fore_color.rgb = COR_VERDE
-                                            for paragraph in cell.text_frame.paragraphs:
-                                                paragraph.font.size = Pt(11)
-                                                paragraph.font.bold = True
-                                                paragraph.font.color.rgb = COR_FUNDO
-                                        
-                                        for i, (word, cnt) in enumerate(word_counts2):
-                                            row_idx = i + 1
-                                            for j, val in enumerate([word, str(cnt)]):
-                                                cell = tbl6.cell(row_idx, j)
-                                                cell.text = val
-                                                cell.fill.solid()
-                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
-                                                for paragraph in cell.text_frame.paragraphs:
-                                                    paragraph.font.size = Pt(10)
-                                                    paragraph.font.color.rgb = COR_BRANCO
-                                
-                                # DDS resumo
-                                if "DDS" in df_g.columns:
-                                    dds_v2 = df_g["DDS"].dropna().astype(str)
-                                    dds_v2 = dds_v2[~dds_v2.str.strip().str.lower().isin(["nan", "", "não informado", "nao informado", "-", "n/a"])]
-                                    if len(dds_v2) > 0:
-                                        dds_top = dds_v2.str.upper().value_counts().head(8)
-                                        add_text_box(slide4, Inches(7), Inches(1.3), Inches(6), Inches(0.5),
-                                            "TEMAS DE DDS ABORDADOS", font_size=16, bold=True, color=COR_AMARELO)
-                                        
-                                        tbl_rows7 = len(dds_top) + 1
-                                        tbl7 = slide4.shapes.add_table(tbl_rows7, 2, Inches(7), Inches(1.9), Inches(5.5), Inches(0.35 * tbl_rows7)).table
-                                        tbl7.columns[0].width = Inches(3.5)
-                                        tbl7.columns[1].width = Inches(2.0)
-                                        
-                                        for j, hdr in enumerate(["Tema DDS", "Vezes"]):
-                                            cell = tbl7.cell(0, j)
-                                            cell.text = hdr
-                                            cell.fill.solid()
-                                            cell.fill.fore_color.rgb = COR_AMARELO
-                                            for paragraph in cell.text_frame.paragraphs:
-                                                paragraph.font.size = Pt(11)
-                                                paragraph.font.bold = True
-                                                paragraph.font.color.rgb = COR_FUNDO
-                                        
-                                        for i, (dds_name, qtd) in enumerate(dds_top.items()):
-                                            row_idx = i + 1
-                                            for j, val in enumerate([str(dds_name), str(qtd)]):
-                                                cell = tbl7.cell(row_idx, j)
-                                                cell.text = val
-                                                cell.fill.solid()
-                                                cell.fill.fore_color.rgb = COR_CARD_BG if row_idx % 2 == 0 else COR_FUNDO
-                                                for paragraph in cell.text_frame.paragraphs:
-                                                    paragraph.font.size = Pt(10)
-                                                    paragraph.font.color.rgb = COR_BRANCO
-                                
-                                # Rodapé no último slide
-                                add_text_box(slide4, Inches(0.5), Inches(6.8), Inches(12.333), Inches(0.4),
-                                    f"{nome_site} — Relatório gerado automaticamente pelo Sistema RDC & PDE — {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}",
-                                    font_size=9, color=COR_CINZA, alignment=PP_ALIGN.CENTER)
-                                
-                                # === SALVAR E DISPONIBILIZAR ===
-                                buffer_pptx = io.BytesIO()
-                                prs.save(buffer_pptx)
-                                buffer_pptx.seek(0)
-                                nome_pptx = f"Relatorio_Executivo_{datetime.datetime.now().strftime('%d_%m_%Y_%H%M')}.pptx"
-                                
-                                st.download_button(
-                                    label="⬇️ Baixar Apresentação (.pptx)",
-                                    data=buffer_pptx,
-                                    file_name=nome_pptx,
-                                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                                    use_container_width=True
-                                )
-                                st.success(f"✅ Apresentação gerada com {len(prs.slides)} slides!")
-                                
-                            except ImportError:
-                                st.error("A biblioteca `python-pptx` não está instalada. Instale com `pip install python-pptx`.")
-                            except Exception as e:
-                                st.error(f"Erro ao gerar apresentação: {e}")
-
+            opcoes_cc_aud = [f"(Usar C.C Predominante: {_fmt_cc_aud(cc_predominante)})" if cc_predominante else "(Manter C.C Atual de Cada Colaborador)"] + lista_ccs_aud
+            with col_s2:
+                cc_aud_sel_raw = st.selectbox(
+                    "🏛️ Frente de Serviço / Centro de Custo (C.C) da Equipe:",
+                    opcoes_cc_aud,
+                    format_func=_fmt_cc_aud,
+                    key="sel_cc_auditoria_pde",
+                    help="Se o encarregado mudou de Frente de Serviço (C.C), selecione o novo C.C aqui para o sistema conferir e atualizar toda a equipe!"
+                )
+                if cc_aud_sel_raw.startswith("(Usar C.C Predominante"):
+                    cc_alvo_aud = cc_predominante
+                elif cc_aud_sel_raw.startswith("(Manter"):
+                    cc_alvo_aud = ""
                 else:
-                    st.info("📭 Banco de RDCs vazio. Processe alguns RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para popular os gráficos de análise.")
+                    cc_alvo_aud = str(cc_aud_sel_raw).strip()
+
+            with col_s3:
+                opcoes_turno_aud = [f"(Padrão: {turno_predominante})", "1º TURNO", "2º TURNO", "ADMINISTRATIVO", "(Não Conferir Turno)"]
+                turno_aud_raw = st.selectbox(
+                    "🕒 Turno da Equipe:",
+                    opcoes_turno_aud,
+                    key="sel_turno_auditoria_pde"
+                )
+                if turno_aud_raw.startswith("(Padrão:"):
+                    turno_alvo_aud = turno_predominante
+                elif turno_aud_raw == "(Não Conferir Turno)":
+                    turno_alvo_aud = ""
+                else:
+                    turno_alvo_aud = turno_aud_raw
+
+            # Resumo instantâneo do PDE Mestre para este Encarregado
+            st.markdown(f"""
+            <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 10px 16px; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: space-between;">
+                <div style="font-size: 13px; color: #E2E8F0;">
+                    📊 <b>Situação Atual no PDE Mestre para <span style="color:#38BDF8;">{enc_aud_sel}</span>:</b>
+                </div>
+                <div style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px;">
+                    <span style="background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.35); color: #34D399; padding: 3px 10px; border-radius: 6px; font-weight: 700;">👷 {len(df_equipe_pde_atual)} Colaboradores no PDE</span>
+                    <span style="background: rgba(139, 92, 246, 0.14); border: 1px solid rgba(139, 92, 246, 0.35); color: #C4B5FD; padding: 3px 10px; border-radius: 6px; font-weight: 700;">🏛️ Frente: {_fmt_cc_aud(cc_alvo_aud) if cc_alvo_aud else 'Múltiplos / Não Definido'}</span>
+                    <span style="background: rgba(14, 165, 233, 0.14); border: 1px solid rgba(14, 165, 233, 0.35); color: #38BDF8; padding: 3px 10px; border-radius: 6px; font-weight: 700;">🕒 Turno: {turno_alvo_aud if turno_alvo_aud else 'Livre'}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            with st.expander(f"👁️ Ver os {len(df_equipe_pde_atual)} colaboradores que estão hoje no PDE Mestre deste Encarregado"):
+                if not df_equipe_pde_atual.empty:
+                    cols_ver_eq = [c for c in ["MATRICULA", "NOME", "FUNÇÃO", "C.C", "TURNO", "STATUS"] if c in df_equipe_pde_atual.columns]
+                    st.dataframe(df_equipe_pde_atual[cols_ver_eq].reset_index(drop=True), hide_index=True, use_container_width=True)
+                else:
+                    st.info("Este encarregado não possui nenhum colaborador ativo vinculado a ele no PDE Mestre no momento.")
+
+        # ==============================================================
+        # PASSO 2: ENTRADA DO EFETIVO REAL DO ENCARREGADO
+        # ==============================================================
+        with st.container(border=True):
+            st.markdown("#### 2️⃣ Informe o Efetivo Real do Encarregado para o Sistema Ler e Conferir")
+            tab_in_colar, tab_in_planilha, tab_in_busca = st.tabs([
+                "📋 Opção 1: Colar Lista (Excel / WhatsApp / Matrículas ou Nomes)",
+                "📂 Opção 2: Enviar Planilha (.xlsx / .csv)",
+                "🔍 Opção 3: Selecionar Colaboradores na Lista"
+            ])
+
+            if "txt_efetivo_auditoria" not in st.session_state:
+                st.session_state.txt_efetivo_auditoria = ""
+
+            with tab_in_colar:
+                col_btn_ex1, col_btn_ex2 = st.columns([2.2, 1.2])
+                with col_btn_ex1:
+                    st.caption("💡 Cole abaixo as **Matrículas**, os **Nomes** ou **linhas inteiras copiadas do Excel / WhatsApp** (1 colaborador por linha). O sistema identifica automaticamente cada pessoa!")
+                with col_btn_ex2:
+                    if st.button("⚡ Carregar Efetivo Atual como Exemplo", use_container_width=True, key="btn_carregar_exemplo_aud"):
+                        if not df_equipe_pde_atual.empty:
+                            linhas_ex = [f"{r['_MAT_CLEAN']} - {r['_NOME_CLEAN']}" for _, r in df_equipe_pde_atual.iterrows()]
+                            st.session_state.txt_efetivo_auditoria = "\n".join(linhas_ex)
+                            st.rerun()
+
+                texto_colado_aud = st.text_area(
+                    "Cole aqui a relação de efetivo do Encarregado:",
+                    height=180,
+                    placeholder="Exemplo (pode colar matrícula, nome ou linha do Excel):\n120455\n120892 - JOAO DA SILVA\nPEDRO FERREIRA DOS SANTOS\n...",
+                    key="txt_efetivo_auditoria"
+                )
+
+            with tab_in_planilha:
+                arq_efetivo_aud = st.file_uploader(
+                    "Arraste ou selecione uma planilha (.xlsx ou .csv) com o efetivo do encarregado:",
+                    type=["xlsx", "xls", "csv"],
+                    key="up_planilha_auditoria_efetivo"
+                )
+
+            with tab_in_busca:
+                opcoes_todos_colab = [
+                    f"{r['_MAT_CLEAN']} | {r['_NOME_CLEAN']} ({r.get('FUNÇÃO', '')})"
+                    for _, r in df_pde_mestre.iterrows()
+                    if str(r['_MAT_CLEAN']).strip()
+                ]
+                colabs_multiselect_aud = st.multiselect(
+                    "Busque e selecione os colaboradores do efetivo real:",
+                    opcoes_todos_colab,
+                    key="multi_colab_auditoria"
+                )
+
+        # ==============================================================
+        # MOTOR DE INTERPRETAÇÃO INTELIGENTE DO EFETIVO INFORMADO
+        # ==============================================================
+        matriculas_identificadas = []
+        itens_nao_encontrados = []
+
+        mapa_mat_to_row = {str(r["_MAT_CLEAN"]).strip(): r for _, r in df_pde_mestre.iterrows() if str(r["_MAT_CLEAN"]).strip()}
+        # Também indexar sem zeros à esquerda
+        mapa_mat_int_to_mat = {}
+        for m_k in mapa_mat_to_row.keys():
+            if m_k.isdigit():
+                mapa_mat_int_to_mat[str(int(m_k))] = m_k
+
+        mapa_nome_norm_to_mat = {}
+        for _, r in df_pde_mestre.iterrows():
+            n_norm = r["_NOME_NORM"]
+            if n_norm:
+                mapa_nome_norm_to_mat[n_norm] = str(r["_MAT_CLEAN"]).strip()
+
+        enc_aud_norm = _norm_aud(enc_aud_sel)
+
+        # 1. Processar texto colado
+        if texto_colado_aud and texto_colado_aud.strip():
+            for linha_raw in texto_colado_aud.splitlines():
+                linha_str = linha_raw.strip()
+                if not linha_str:
+                    continue
+                # Ignorar cabeçalhos óbvios
+                linha_norm = _norm_aud(linha_str)
+                if linha_norm in ["MATRICULA", "NOME", "MATRICULA NOME", "COLABORADOR", "EFETIVO", "FUNCAO", "MATRICULA - NOME"]:
+                    continue
+                # Se a linha for apenas o próprio nome do encarregado selecionado, ignorar
+                if linha_norm == enc_aud_norm:
+                    continue
+
+                achou_mat = None
+                # A) Tentar achar matrícula numérica na linha (ex: 2 a 8 dígitos isolados que existam no PDE)
+                # Remover códigos de C.C tipo 125.01.003 antes de extrair números
+                linha_sem_cc = re.sub(r'125\.0[12]\.\d{3}', ' ', linha_str)
+                numeros_linha = re.findall(r'\b\d{2,8}\b', linha_sem_cc)
+                for num_cand in numeros_linha:
+                    if num_cand in mapa_mat_to_row:
+                        achou_mat = num_cand
+                        break
+                    elif num_cand.isdigit() and str(int(num_cand)) in mapa_mat_int_to_mat:
+                        achou_mat = mapa_mat_int_to_mat[str(int(num_cand))]
+                        break
+
+                # B) Se não achou por matrícula, tentar achar por NOME exato ou contido na linha
+                if not achou_mat:
+                    # Separar por tabulação, pipe, ponto-e-vírgula ou hífen
+                    partes = [ _norm_aud(p) for p in re.split(r'[\t|;-]+', linha_str) if _norm_aud(p) ]
+                    if linha_norm in mapa_nome_norm_to_mat:
+                        achou_mat = mapa_nome_norm_to_mat[linha_norm]
+                    else:
+                        for p_cand in partes:
+                            if p_cand in mapa_nome_norm_to_mat:
+                                achou_mat = mapa_nome_norm_to_mat[p_cand]
+                                break
+                    # Se ainda não achou, verificar se algum nome completo do PDE de >= 10 letras está contido na linha
+                    if not achou_mat and len(linha_norm) >= 6:
+                        matches_parciais = [
+                            mat_v for nome_k, mat_v in mapa_nome_norm_to_mat.items()
+                            if (nome_k in linha_norm and len(nome_k) >= 8) or (linha_norm in nome_k and len(linha_norm) >= 10)
+                        ]
+                        if len(matches_parciais) == 1:
+                            achou_mat = matches_parciais[0]
+
+                if achou_mat:
+                    # Se a matrícula encontrada for a do próprio Encarregado líder, não contar como subordinado a menos que ele esteja na própria equipe
+                    row_found = mapa_mat_to_row.get(achou_mat)
+                    if row_found is not None and _norm_aud(row_found["_NOME_CLEAN"]) == enc_aud_norm and row_found["_ENC_CLEAN"] != enc_aud_sel:
+                        continue
+                    if achou_mat not in matriculas_identificadas:
+                        matriculas_identificadas.append(achou_mat)
+                else:
+                    itens_nao_encontrados.append(linha_str)
+
+        # 2. Processar Planilha enviada (se houver)
+        if arq_efetivo_aud is not None:
+            try:
+                if arq_efetivo_aud.name.lower().endswith(".csv"):
+                    df_up_aud = pd.read_csv(arq_efetivo_aud, encoding="latin1", sep=None, engine="python")
+                else:
+                    df_up_aud = pd.read_excel(arq_efetivo_aud)
+                if not df_up_aud.empty:
+                    cols_mat_up = [c for c in df_up_aud.columns if "MATR" in _norm_aud(c) and "ENC" not in _norm_aud(c)]
+                    cols_nome_up = [c for c in df_up_aud.columns if "NOME" in _norm_aud(c) or "COLAB" in _norm_aud(c) or "FUNCION" in _norm_aud(c)]
+                    for _, r_up in df_up_aud.iterrows():
+                        achou_m = None
+                        if cols_mat_up:
+                            v_m = str(r_up[cols_mat_up[0]]).strip().replace(".0", "")
+                            if v_m in mapa_mat_to_row:
+                                achou_m = v_m
+                            elif v_m.isdigit() and str(int(v_m)) in mapa_mat_int_to_mat:
+                                achou_m = mapa_mat_int_to_mat[str(int(v_m))]
+                        if not achou_m and cols_nome_up:
+                            v_n = _norm_aud(r_up[cols_nome_up[0]])
+                            if v_n in mapa_nome_norm_to_mat:
+                                achou_m = mapa_nome_norm_to_mat[v_n]
+                        if achou_m and achou_m not in matriculas_identificadas:
+                            matriculas_identificadas.append(achou_m)
+            except Exception as e_up_aud:
+                st.error(f"Erro ao ler planilha enviada: {e_up_aud}")
+
+        # 3. Processar Multiselect (se houver)
+        if colabs_multiselect_aud:
+            for item_ms in colabs_multiselect_aud:
+                m_ms = item_ms.split("|")[0].strip()
+                if m_ms in mapa_mat_to_row and m_ms not in matriculas_identificadas:
+                    matriculas_identificadas.append(m_ms)
+
+        # ==============================================================
+        # PASSO 3: DIAGNÓSTICO, NOTIFICAÇÃO E PERMISSÃO DE ATUALIZAÇÃO
+        # ==============================================================
+        if matriculas_identificadas or itens_nao_encontrados:
+            registros_certos = []
+            registros_divergentes = []
+            registros_inativos = []
+
+            for mat_id in matriculas_identificadas:
+                row_p = mapa_mat_to_row[mat_id]
+                nome_p = row_p["_NOME_CLEAN"]
+                func_p = str(row_p.get("FUNÇÃO", "")).strip()
+                enc_atual_p = row_p["_ENC_CLEAN"] if row_p["_ENC_CLEAN"] and row_p["_ENC_CLEAN"] not in ["NAN", "NONE"] else "(SEM ENCARREGADO)"
+                cc_atual_p = row_p["_CC_CLEAN"] if row_p["_CC_CLEAN"] and row_p["_CC_CLEAN"] not in ["nan", "NONE"] else "(SEM C.C)"
+                turno_atual_p = row_p["_TURNO_CLEAN"] if row_p["_TURNO_CLEAN"] and row_p["_TURNO_CLEAN"] not in ["NAN", "NONE"] else ""
+                status_p = row_p["_STATUS_CLEAN"]
+
+                # Verificar se é inativo/demitido
+                if any(k in status_p for k in ["DEMIT", "INATIV", "DESLIG", "RESCIS", "BAIXA", "TRANSFERID"]):
+                    registros_inativos.append({
+                        "MATRICULA": mat_id,
+                        "NOME": nome_p,
+                        "FUNÇÃO": func_p,
+                        "STATUS NO PDE": status_p,
+                        "ENCARREGADO NO PDE": enc_atual_p,
+                        "C.C NO PDE": cc_atual_p
+                    })
+                    continue
+
+                motivos_div = []
+                if enc_atual_p != enc_aud_sel:
+                    motivos_div.append(f"Encarregado no PDE: {enc_atual_p}")
+                if cc_alvo_aud and cc_atual_p != cc_alvo_aud:
+                    motivos_div.append(f"Frente/C.C no PDE: {cc_atual_p} ➔ Esperado: {cc_alvo_aud}")
+                if turno_alvo_aud and turno_atual_p and turno_atual_p != turno_alvo_aud:
+                    motivos_div.append(f"Turno no PDE: {turno_atual_p} ➔ Esperado: {turno_alvo_aud}")
+
+                if not motivos_div:
+                    registros_certos.append({
+                        "MATRICULA": mat_id,
+                        "NOME": nome_p,
+                        "FUNÇÃO": func_p,
+                        "ENCARREGADO NO PDE": enc_atual_p,
+                        "C.C NO PDE": _fmt_cc_aud(cc_atual_p),
+                        "TURNO": turno_atual_p or "—",
+                        "DIAGNÓSTICO": "✅ CERTO E ATUALIZADO NO PDE"
+                    })
+                else:
+                    registros_divergentes.append({
+                        "APLICAR": True,
+                        "MATRICULA": mat_id,
+                        "NOME": nome_p,
+                        "FUNÇÃO": func_p,
+                        "ONDE ESTÁ NO PDE HOJE": f"{enc_atual_p} | {cc_atual_p}",
+                        "MOTIVO DA DIVERGÊNCIA": " · ".join(motivos_div),
+                        "ENC_ATUAL": enc_atual_p,
+                        "CC_ATUAL": cc_atual_p,
+                        "NOVO_ENCARREGADO": enc_aud_sel,
+                        "NOVO_CC": cc_alvo_aud if cc_alvo_aud else cc_atual_p,
+                        "NOVO_TURNO": turno_alvo_aud if turno_alvo_aud else turno_atual_p
+                    })
+
+            # Verificar quem está SOBRANDO no PDE Mestre (está no PDE deste Encarregado, mas NÃO veio na lista real informada)
+            set_mats_informadas = set(matriculas_identificadas)
+            registros_sobrando_pde = []
+            for _, r_eq in df_equipe_pde_atual.iterrows():
+                m_eq = str(r_eq["_MAT_CLEAN"]).strip()
+                # Ignorar se for o próprio encarregado líder
+                if _norm_aud(r_eq["_NOME_CLEAN"]) == enc_aud_norm:
+                    continue
+                if m_eq not in set_mats_informadas:
+                    registros_sobrando_pde.append({
+                        "REMOVER_DA_EQUIPE": False,
+                        "MATRICULA": m_eq,
+                        "NOME": r_eq["_NOME_CLEAN"],
+                        "FUNÇÃO": str(r_eq.get("FUNÇÃO", "")).strip(),
+                        "C.C ATUAL": r_eq["_CC_CLEAN"],
+                        "TURNO": r_eq["_TURNO_CLEAN"],
+                        "SITUAÇÃO": "⚠️ Consta no PDE deste Encarregado, mas NÃO está na lista informada"
+                    })
+
+            total_div = len(registros_divergentes)
+            total_sob = len(registros_sobrando_pde)
+            total_inat = len(registros_inativos) + len(itens_nao_encontrados)
+
+            st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+
+            # BANNER DE NOTIFICAÇÃO INTELIGENTE
+            if total_div == 0 and total_sob == 0 and total_inat == 0:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(6, 78, 59, 0.35)); border: 2px solid #10B981; border-radius: 14px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.18);">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <span style="font-size: 32px;">✅</span>
+                        <div>
+                            <h4 style="margin: 0; color: #34D399; font-size: 1.15rem; font-weight: 800;">EFETIVO 100% CERTO E ATUALIZADO NO PDE MESTRE!</h4>
+                            <p style="margin: 4px 0 0 0; color: #E2E8F0; font-size: 0.9rem;">Todos os <b>{len(registros_certos)} colaboradores</b> informados já estão corretamente alocados no encarregado <b>{enc_aud_sel}</b> e na Frente de Serviço <b>{_fmt_cc_aud(cc_alvo_aud)}</b> dentro do PDE Mestre. Nenhuma alteração necessária!</p>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                st.info("📭 Nenhum RDC salvo ainda. Processe RDCs na aba 'Leitor de RDC (IA)' e clique em 'Confirmar e Salvar' para começar a análise.")
-        except Exception as e:
-            st.error(f"Erro ao carregar Análise de Gargalos: {e}")
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(120, 53, 15, 0.38)); border: 2px solid #F59E0B; border-radius: 14px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 8px 25px rgba(245, 158, 11, 0.18);">
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+                        <div style="display: flex; align-items: center; gap: 14px;">
+                            <span style="font-size: 32px;">🔔</span>
+                            <div>
+                                <span style="background: #F59E0B; color: #0F172A; font-size: 10.5px; font-weight: 900; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase;">NOTIFICAÇÃO DO AUDITOR PDE MESTRE</span>
+                                <h4 style="margin: 4px 0 2px 0; color: #FDE68A; font-size: 1.15rem; font-weight: 800;">Atenção: O Efetivo Informado possui Divergências com o PDE Mestre!</h4>
+                                <p style="margin: 2px 0 0 0; color: #F8FAFC; font-size: 0.88rem;">
+                                    Foram identificados <b>{total_div} colaborador(es) desatualizados no PDE</b> (em outro encarregado ou outro C.C) e <b>{total_sob} colaborador(es) sobrando no PDE</b> desta equipe.
+                                    Você pode <b>dar permissão abaixo para o sistema corrigir tudo automaticamente</b> ou <b>alterar manualmente</b>.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # 4 CARDS DE MÉTRICAS DO DIAGNÓSTICO
+            ck1, ck2, ck3, ck4 = st.columns(4)
+            ck1.metric("🟢 Certos no PDE Mestre", len(registros_certos))
+            ck2.metric("🟡 Precisam Atualizar no PDE", total_div)
+            ck3.metric("🔴 Sobrando no PDE da Equipe", total_sob)
+            ck4.metric("⚫ Inativos / Não Achados", total_inat)
+
+            # ==============================================================
+            # PAINEL DE DECISÃO DO USUÁRIO: AUTOMÁTICO (COM PERMISSÃO) OU MANUAL
+            # ==============================================================
+            if total_div > 0 or total_sob > 0:
+                with st.container(border=True):
+                    st.markdown("#### 🛡️ 3️⃣ Painel de Permissão e Atualização do PDE Mestre")
+                    modo_acao_aud = st.radio(
+                        "Como você deseja resolver as divergências encontradas?",
+                        [
+                            "⚡ Dar Permissão para o Sistema Atualizar Sozinho (Automático em 1 Clique)",
+                            "✋ Alterar Manualmente (Escolher e Editar Pessoa por Pessoa na Tabela)"
+                        ],
+                        horizontal=True,
+                        key="radio_modo_acao_auditoria"
+                    )
+
+                    def _executar_atualizacao_auditoria(lista_corrigir, descricao_acao="Auditoria Automática de Efetivo"):
+                        if not lista_corrigir:
+                            st.warning("⚠️ Nenhuma alteração selecionada para aplicar.")
+                            return
+                        # 1. Atualizar via pde_engine (SQLite + PDE.csv + BASE_ATUAL.csv + Google Sheets Online)
+                        msg_engine = ""
+                        if HAS_PDE_ENGINE_AUD:
+                            ok_eng, msg_engine = pde_engine.aplicar_correcoes_em_massa(lista_corrigir, sync_sheets=True)
+                            for item_c in lista_corrigir:
+                                pde_engine.registrar_movimentacao_equipe(
+                                    matricula=item_c.get("MATRICULA", ""),
+                                    nome=item_c.get("NOME", ""),
+                                    de_enc=item_c.get("ENC_ATUAL", ""),
+                                    para_enc=item_c.get("NOVO_ENCARREGADO", ""),
+                                    de_cc=item_c.get("CC_ATUAL", ""),
+                                    para_cc=item_c.get("NOVO_CC", ""),
+                                    apontador="AUDITOR PDE MESTRE (PC)",
+                                    obs=descricao_acao
+                                )
+
+                        # 2. Atualizar imediatamente o st.session_state.df em memória no app_rdc.py
+                        df_mem = preparar_dataframe(st.session_state.df.copy())
+                        df_mem["_MAT_TMP"] = df_mem["MATRICULA"].astype(str).str.strip().str.replace(".0", "", regex=False)
+                        for item_c in lista_corrigir:
+                            m_alvo = str(item_c.get("MATRICULA", "")).strip().replace(".0", "")
+                            mask_m = df_mem["_MAT_TMP"] == m_alvo
+                            if mask_m.any():
+                                if "NOVO_ENCARREGADO" in item_c and item_c["NOVO_ENCARREGADO"] is not None:
+                                    nv_e = str(item_c["NOVO_ENCARREGADO"]).strip().upper()
+                                    if "SEM ENCARREGADO" in nv_e or nv_e in ["", "-", "NONE"]:
+                                        df_mem.loc[mask_m, "ENCARREGADO"] = ""
+                                    else:
+                                        df_mem.loc[mask_m, "ENCARREGADO"] = nv_e
+                                if "NOVO_CC" in item_c and item_c["NOVO_CC"] is not None and str(item_c["NOVO_CC"]).strip():
+                                    if "C.C" in df_mem.columns:
+                                        df_mem.loc[mask_m, "C.C"] = str(item_c["NOVO_CC"]).strip()
+                                if "NOVO_TURNO" in item_c and item_c["NOVO_TURNO"] is not None and str(item_c["NOVO_TURNO"]).strip():
+                                    if "TURNO" in df_mem.columns:
+                                        df_mem.loc[mask_m, "TURNO"] = str(item_c["NOVO_TURNO"]).strip()
+                        df_mem.drop(columns=["_MAT_TMP"], inplace=True, errors="ignore")
+                        st.session_state.df = df_mem
+                        try:
+                            df_mem.to_csv(caminho_base_salva_csv, index=False, encoding="latin1", errors="replace")
+                        except Exception:
+                            pass
+                        st.cache_data.clear()
+                        st.toast(f"✅ PDE Mestre atualizado com sucesso! ({len(lista_corrigir)} colaboradores sincronizados)", icon="🚀")
+                        st.success(f"✅ **PDE Mestre Atualizado!** {msg_engine}")
+                        time.sleep(0.8)
+                        st.rerun()
+
+                    if "⚡" in modo_acao_aud:
+                        col_chk1, col_chk2 = st.columns(2)
+                        with col_chk1:
+                            chk_puxar_div = st.checkbox(
+                                f"✅ Atualizar automaticamente os {total_div} colaborador(es) divergentes para {enc_aud_sel}" + (f" (C.C {cc_alvo_aud})" if cc_alvo_aud else ""),
+                                value=(total_div > 0),
+                                disabled=(total_div == 0),
+                                key="chk_auto_puxar_div"
+                            )
+                        with col_chk2:
+                            chk_remover_sob = st.checkbox(
+                                f"🧹 Desvincular os {total_sob} colaborador(es) que estão sobrando no PDE de {enc_aud_sel} (deixar Sem Encarregado)",
+                                value=False,
+                                disabled=(total_sob == 0),
+                                key="chk_auto_rem_sob"
+                            )
+
+                        if st.button("✅ DAR PERMISSÃO E ATUALIZAR PDE MESTRE AGORA", type="primary", use_container_width=True, key="btn_permissao_auto_pde"):
+                            lista_auto_aplicar = []
+                            if chk_puxar_div and registros_divergentes:
+                                for r_d in registros_divergentes:
+                                    lista_auto_aplicar.append({
+                                        "MATRICULA": r_d["MATRICULA"],
+                                        "NOME": r_d["NOME"],
+                                        "ENC_ATUAL": r_d["ENC_ATUAL"],
+                                        "CC_ATUAL": r_d["CC_ATUAL"],
+                                        "NOVO_ENCARREGADO": r_d["NOVO_ENCARREGADO"],
+                                        "NOVO_CC": r_d["NOVO_CC"],
+                                        "NOVO_TURNO": r_d["NOVO_TURNO"]
+                                    })
+                            if chk_remover_sob and registros_sobrando_pde:
+                                for r_s in registros_sobrando_pde:
+                                    lista_auto_aplicar.append({
+                                        "MATRICULA": r_s["MATRICULA"],
+                                        "NOME": r_s["NOME"],
+                                        "ENC_ATUAL": enc_aud_sel,
+                                        "CC_ATUAL": r_s["C.C ATUAL"],
+                                        "NOVO_ENCARREGADO": "",
+                                        "NOVO_CC": r_s["C.C ATUAL"],
+                                        "NOVO_TURNO": r_s["TURNO"]
+                                    })
+                            _executar_atualizacao_auditoria(lista_auto_aplicar, descricao_acao="Permissão Automática — Auditor de Efetivo")
+
+                    else:
+                        st.caption("💡 Marque/desmarque a coluna **APLICAR** ou edite diretamente o **NOVO_ENCARREGADO**, **NOVO_CC** e **NOVO_TURNO** de cada colaborador antes de salvar:")
+                        if registros_divergentes:
+                            st.markdown(f"**🟡 Colaboradores na Lista que Precisam de Atualização no PDE ({len(registros_divergentes)}):**")
+                            df_ed_div = pd.DataFrame(registros_divergentes)[
+                                ["APLICAR", "MATRICULA", "NOME", "FUNÇÃO", "ONDE ESTÁ NO PDE HOJE", "MOTIVO DA DIVERGÊNCIA", "NOVO_ENCARREGADO", "NOVO_CC", "NOVO_TURNO"]
+                            ]
+                            df_ed_div_res = st.data_editor(
+                                df_ed_div,
+                                hide_index=True,
+                                use_container_width=True,
+                                disabled=["MATRICULA", "NOME", "FUNÇÃO", "ONDE ESTÁ NO PDE HOJE", "MOTIVO DA DIVERGÊNCIA"],
+                                key="editor_manual_divergentes_aud"
+                            )
+                        else:
+                            df_ed_div_res = pd.DataFrame()
+
+                        if registros_sobrando_pde:
+                            st.markdown(f"**🔴 Colaboradores Sobrando no PDE deste Encarregado — Marque para Remover da Equipe ({len(registros_sobrando_pde)}):**")
+                            df_ed_sob = pd.DataFrame(registros_sobrando_pde)
+                            df_ed_sob_res = st.data_editor(
+                                df_ed_sob,
+                                hide_index=True,
+                                use_container_width=True,
+                                disabled=["MATRICULA", "NOME", "FUNÇÃO", "C.C ATUAL", "TURNO", "SITUAÇÃO"],
+                                key="editor_manual_sobrando_aud"
+                            )
+                        else:
+                            df_ed_sob_res = pd.DataFrame()
+
+                        if st.button("💾 Salvar Alterações Manuais Selecionadas no PDE Mestre", type="primary", use_container_width=True, key="btn_salvar_manual_aud"):
+                            lista_man_aplicar = []
+                            if not df_ed_div_res.empty:
+                                mapa_orig_div = {r["MATRICULA"]: r for r in registros_divergentes}
+                                for _, r_m in df_ed_div_res.iterrows():
+                                    if bool(r_m.get("APLICAR", False)):
+                                        orig = mapa_orig_div.get(str(r_m["MATRICULA"]), {})
+                                        lista_man_aplicar.append({
+                                            "MATRICULA": str(r_m["MATRICULA"]),
+                                            "NOME": str(r_m["NOME"]),
+                                            "ENC_ATUAL": orig.get("ENC_ATUAL", ""),
+                                            "CC_ATUAL": orig.get("CC_ATUAL", ""),
+                                            "NOVO_ENCARREGADO": str(r_m["NOVO_ENCARREGADO"]).strip().upper(),
+                                            "NOVO_CC": str(r_m["NOVO_CC"]).strip(),
+                                            "NOVO_TURNO": str(r_m["NOVO_TURNO"]).strip().upper()
+                                        })
+                            if not df_ed_sob_res.empty:
+                                for _, r_ms in df_ed_sob_res.iterrows():
+                                    if bool(r_ms.get("REMOVER_DA_EQUIPE", False)):
+                                        lista_man_aplicar.append({
+                                            "MATRICULA": str(r_ms["MATRICULA"]),
+                                            "NOME": str(r_ms["NOME"]),
+                                            "ENC_ATUAL": enc_aud_sel,
+                                            "CC_ATUAL": str(r_ms["C.C ATUAL"]),
+                                            "NOVO_ENCARREGADO": "",
+                                            "NOVO_CC": str(r_ms["C.C ATUAL"]),
+                                            "NOVO_TURNO": str(r_ms["TURNO"])
+                                        })
+                            _executar_atualizacao_auditoria(lista_man_aplicar, descricao_acao="Ajuste Manual Revisado — Auditor de Efetivo")
+
+            # ==============================================================
+            # DETALHAMENTO COMPLETO EM ABAS (PARA CONFERÊNCIA VISUAL)
+            # ==============================================================
+            tab_det_div, tab_det_ok, tab_det_sob, tab_det_alert = st.tabs([
+                f"🟡 Desatualizados no PDE ({total_div})",
+                f"🟢 Certos no PDE ({len(registros_certos)})",
+                f"🔴 Sobrando no PDE ({total_sob})",
+                f"⚫ Alertas / Inativos ({total_inat})"
+            ])
+
+            with tab_det_div:
+                if registros_divergentes:
+                    df_show_div = pd.DataFrame(registros_divergentes)[
+                        ["MATRICULA", "NOME", "FUNÇÃO", "ONDE ESTÁ NO PDE HOJE", "MOTIVO DA DIVERGÊNCIA", "NOVO_ENCARREGADO", "NOVO_CC"]
+                    ]
+                    st.dataframe(df_show_div, hide_index=True, use_container_width=True)
+                else:
+                    st.success("✅ Nenhuma divergência! Todos os colaboradores informados já estão com o Encarregado e C.C corretos.")
+
+            with tab_det_ok:
+                if registros_certos:
+                    st.dataframe(pd.DataFrame(registros_certos), hide_index=True, use_container_width=True)
+                else:
+                    st.info("Nenhum colaborador da lista informada estava 100% igual ao PDE ainda.")
+
+            with tab_det_sob:
+                if registros_sobrando_pde:
+                    st.warning(f"⚠️ Estes **{len(registros_sobrando_pde)} colaboradores** constam no PDE Mestre vinculados a **{enc_aud_sel}**, mas **não estavam** na lista que você colou:")
+                    st.dataframe(pd.DataFrame(registros_sobrando_pde).drop(columns=["REMOVER_DA_EQUIPE"], errors="ignore"), hide_index=True, use_container_width=True)
+                else:
+                    st.success("✅ Nenhum colaborador sobrando no PDE Mestre para este Encarregado!")
+
+            with tab_det_alert:
+                if registros_inativos:
+                    st.error(f"🚨 **{len(registros_inativos)} colaborador(es)** informados constam como **INATIVOS / DEMITIDOS** no PDE Mestre:")
+                    st.dataframe(pd.DataFrame(registros_inativos), hide_index=True, use_container_width=True)
+                if itens_nao_encontrados:
+                    st.warning(f"⚠️ **{len(itens_nao_encontrados)} linha(s)** digitadas não foram encontradas por Matrícula nem por Nome no PDE Mestre:")
+                    st.write(itens_nao_encontrados)
+                if not registros_inativos and not itens_nao_encontrados:
+                    st.success("✅ Todos os nomes/matrículas informados foram localizados e estão ativos no PDE Mestre.")
 
     # ==============================================================
     # ABA 13: BANCO DE DADOS (GOOGLE SHEETS EMBUTIDO)
