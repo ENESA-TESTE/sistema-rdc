@@ -149,7 +149,7 @@ def normalizar_texto(texto):
 
 
 def _col_idx_to_letter(col_idx):
-    """Converte índice 1-based (1=A, 2=B, 11=K) em letra de coluna do Excel/Sheets."""
+    """Converte índice 1-based (1=A, 2=B, 7=G, 11=K) em letra de coluna do Excel/Sheets."""
     result = ""
     while col_idx > 0:
         col_idx, remainder = divmod(col_idx - 1, 26)
@@ -338,12 +338,13 @@ def detectar_colunas_planilha(ws):
     Detecta dinamicamente as letras das colunas na planilha online:
     - MATRICULA (A)
     - NOME (B)
+    - TURNO (G)
     - CENTRO DE CUSTO (H)
     - MATRICULA ENCARREGADO (K)
     - ENCARREGADO (L) — Apenas para mapeamento, NUNCA sobrescrita!
     """
     global _cache_colunas_detectadas
-    if _cache_colunas_detectadas:
+    if _cache_colunas_detectadas and "letra_turno" in _cache_colunas_detectadas:
         return _cache_colunas_detectadas
 
     # Valores padrão oficiais ENESA
@@ -371,10 +372,10 @@ def detectar_colunas_planilha(ws):
                     cols["col_mat_enc_idx"] = c_idx
                 elif "ENCARR" in v and "MATR" not in v:
                     cols["col_enc_nome_idx"] = c_idx
-                elif any(k in v for k in ["CENTRO DE CUSTO", "C.C", "CC", "CUSTO"]):
-                    cols["col_cc_idx"] = c_idx
                 elif "TURNO" in v:
                     cols["col_turno_idx"] = c_idx
+                elif any(k in v for k in ["CENTRO DE CUSTO", "C.C", "CC", "CUSTO"]):
+                    cols["col_cc_idx"] = c_idx
                 elif "NOME" in v and not any(k in v for k in ["ENCARR", "COORD", "SUPERV"]):
                     cols["col_nome_idx"] = c_idx
             if achou_header:
@@ -383,7 +384,7 @@ def detectar_colunas_planilha(ws):
     except Exception as e:
         print(f"Aviso ao detectar colunas no Google Sheets: {e}")
 
-    # Converte índices para letras de coluna (ex: 11 -> 'K', 8 -> 'H')
+    # Converte índices para letras de coluna (ex: 11 -> 'K', 8 -> 'H', 7 -> 'G')
     cols["letra_mat"] = _col_idx_to_letter(cols["col_mat_idx"])
     cols["letra_nome"] = _col_idx_to_letter(cols["col_nome_idx"])
     cols["letra_turno"] = _col_idx_to_letter(cols.get("col_turno_idx", 7))
@@ -494,6 +495,7 @@ def sincronizar_alteracoes_gsheets_direto(lista_alteracoes):
     - Coluna K: MATRICULA ENCARREGADO (gravada com a matrícula do líder ou vazia se desvinculado)
     - Coluna L: ENCARREGADO (NUNCA É SOBRESCRITA - preserva a fórmula =PROCV / =XLOOKUP)
     - Coluna H: CENTRO DE CUSTO (C.C)
+    - Coluna G: TURNO (1° TURNO, 2° TURNO, 3° TURNO)
     """
     if not lista_alteracoes:
         return True, "Nenhuma alteração para enviar."
@@ -543,31 +545,25 @@ def sincronizar_alteracoes_gsheets_direto(lista_alteracoes):
             linhas_modificadas.append(row)
                 
             # 1. Tratar Matrícula do Encarregado (Coluna K)
-            if "NOVO_ENCARREGADO" in alt:
+            if "NOVO_ENCARREGADO" in alt and alt.get("NOVO_ENCARREGADO") is not None:
                 novo_enc = alt.get("NOVO_ENCARREGADO")
-                if novo_enc is None:
+                enc_str = str(novo_enc).strip()
+                enc_norm = normalizar_texto(enc_str)
+                
+                termos_desvincular = ["", "-", "0", "NAN", "NONE", "SEM ENCARREGADO", "DESVINCULAR", "NENHUM", "(SEM ENCARREGADO)"]
+                if enc_norm in termos_desvincular or "DEIXAR SEM ENCARREGADO" in enc_norm:
                     val_k = ""
+                elif enc_str.isdigit():
+                    val_k = enc_str
                 else:
-                    enc_str = str(novo_enc).strip()
-                    enc_norm = normalizar_texto(enc_str)
-                    
-                    termos_desvincular = ["", "-", "0", "NAN", "NONE", "SEM ENCARREGADO", "DESVINCULAR", "NENHUM", "(SEM ENCARREGADO)"]
-                    if enc_norm in termos_desvincular or "DEIXAR SEM ENCARREGADO" in enc_norm:
-                        val_k = ""
-                    elif enc_str.isdigit():
-                        # Já é a própria matrícula numérica
-                        val_k = enc_str
-                    else:
-                        # Buscar matrícula pelo nome do encarregado
-                        val_k = str(mapa_enc_mat.get(enc_str.upper(), "")).strip().replace(".0", "")
-                        if not val_k:
-                            val_k = str(mapa_enc_mat.get(enc_norm, "")).strip().replace(".0", "")
-                        # Tenta extrair matrícula se o nome veio no formato "12500123 — NOME"
-                        if not val_k and " — " in enc_str:
-                            p_mat = enc_str.split(" — ")[0].strip()
-                            if p_mat.isdigit():
-                                val_k = p_mat
-                                
+                    val_k = str(mapa_enc_mat.get(enc_str.upper(), "")).strip().replace(".0", "")
+                    if not val_k:
+                        val_k = str(mapa_enc_mat.get(enc_norm, "")).strip().replace(".0", "")
+                    if not val_k and " — " in enc_str:
+                        p_mat = enc_str.split(" — ")[0].strip()
+                        if p_mat.isdigit():
+                            val_k = p_mat
+                            
                 batch_updates.append({
                     "range": f"{cols['letra_mat_enc']}{row}",
                     "values": [[val_k]]
@@ -578,7 +574,6 @@ def sincronizar_alteracoes_gsheets_direto(lista_alteracoes):
             if alt.get("NOVO_CC") is not None:
                 novo_cc = str(alt.get("NOVO_CC")).strip()
                 if novo_cc and novo_cc != "(Manter Atual)":
-                    # Limpa se vier formatado como "125.01.008 — [PB] PRECIPITADOR"
                     cc_limpo = novo_cc.split(" — ")[0].strip()
                     batch_updates.append({
                         "range": f"{cols['letra_cc']}{row}",
@@ -589,7 +584,7 @@ def sincronizar_alteracoes_gsheets_direto(lista_alteracoes):
             # 3. Tratar Turno (Coluna G: 1° TURNO, 2° TURNO, 3° TURNO)
             if alt.get("NOVO_TURNO") is not None:
                 novo_turno = str(alt.get("NOVO_TURNO")).strip().upper()
-                if novo_turno and novo_turno != "(MANTER ATUAL)":
+                if novo_turno and novo_turno not in ["(MANTER ATUAL)", "MANTER ATUAL"]:
                     letra_g = cols.get("letra_turno", "G")
                     batch_updates.append({
                         "range": f"{letra_g}{row}",
@@ -605,7 +600,7 @@ def sincronizar_alteracoes_gsheets_direto(lista_alteracoes):
                 for b_item in batch_updates:
                     ws.update(b_item["range"], b_item["values"], value_input_option="USER_ENTERED")
                     
-            return True, f"{celulas_afetadas} célula(s) atualizada(s) no Google Sheets com sucesso (Colunas {cols['letra_mat_enc']} e {cols['letra_cc']})!"
+            return True, f"{celulas_afetadas} célula(s) atualizada(s) no Google Sheets com sucesso (Colunas {cols['letra_mat_enc']}, {cols['letra_cc']} e {cols.get('letra_turno', 'G')})!"
             
         if not linhas_modificadas:
             return False, "Nenhum colaborador da lista foi localizado na planilha online do Google Sheets."
@@ -813,8 +808,7 @@ def carregar_pde_instantaneo():
                     with get_db_connection() as conn:
                         df_s = pd.read_sql_query("SELECT * FROM pde_funcionarios;", conn)
                         if not df_s.empty:
-                            df = _garantir_colunas_padrao(df)
-                    return df_s.rename(columns={"CC": "C.C", "FUNCAO": "FUNÇÃO", "MAO_DE_OBRA": "MÃO DE OBRA"})
+                            return df_s.rename(columns={"CC": "C.C", "FUNCAO": "FUNÇÃO", "MAO_DE_OBRA": "MÃO DE OBRA"})
     except Exception as e:
         print(f"Aviso ao buscar Google Sheets em carregar_pde_instantaneo: {e}")
 
@@ -862,56 +856,100 @@ def obter_mapa_centros_de_custo():
     return mapa
 
 
-def _enviar_movimentacao_gsheets_async(linha_mov):
-    try:
-        sh = obter_cliente_google_sheets()
-        if not sh:
-            return
-        ws_names = [w.title for w in sh.worksheets()]
-        cols_mov = ["DATA_HORA", "MATRICULA", "NOME", "DE_ENCARREGADO", "PARA_ENCARREGADO", "DE_CC", "PARA_CC", "APONTADOR", "OBSERVACAO"]
-        if "Movimentacoes_Campo" not in ws_names:
-            ws_m = sh.add_worksheet(title="Movimentacoes_Campo", rows=2000, cols=10)
-            ws_m.update(values=[cols_mov, linha_mov], range_name="A1")
-        else:
-            ws_m = sh.worksheet("Movimentacoes_Campo")
-            ws_m.append_row(linha_mov, value_input_option="USER_ENTERED")
-    except Exception:
-        pass
+def _sincronizar_movimentacao_gsheets_async(linha_mov):
+    """Grava o registro de movimentação na aba 'Movimentacoes_Campo' do Google Sheets em background."""
+    def _worker_mov():
+        try:
+            sh = obter_cliente_google_sheets()
+            if not sh:
+                return
+            ws_names = [w.title for w in sh.worksheets()]
+            nome_aba = "Movimentacoes_Campo"
+            if nome_aba not in ws_names:
+                ws_mov = sh.add_worksheet(title=nome_aba, rows=2000, cols=10)
+                ws_mov.append_row([
+                    "DATA_HORA", "MATRICULA", "NOME", "DE_ENCARREGADO",
+                    "PARA_ENCARREGADO", "DE_CC", "PARA_CC", "APONTADOR", "OBSERVACAO"
+                ], value_input_option="USER_ENTERED")
+            else:
+                ws_mov = sh.worksheet(nome_aba)
+            ws_mov.append_row(linha_mov, value_input_option="USER_ENTERED")
+        except Exception:
+            pass
+    threading.Thread(target=_worker_mov, daemon=True).start()
+
 
 def registrar_movimentacao_equipe(matricula, nome, de_enc, para_enc, de_cc, para_cc, apontador="Apontador", obs=""):
-    """Registra uma transferência / movimentação de funcionário no histórico local e sincroniza na nuvem."""
+    """Registra uma transferência / movimentação de funcionário no histórico local e na nuvem (Movimentacoes_Campo)."""
     agora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     inicializar_banco_pde()
+    linha = [
+        agora,
+        str(matricula).strip(),
+        str(nome).strip(),
+        str(de_enc).strip(),
+        str(para_enc).strip(),
+        str(de_cc).strip(),
+        str(para_cc).strip(),
+        str(apontador).strip(),
+        str(obs).strip()
+    ]
     try:
         with get_db_connection() as conn:
             conn.execute("""
                 INSERT INTO pde_movimentacoes (DATA_HORA, MATRICULA, NOME, DE_ENCARREGADO, PARA_ENCARREGADO, DE_CC, PARA_CC, APONTADOR, OBSERVACAO)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """, (agora, str(matricula), str(nome), str(de_enc), str(para_enc), str(de_cc), str(para_cc), str(apontador), str(obs)))
+            """, tuple(linha))
             conn.commit()
     except Exception as e:
         print(f"Erro ao registrar movimentacao: {e}")
+
+    _sincronizar_movimentacao_gsheets_async(linha)
+
+
+def obter_historico_movimentacoes(limite=50, buscar_nuvem=False):
+    """Retorna os últimos registros de movimentação de equipe (local + opcionalmente nuvem)."""
+    inicializar_banco_pde()
+    colunas_padrao = ["ID", "DATA_HORA", "MATRICULA", "NOME", "DE_ENCARREGADO", "PARA_ENCARREGADO", "DE_CC", "PARA_CC", "APONTADOR", "OBSERVACAO"]
+    df_local = pd.DataFrame(columns=colunas_padrao)
     try:
-        linha_m = [agora, str(matricula), str(nome), str(de_enc), str(para_enc), str(de_cc), str(para_cc), str(apontador or "Campo"), str(obs)]
-        threading.Thread(target=_enviar_movimentacao_gsheets_async, args=(linha_m,), daemon=True).start()
+        with get_db_connection() as conn:
+            df_local = pd.read_sql_query(f"SELECT * FROM pde_movimentacoes ORDER BY ID DESC LIMIT {int(limite)};", conn)
     except Exception:
         pass
 
+    if buscar_nuvem or df_local.empty:
+        try:
+            sh = obter_cliente_google_sheets()
+            if sh:
+                ws_names = [w.title for w in sh.worksheets()]
+                if "Movimentacoes_Campo" in ws_names:
+                    ws_m = sh.worksheet("Movimentacoes_Campo")
+                    vals = ws_m.get_all_values()
+                    if vals and len(vals) > 1:
+                        hdr = [str(c).strip().upper() for c in vals[0]]
+                        rows = vals[1:][-int(limite):]
+                        rows.reverse()
+                        df_cloud = pd.DataFrame(rows, columns=hdr[:len(rows[0])] if rows else hdr)
+                        for c in colunas_padrao:
+                            if c not in df_cloud.columns:
+                                df_cloud[c] = ""
+                        if df_local.empty:
+                            return df_cloud[colunas_padrao].head(int(limite))
+                        df_comb = pd.concat([df_local, df_cloud[colunas_padrao]], ignore_index=True)
+                        df_comb = df_comb.drop_duplicates(subset=["DATA_HORA", "MATRICULA", "PARA_ENCARREGADO"], keep="first")
+                        df_comb = df_comb.sort_values(by="DATA_HORA", ascending=False).head(int(limite))
+                        return df_comb
+        except Exception:
+            pass
 
-def obter_historico_movimentacoes(limite=50):
-    """Retorna os últimos registros de movimentação de equipe."""
-    inicializar_banco_pde()
-    try:
-        with get_db_connection() as conn:
-            df = pd.read_sql_query(f"SELECT * FROM pde_movimentacoes ORDER BY ID DESC LIMIT {int(limite)};", conn)
-            return df
-    except Exception:
-        return pd.DataFrame(columns=["ID", "DATA_HORA", "MATRICULA", "NOME", "DE_ENCARREGADO", "PARA_ENCARREGADO", "DE_CC", "PARA_CC", "APONTADOR", "OBSERVACAO"])
+    return df_local
 
 
 def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
     """
-    Aplica correções de Encarregado e C.C tanto no banco SQLite, quanto nos arquivos locais (PDE.csv e BASE_ATUAL.csv),
+    Aplica correções de Encarregado, C.C e Turno (Coluna G) tanto no banco SQLite,
+    quanto nos arquivos locais (PDE.csv e BASE_ATUAL.csv),
     e sincroniza IMEDIATAMENTE com a planilha online do Google Sheets.
     """
     if not lista_alteracoes:
@@ -933,6 +971,7 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
                 matriculas_alteradas.add(mat)
                 novo_enc = alt.get("NOVO_ENCARREGADO")
                 novo_cc = alt.get("NOVO_CC")
+                novo_turno = alt.get("NOVO_TURNO")
                 
                 enc_limpo = None
                 if novo_enc is not None:
@@ -942,32 +981,24 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
                     else:
                         enc_limpo = str(novo_enc).strip().upper()
 
-                if enc_limpo is not None and novo_cc is not None:
-                    cursor.execute("""
-                        UPDATE pde_funcionarios
-                        SET ENCARREGADO = ?, CC = ?, ATUALIZADO_EM = ?
-                        WHERE MATRICULA = ?;
-                    """, (enc_limpo, str(novo_cc).strip(), agora, mat))
-                elif enc_limpo is not None:
-                    cursor.execute("""
-                        UPDATE pde_funcionarios
-                        SET ENCARREGADO = ?, ATUALIZADO_EM = ?
-                        WHERE MATRICULA = ?;
-                    """, (enc_limpo, agora, mat))
-                elif novo_cc is not None:
-                    cursor.execute("""
-                        UPDATE pde_funcionarios
-                        SET CC = ?, ATUALIZADO_EM = ?
-                        WHERE MATRICULA = ?;
-                    """, (str(novo_cc).strip(), agora, mat))
+                sets_sql = ["ATUALIZADO_EM = ?"]
+                vals_sql = [agora]
+                if enc_limpo is not None:
+                    sets_sql.append("ENCARREGADO = ?")
+                    vals_sql.append(enc_limpo)
+                if novo_cc is not None and str(novo_cc).strip() != "(Manter Atual)":
+                    sets_sql.append("CC = ?")
+                    vals_sql.append(str(novo_cc).strip().split(" — ")[0].strip())
+                if novo_turno is not None and str(novo_turno).strip().upper() not in ["(MANTER ATUAL)", "MANTER ATUAL", ""]:
+                    sets_sql.append("TURNO = ?")
+                    vals_sql.append(str(novo_turno).strip().upper())
 
-                novo_turno = alt.get("NOVO_TURNO")
-                if novo_turno is not None and str(novo_turno).strip().upper() not in ["", "(MANTER ATUAL)"]:
-                    cursor.execute("""
-                        UPDATE pde_funcionarios
-                        SET TURNO = ?, ATUALIZADO_EM = ?
-                        WHERE MATRICULA = ?;
-                    """, (str(novo_turno).strip().upper(), agora, mat))
+                if len(sets_sql) > 1:
+                    vals_sql.append(mat)
+                    cursor.execute(
+                        f"UPDATE pde_funcionarios SET {', '.join(sets_sql)} WHERE MATRICULA = ?;",
+                        tuple(vals_sql)
+                    )
             conn.commit()
     except Exception as e:
         print(f"Erro ao atualizar banco SQLite: {e}")
@@ -982,6 +1013,7 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
                 col_enc = [c for c in df_csv.columns if "ENCARR" in str(c).upper() and "MATR" not in str(c).upper()]
                 col_mat_enc = [c for c in df_csv.columns if "MATR" in str(c).upper() and "ENCARR" in str(c).upper()]
                 col_cc = [c for c in df_csv.columns if "CUSTO" in str(c).upper() or "C.C" in str(c).upper() or "CC" in str(c).upper()]
+                col_turno = [c for c in df_csv.columns if "TURNO" in str(c).upper()]
                 
                 if col_mat:
                     cm = col_mat[0]
@@ -990,24 +1022,23 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
                     mat_dict_enc = {}
                     mat_dict_mat_enc = {}
                     mat_dict_cc = {}
+                    mat_dict_turno = {}
                     
                     for a in lista_alteracoes:
                         m_str = str(a.get("MATRICULA", "")).strip().replace(".0", "")
-                        if "NOVO_ENCARREGADO" in a:
+                        if "NOVO_ENCARREGADO" in a and a["NOVO_ENCARREGADO"] is not None:
                             ne = a["NOVO_ENCARREGADO"]
-                            if ne is None:
+                            ne_str = str(ne).strip().upper()
+                            if ne_str in ["", "-", "0", "NAN", "NONE", "SEM ENCARREGADO", "🚫 (DEIXAR SEM ENCARREGADO)", "NENHUM", "(SEM ENCARREGADO)"] or "DEIXAR SEM ENCARREGADO" in ne_str:
                                 mat_dict_enc[m_str] = ""
                                 mat_dict_mat_enc[m_str] = ""
                             else:
-                                ne_str = str(ne).strip().upper()
-                                if ne_str in ["", "-", "0", "NAN", "NONE", "SEM ENCARREGADO", "🚫 (DEIXAR SEM ENCARREGADO)", "NENHUM", "(SEM ENCARREGADO)"] or "DEIXAR SEM ENCARREGADO" in ne_str:
-                                    mat_dict_enc[m_str] = ""
-                                    mat_dict_mat_enc[m_str] = ""
-                                else:
-                                    mat_dict_enc[m_str] = ne_str
-                                    mat_dict_mat_enc[m_str] = str(mapa_enc_mat.get(ne_str, "")).strip().replace(".0", "")
-                        if "NOVO_CC" in a and a["NOVO_CC"] is not None:
-                            mat_dict_cc[m_str] = str(a["NOVO_CC"]).strip()
+                                mat_dict_enc[m_str] = ne_str
+                                mat_dict_mat_enc[m_str] = str(mapa_enc_mat.get(ne_str, "")).strip().replace(".0", "")
+                        if "NOVO_CC" in a and a["NOVO_CC"] is not None and str(a["NOVO_CC"]).strip() != "(Manter Atual)":
+                            mat_dict_cc[m_str] = str(a["NOVO_CC"]).strip().split(" — ")[0].strip()
+                        if "NOVO_TURNO" in a and a["NOVO_TURNO"] is not None and str(a["NOVO_TURNO"]).strip().upper() not in ["(MANTER ATUAL)", "MANTER ATUAL", ""]:
+                            mat_dict_turno[m_str] = str(a["NOVO_TURNO"]).strip().upper()
 
                     if col_enc and mat_dict_enc:
                         ce = col_enc[0]
@@ -1024,14 +1055,8 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
                         mask_cc = df_csv["_MAT_STR"].isin(mat_dict_cc.keys())
                         df_csv.loc[mask_cc, ccc] = df_csv.loc[mask_cc, "_MAT_STR"].map(mat_dict_cc)
 
-                    col_turno_csv = [c for c in df_csv.columns if "TURNO" in str(c).upper()]
-                    mat_dict_turno = {
-                        str(a.get("MATRICULA", "")).strip().replace(".0", ""): str(a["NOVO_TURNO"]).strip().upper()
-                        for a in lista_alteracoes
-                        if a.get("NOVO_TURNO") is not None and str(a.get("NOVO_TURNO")).strip().upper() not in ["", "(MANTER ATUAL)"]
-                    }
-                    if col_turno_csv and mat_dict_turno:
-                        ct = col_turno_csv[0]
+                    if col_turno and mat_dict_turno:
+                        ct = col_turno[0]
                         mask_t = df_csv["_MAT_STR"].isin(mat_dict_turno.keys())
                         df_csv.loc[mask_t, ct] = df_csv.loc[mask_t, "_MAT_STR"].map(mat_dict_turno)
                         
@@ -1040,14 +1065,13 @@ def aplicar_correcoes_em_massa(lista_alteracoes, sync_sheets=True):
             except Exception as ex_csv:
                 print(f"Erro ao salvar {arq_csv}: {ex_csv}")
 
-    # 3. Sincronização ONLINE com Google Sheets (Coluna K e Coluna H)
+    # 3. Sincronização ONLINE com Google Sheets (Coluna K, Coluna H e Coluna G)
     msg_cloud = ""
     if sync_sheets:
         ok_gs, res_gs = sincronizar_alteracoes_gsheets_direto(lista_alteracoes)
         if ok_gs:
             msg_cloud = f" | ☁️ {res_gs}"
         else:
-            # Enfileira para reenvio em segundo plano se a rede oscilou
             enfileirar_sincronizacao_gsheets(lista_alteracoes)
             msg_cloud = f" | ⚠️ Salvo localmente. Envio online enfileirado: {res_gs}"
 

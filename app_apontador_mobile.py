@@ -17,7 +17,7 @@ importlib.reload(rdc_impressao)
 
 # --- CONFIGURAÇÃO MOBILE-FIRST COM ÍCONE SGO OFICIAL ---
 _sgo_fav_mob = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sgo_favicon.png")
-B64_FAVICON_SGO = "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"
+B64_FAVICON_SGO = "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"
 if not os.path.exists(_sgo_fav_mob) or os.path.getsize(_sgo_fav_mob) < 100:
     try:
         with open(_sgo_fav_mob, "wb") as _ff:
@@ -210,6 +210,16 @@ def obter_monitor_mobile_tempo_real():
 
 _MON_MOB = obter_monitor_mobile_tempo_real()
 
+def _invalidar_cache_apos_gravacao():
+    """Força recarga imediata do PDE local/nuvem após salvar alterações."""
+    try:
+        _MON_MOB["df_pde"] = None
+        _MON_MOB["hash_pde"] = ""
+        _MON_MOB["forcar_agora"] = True
+    except Exception:
+        pass
+    st.cache_data.clear()
+
 # --- CABEÇALHO DO APLICATIVO MOBILE COM MONITOR AO VIVO 5S ---
 @st.fragment(run_every=5)
 def _cabecalho_mobile_ao_vivo():
@@ -305,10 +315,146 @@ if df_pde is None or df_pde.empty:
     st.stop()
 
 # Filtrar apenas ativos
-# Deduplicação de colunas e filtragem robusta de ativos
 df_pde = df_pde.loc[:, ~df_pde.columns.duplicated()]
 col_st = df_pde["STATUS"].iloc[:, 0] if isinstance(df_pde["STATUS"], pd.DataFrame) else df_pde["STATUS"]
 df_ativos = df_pde[col_st.astype(str).str.strip().str.upper() == "ATIVO"].copy()
+
+# ====================================================================
+# 🔐 PORTÃO DE SEGURANÇA OBRIGATÓRIO: LOGIN POR MATRÍCULA + SENHA PADRÃO
+# ====================================================================
+SENHA_PADRAO_APONTADOR = "enesa2026"
+
+def _gerar_token_auth_mat(mat_str):
+    m_clean = str(mat_str).strip().replace(".0", "")
+    return _hl_mob.md5(f"{m_clean}:{SENHA_PADRAO_APONTADOR}:sgo_v2".encode("utf-8")).hexdigest()[:16]
+
+# Mapa rápido de Matrícula -> Dados do Colaborador (prioriza ATIVO, mas reconhece toda a base PDE)
+mapa_matricula_colaborador = {}
+for _df_src in [df_pde, df_ativos]:
+    for _, _row_u in _df_src.iterrows():
+        _m_raw = str(_row_u.get("MATRICULA", "")).strip().replace(".0", "")
+        if not _m_raw or _m_raw in ["-", "0", "nan", "NAN"]:
+            continue
+        _info_u = {
+            "MATRICULA": _m_raw,
+            "NOME": str(_row_u.get("NOME", "")).strip().upper(),
+            "FUNCAO": str(_row_u.get("FUNÇÃO", _row_u.get("FUNCAO", ""))).strip().upper() or "COLABORADOR",
+            "STATUS": str(_row_u.get("STATUS", "ATIVO")).strip().upper()
+        }
+        mapa_matricula_colaborador[_m_raw] = _info_u
+        if _m_raw.isdigit():
+            mapa_matricula_colaborador[str(int(_m_raw))] = _info_u
+
+def _buscar_colaborador_por_matricula(mat_input):
+    m_limpa = re.sub(r"[^0-9A-Za-z]", "", str(mat_input).strip().replace(".0", ""))
+    if not m_limpa:
+        return None
+    achado = mapa_matricula_colaborador.get(m_limpa)
+    if not achado and m_limpa.isdigit():
+        achado = mapa_matricula_colaborador.get(str(int(m_limpa)))
+    return achado
+
+# Restaurar sessão automaticamente via query_params (mantém logado durante os reruns de 5s)
+if "apontador_autenticado" not in st.session_state:
+    st.session_state.apontador_autenticado = False
+    st.session_state.mat_apontador = ""
+    st.session_state.nome_apontador_curto = ""
+    st.session_state.funcao_apontador = ""
+    st.session_state.nome_apontador = ""
+
+_q_mat = st.query_params.get("auth_mat", "").strip()
+_q_tk = st.query_params.get("auth_tk", "").strip()
+if not st.session_state.apontador_autenticado and _q_mat and _q_tk:
+    _colab_q = _buscar_colaborador_por_matricula(_q_mat)
+    if _colab_q and _q_tk == _gerar_token_auth_mat(_colab_q["MATRICULA"]):
+        st.session_state.apontador_autenticado = True
+        st.session_state.mat_apontador = _colab_q["MATRICULA"]
+        st.session_state.nome_apontador_curto = _colab_q["NOME"]
+        st.session_state.funcao_apontador = _colab_q["FUNCAO"]
+        st.session_state.nome_apontador = f"{_colab_q['NOME']} (Mat: {_colab_q['MATRICULA']})"
+
+# Se NÃO estiver autenticado, exibir a tela de Login Obrigatório e bloquear o restante do app (st.stop)
+if not st.session_state.apontador_autenticado:
+    st.markdown("""
+    <script>
+        const savedMat = localStorage.getItem('enesa_auth_mat');
+        const savedTk = localStorage.getItem('enesa_auth_tk');
+        const urlParams = new URLSearchParams(window.location.search);
+        if (savedMat && savedTk && !urlParams.has('auth_mat')) {
+            urlParams.set('auth_mat', savedMat);
+            urlParams.set('auth_tk', savedTk);
+            window.location.search = urlParams.toString();
+        }
+    </script>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background: linear-gradient(145deg, rgba(30, 45, 74, 0.92), rgba(15, 23, 42, 0.95)); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 18px; padding: 22px 20px; margin: 12px 0 18px 0; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);">
+        <div style="text-align: center; margin-bottom: 12px;">
+            <span style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.6px;">🔐 ACESSO IDENTIFICADO OBRIGATÓRIO</span>
+            <h3 style="margin: 10px 0 4px 0; color: #f8fafc; font-family: 'Outfit', sans-serif; font-size: 1.35rem;">Identificação do Colaborador</h3>
+            <p style="margin: 0; font-size: 13px; color: #94a3b8;">Digite sua <b>Matrícula</b> e a <b>Senha Padrão</b> para liberar o aplicativo. Seu nome ficará registrado automaticamente nas alterações.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("form_login_apontador_obrigatorio", clear_on_submit=False):
+        mat_login_input = st.text_input(
+            "🪪 Usuário (Sua Matrícula ENESA):",
+            placeholder="Ex: 12501473",
+            key="login_mat_input"
+        )
+        senha_login_input = st.text_input(
+            "🔑 Senha de Acesso:",
+            type="password",
+            placeholder="Digite a senha padrão...",
+            key="login_senha_input"
+        )
+        btn_entrar_login = st.form_submit_button(
+            "🔓 Entrar e Identificar Meu Nome",
+            type="primary",
+            use_container_width=True
+        )
+
+    if btn_entrar_login:
+        mat_limpa_tentativa = str(mat_login_input).strip()
+        senha_limpa_tentativa = str(senha_login_input).strip().lower()
+
+        if not mat_limpa_tentativa:
+            st.error("⚠️ Digite o número da sua **Matrícula**.")
+        elif senha_limpa_tentativa != SENHA_PADRAO_APONTADOR:
+            st.error("❌ **Senha incorreta!** Verifique a senha padrão de acesso com a coordenação.")
+        else:
+            colab_encontrado = _buscar_colaborador_por_matricula(mat_limpa_tentativa)
+            if not colab_encontrado:
+                st.error(f"❌ Matrícula **`{mat_limpa_tentativa}`** não encontrada na base do PDE! Verifique se digitou corretamente.")
+            else:
+                mat_oficial = colab_encontrado["MATRICULA"]
+                nome_oficial = colab_encontrado["NOME"]
+                func_oficial = colab_encontrado["FUNCAO"]
+                tk_gerado = _gerar_token_auth_mat(mat_oficial)
+
+                st.session_state.apontador_autenticado = True
+                st.session_state.mat_apontador = mat_oficial
+                st.session_state.nome_apontador_curto = nome_oficial
+                st.session_state.funcao_apontador = func_oficial
+                st.session_state.nome_apontador = f"{nome_oficial} (Mat: {mat_oficial})"
+
+                st.query_params["auth_mat"] = mat_oficial
+                st.query_params["auth_tk"] = tk_gerado
+
+                st.markdown(f"""
+                <script>
+                    localStorage.setItem('enesa_auth_mat', '{mat_oficial}');
+                    localStorage.setItem('enesa_auth_tk', '{tk_gerado}');
+                </script>
+                """, unsafe_allow_html=True)
+
+                st.success(f"✅ Bem-vindo(a), **{nome_oficial}**! Acesso liberado.")
+                time.sleep(0.5)
+                st.rerun()
+
+    st.stop()
 
 # Lista limpa e completa de TODOS os encarregados ativos (inclusive os que estão com 0 pessoas / sem equipe!)
 mapa_enc_mat = pde_engine.obter_mapa_encarregados_matricula()
@@ -417,64 +563,48 @@ ccs_unicos = sorted([
 ])
 opcoes_cc_formatadas = [formatar_cc_display(c) for c in ccs_unicos]
 
-# Identificação do Apontador com Memória Automática no Celular (LocalStorage + QueryParams)
-param_apontador = st.query_params.get("apontador", "").strip()
-
-if "nome_apontador" not in st.session_state:
-    if param_apontador and param_apontador != "Apontador de Campo":
-        st.session_state.nome_apontador = param_apontador
-    else:
-        st.session_state.nome_apontador = ""
-
-if "editando_apontador" not in st.session_state:
-    st.session_state.editando_apontador = not bool(st.session_state.nome_apontador)
-
-# Injetar JavaScript para ler e gravar no LocalStorage do celular
-st.markdown("""
+# ====================================================================
+# 👤 CRACHÁ DO USUÁRIO AUTENTICADO (BLOQUEADO E AUDITADO)
+# ====================================================================
+st.markdown(f"""
 <script>
-    const savedApontador = localStorage.getItem('enesa_apontador_nome');
-    const urlParams = new URLSearchParams(window.location.search);
-    if (savedApontador && !urlParams.has('apontador')) {
-        urlParams.set('apontador', savedApontador);
-        window.location.search = urlParams.toString();
-    }
+    localStorage.setItem('enesa_auth_mat', '{st.session_state.mat_apontador}');
+    localStorage.setItem('enesa_auth_tk', '{_gerar_token_auth_mat(st.session_state.mat_apontador)}');
 </script>
 """, unsafe_allow_html=True)
 
-col_ap1, col_ap2 = st.columns([2, 1])
+col_ap1, col_ap2 = st.columns([2.3, 1])
 with col_ap1:
-    if not st.session_state.editando_apontador and st.session_state.nome_apontador:
-        st.markdown(f"""
-        <div style="background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 10px; padding: 8px 12px; margin-top: 4px;">
-            <div style="font-size: 11px; color: #38bdf8; font-weight: 600;">👤 APONTADOR IDENTIFICADO:</div>
-            <div style="font-size: 14px; font-weight: 700; color: #f8fafc;">{st.session_state.nome_apontador} <span style="font-size: 11px; color: #10b981; font-weight: normal;">(Salvo no Celular ✅)</span></div>
-        </div>
+    st.markdown(f"""
+    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 10px 14px; margin-bottom: 6px;">
+        <div style="font-size: 10.5px; color: #34d399; font-weight: 700; letter-spacing: 0.5px;">🔐 EM USO POR (IDENTIFICADO PELA MATRÍCULA):</div>
+        <div style="font-size: 14.5px; font-weight: 700; color: #f8fafc; margin-top: 2px;">👤 {st.session_state.nome_apontador_curto}</div>
+        <div style="font-size: 11.5px; color: #94a3b8; margin-top: 1px;">🪪 Matrícula: <b style="color:#38bdf8;">{st.session_state.mat_apontador}</b> • {st.session_state.funcao_apontador}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("🚪 Sair / Trocar Matrícula", key="btn_logout_apontador", use_container_width=True):
+        st.session_state.apontador_autenticado = False
+        st.session_state.mat_apontador = ""
+        st.session_state.nome_apontador_curto = ""
+        st.session_state.funcao_apontador = ""
+        st.session_state.nome_apontador = ""
+        if "auth_mat" in st.query_params:
+            del st.query_params["auth_mat"]
+        if "auth_tk" in st.query_params:
+            del st.query_params["auth_tk"]
+        st.markdown("""
+        <script>
+            localStorage.removeItem('enesa_auth_mat');
+            localStorage.removeItem('enesa_auth_tk');
+        </script>
         """, unsafe_allow_html=True)
-        if st.button("✏️ Trocar Apontador", key="btn_trocar_apontador_id"):
-            st.session_state.editando_apontador = True
-            st.rerun()
-    else:
-        nome_input = st.text_input("👤 Seu Nome ou Matrícula:", value=st.session_state.nome_apontador, placeholder="Ex: Carlos Silva ou 12500...", key="txt_apontador_id")
-        if st.button("💾 Lembrar Meu Nome neste Celular", type="primary", key="btn_salvar_nome_apontador"):
-            if nome_input.strip():
-                st.session_state.nome_apontador = nome_input.strip()
-                st.session_state.editando_apontador = False
-                st.query_params["apontador"] = nome_input.strip()
-                st.markdown(f"""
-                <script>
-                    localStorage.setItem('enesa_apontador_nome', '{nome_input.strip()}');
-                </script>
-                """, unsafe_allow_html=True)
-                st.toast("Nome gravado com sucesso no celular!", icon="💾")
-                st.rerun()
-            else:
-                st.warning("Por favor, digite seu nome.")
+        st.rerun()
 
 with col_ap2:
     st.metric("👥 Efetivo Ativo", f"{len(df_ativos):,}".replace(",", "."))
 
 # ====================================================================
-# ⭐ SISTEMA "MEUS ENCARREGADOS" (FAVORITOS POR APONTADOR)
+# ⭐ SISTEMA "MEUS ENCARREGADOS" (FAVORITOS POR MATRÍCULA DO APONTADOR)
 # ====================================================================
 ARQ_FAVORITOS_APONTADOR = os.path.join(pde_engine.PASTA_BASE, "favoritos_apontadores.json")
 
@@ -487,9 +617,9 @@ def carregar_favoritos_apontadores():
             return {}
     return {}
 
-def salvar_favoritos_apontador(nome_ap, lista_encs):
+def salvar_favoritos_apontador(chave_ap, lista_encs):
     dados = carregar_favoritos_apontadores()
-    chave = (nome_ap or "PADRAO").strip().upper()
+    chave = (chave_ap or "PADRAO").strip().upper()
     dados[chave] = [str(e).strip() for e in lista_encs if str(e).strip()]
     try:
         with open(ARQ_FAVORITOS_APONTADOR, "w", encoding="utf-8") as _ff:
@@ -497,12 +627,15 @@ def salvar_favoritos_apontador(nome_ap, lista_encs):
     except Exception:
         pass
 
-chave_apontador_atual = (st.session_state.get("nome_apontador") or "PADRAO").strip().upper()
+chave_apontador_atual = (st.session_state.get("mat_apontador") or st.session_state.get("nome_apontador") or "PADRAO").strip().upper()
 mapa_todos_favoritos = carregar_favoritos_apontadores()
 
 # Sincronizar também via query_params ("favs") caso o celular recarregue
 param_favs = st.query_params.get("favs", "").strip()
 favs_salvos_servidor = mapa_todos_favoritos.get(chave_apontador_atual, [])
+if not favs_salvos_servidor:
+    # Fallback se tinha salvo pelo nome antes
+    favs_salvos_servidor = mapa_todos_favoritos.get(st.session_state.get("nome_apontador_curto", "").strip().upper(), [])
 if not favs_salvos_servidor and param_favs:
     favs_salvos_servidor = [x.strip() for x in param_favs.split("|") if x.strip() in encarregados_ativos]
     if favs_salvos_servidor:
@@ -511,7 +644,7 @@ if not favs_salvos_servidor and param_favs:
 meus_encarregados_fav = [e for e in favs_salvos_servidor if e in encarregados_ativos]
 
 with st.expander(f"⭐ Meus Encarregados da Rota ({len(meus_encarregados_fav)} favoritados)", expanded=(len(meus_encarregados_fav) == 0)):
-    st.caption("Marque abaixo os encarregados que você cuida no dia a dia. Eles ficarão fixados no topo do seu celular em todas as abas!")
+    st.caption(f"Marque os encarregados que você (**{st.session_state.nome_apontador_curto}**) acompanha no dia a dia. Eles ficam salvos na sua matrícula (**{st.session_state.mat_apontador}**)!")
     novos_favs_sel = st.multiselect(
         "Escolha seus Encarregados:",
         options=encarregados_ativos,
@@ -524,7 +657,7 @@ with st.expander(f"⭐ Meus Encarregados da Rota ({len(meus_encarregados_fav)} f
         if st.button("💾 Salvar Meus Encarregados", type="primary", use_container_width=True, key="btn_salvar_favs_ap"):
             salvar_favoritos_apontador(chave_apontador_atual, novos_favs_sel)
             st.query_params["favs"] = "|".join(novos_favs_sel)
-            st.toast(f"⭐ {len(novos_favs_sel)} encarregado(s) salvos na sua rota!", icon="⭐")
+            st.toast(f"⭐ {len(novos_favs_sel)} encarregado(s) salvos na sua matrícula!", icon="⭐")
             st.rerun()
     with col_fv2:
         if meus_encarregados_fav and st.button("🗑️ Limpar", use_container_width=True, key="btn_limpar_favs_ap"):
@@ -598,7 +731,6 @@ with tab_remanejar:
         key="radio_modo_remanejo"
     )
 
-    
     # -------------------------------------------------------------
     # FLUXO 1: SELECIONAR ENCARREGADO E ADICIONAR PESSOAS
     # -------------------------------------------------------------
@@ -698,6 +830,11 @@ with tab_remanejar:
                     mats_nao_encontradas.append(tk)
             if opcoes_auto_lote:
                 st.success(f"✅ **{len(opcoes_auto_lote)} matrícula(s)** reconhecida(s) automaticamente do lote!")
+                html_lote_rec = "".join([
+                    f"<div style='font-size:12px; color:#e2e8f0; padding:3px 0; border-bottom:1px solid rgba(148,163,184,0.12);'>✔️ <b>{op.split(' [')[0]}</b></div>"
+                    for op in opcoes_auto_lote
+                ])
+                st.markdown(f"<div style='background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:8px 12px; margin-bottom:10px;'>{html_lote_rec}</div>", unsafe_allow_html=True)
             if mats_nao_encontradas:
                 st.warning(f"⚠️ Matrícula(s) não encontrada(s) nos ativos: {', '.join(mats_nao_encontradas)}")
 
@@ -712,7 +849,7 @@ with tab_remanejar:
         selecionados = list(dict.fromkeys(opcoes_auto_lote + selecionados_manual))
         
         if selecionados:
-            st.info(f"📌 **{len(selecionados)} colaborador(es)** selecionado(s).")
+            st.info(f"📌 **{len(selecionados)} colaborador(es)** prontos para salvar por **{st.session_state.nome_apontador}**.")
             
             if enc_alvo == OPCAO_SEM_ENC:
                 btn_txt = f"🚫 Desvincular {len(selecionados)} Colaborador(es) (Deixar Sem Encarregado)"
@@ -725,12 +862,12 @@ with tab_remanejar:
                 enc_final = "" if enc_alvo == OPCAO_SEM_ENC else enc_alvo
                 cc_codigo_limpo = cc_escolhido_fmt.split(" — ")[0].strip() if cc_escolhido_fmt != "(Manter Atual)" else None
                 
-                with st.spinner("Atualizando planilha e salvando no sistema..."):
+                with st.spinner("Atualizando planilha e registrando no seu nome..."):
                     lista_alt = []
                     for item_str in selecionados:
                         mat_str = item_str.split(" — ")[0].strip()
                         nome_colab = ""
-                        membros_match = df_ativos[df_ativos["MATRICULA"] == mat_str]
+                        membros_match = df_ativos[df_ativos["MATRICULA"].astype(str) == mat_str]
                         if not membros_match.empty:
                             nome_colab = str(membros_match.iloc[0]["NOME"])
                             
@@ -749,20 +886,23 @@ with tab_remanejar:
                     if ok:
                         for item_dict in lista_alt:
                             mat_it = item_dict["MATRICULA"]
-                            row_it = df_ativos[df_ativos["MATRICULA"] == mat_it].iloc[0]
-                            pde_engine.registrar_movimentacao_equipe(
-                                matricula=mat_it,
-                                nome=row_it["NOME"],
-                                de_enc=str(row_it.get("ENCARREGADO", "")),
-                                para_enc=enc_final if enc_final else "(Sem Encarregado)",
-                                de_cc=str(row_it.get("C.C", "")),
-                                para_cc=cc_codigo_limpo if cc_codigo_limpo else str(row_it.get("C.C", "")),
-                                apontador=st.session_state.nome_apontador
-                            )
-                        st.success(f"🎉 **{len(selecionados)} colaborador(es)** alocado(s) com sucesso!\n\n{msg}")
+                            m_rows = df_ativos[df_ativos["MATRICULA"].astype(str) == mat_it]
+                            if not m_rows.empty:
+                                row_it = m_rows.iloc[0]
+                                pde_engine.registrar_movimentacao_equipe(
+                                    matricula=mat_it,
+                                    nome=row_it["NOME"],
+                                    de_enc=str(row_it.get("ENCARREGADO", "")),
+                                    para_enc=enc_final if enc_final else "(Sem Encarregado)",
+                                    de_cc=str(row_it.get("C.C", "")),
+                                    para_cc=cc_codigo_limpo if cc_codigo_limpo else str(row_it.get("C.C", "")),
+                                    apontador=st.session_state.nome_apontador,
+                                    obs=obs_multi
+                                )
+                        st.success(f"🎉 **{len(selecionados)} colaborador(es)** alocado(s) com sucesso por **{st.session_state.nome_apontador}**!\n\n{msg}")
                         st.balloons()
-                        st.cache_data.clear()
-                        time.sleep(1.5)
+                        _invalidar_cache_apos_gravacao()
+                        time.sleep(1.3)
                         st.rerun()
                     else:
                         st.error(f"Erro: {msg}")
@@ -795,11 +935,12 @@ with tab_remanejar:
                                 para_enc="(Sem Encarregado)",
                                 de_cc=r_m["C.C"],
                                 para_cc=r_m["C.C"],
-                                apontador=st.session_state.nome_apontador
+                                apontador=st.session_state.nome_apontador,
+                                obs="Desvinculado da equipe"
                             )
                             st.warning(f"🚫 **{r_m['NOME']}** desvinculado!\n\n{msg_t}")
-                            st.cache_data.clear()
-                            time.sleep(1.5)
+                            _invalidar_cache_apos_gravacao()
+                            time.sleep(1.2)
                             st.rerun()
 
     # -------------------------------------------------------------
@@ -825,7 +966,7 @@ with tab_remanejar:
                 escolha = st.selectbox("Selecione o Colaborador:", opcoes_colab, key="sel_colab_ind_v2")
                 
                 mat_escolhida = escolha.split(" — ")[0].strip()
-                row_c = res_ind[res_ind["MATRICULA"] == mat_escolhida].iloc[0]
+                row_c = res_ind[res_ind["MATRICULA"].astype(str) == mat_escolhida].iloc[0]
                 
                 enc_atual = str(row_c.get("ENCARREGADO", "")).strip()
                 tem_enc = enc_atual and enc_atual not in ["-", "0", "nan", "NAN", "SEM ENCARREGADO"]
@@ -833,7 +974,6 @@ with tab_remanejar:
                 
                 cc_atual_raw = str(row_c.get("C.C", "")).strip()
                 cc_atual_display = formatar_cc_display(cc_atual_raw)
-                disc_atual = str(row_c.get("DISCIPLINA", "")).strip() or "-"
                 
                 badge_enc_class = "badge-active" if tem_enc else "badge-none"
                 
@@ -890,15 +1030,16 @@ with tab_remanejar:
                                 para_enc=enc_final if enc_final else "(Sem Encarregado)",
                                 de_cc=cc_atual_raw,
                                 para_cc=cc_final_raw,
-                                apontador=st.session_state.nome_apontador
+                                apontador=st.session_state.nome_apontador,
+                                obs=obs_ind
                             )
                             if enc_final:
                                 st.success(f"🎉 **{row_c['NOME']}** vinculado a **{enc_final}**!\n\n{msg}")
                             else:
                                 st.warning(f"🚫 **{row_c['NOME']}** agora está **sem encarregado**!\n\n{msg}")
                             st.balloons()
-                            st.cache_data.clear()
-                            time.sleep(1.5)
+                            _invalidar_cache_apos_gravacao()
+                            time.sleep(1.3)
                             st.rerun()
                         else:
                             st.error(f"Erro ao salvar: {msg}")
@@ -1002,7 +1143,7 @@ with tab_turno:
                                     obs=f"Turno (Col G) -> {novo_turno_eq}"
                                 )
                             st.success(f"🎉 **{len(lista_alt_t)} colaborador(es)** atualizados para **{novo_turno_eq}** na Coluna G!\n\n{msg_t}")
-                            st.cache_data.clear()
+                            _invalidar_cache_apos_gravacao()
                             time.sleep(1.2)
                             st.rerun()
                         else:
@@ -1041,6 +1182,14 @@ with tab_turno:
                 op_m = mapa_mat_turno_op.get(tk) or (mapa_mat_turno_op.get(str(int(tk))) if tk.isdigit() else None)
                 if op_m and op_m not in auto_lote_turno:
                     auto_lote_turno.append(op_m)
+            if auto_lote_turno:
+                st.success(f"✅ **{len(auto_lote_turno)} matrícula(s)** reconhecida(s)!")
+                html_lote_t = "".join([
+                    f"<div style='font-size:12px; color:#e2e8f0; padding:3px 0; border-bottom:1px solid rgba(148,163,184,0.12);'>✔️ <b>{op.split(' [')[0]}</b></div>"
+                    for op in auto_lote_turno
+                ])
+                st.markdown(f"<div style='background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:8px 12px; margin-bottom:10px;'>{html_lote_t}</div>", unsafe_allow_html=True)
+
         sel_avulsos_manual = st.multiselect(
             "Ou busque individualmente por Nome / Matrícula:",
             opcoes_todos_turno,
@@ -1089,7 +1238,7 @@ with tab_turno:
                                 obs=f"Turno (Col G) -> {novo_turno_avulso}"
                             )
                         st.success(f"🎉 **{len(lista_alt_av)} colaborador(es)** alterados para **{novo_turno_avulso}** na Coluna G!\n\n{msg_av}")
-                        st.cache_data.clear()
+                        _invalidar_cache_apos_gravacao()
                         time.sleep(1.2)
                         st.rerun()
                     else:
@@ -1155,8 +1304,8 @@ with tab_equipe:
                                 st.success(f"Transferido para **{novo_enc_direto}**!\n\n{msg}")
                             else:
                                 st.warning(f"Desvinculado de **{enc_visao}**!\n\n{msg}")
-                            st.cache_data.clear()
-                            time.sleep(1.5)
+                            _invalidar_cache_apos_gravacao()
+                            time.sleep(1.2)
                             st.rerun()
 
 # ====================================================================
@@ -1204,6 +1353,7 @@ with tab_imprimir:
             </div>
             <div style="margin-top: 8px; font-size: 13px; color: #cbd5e1; line-height: 1.5;">
                 <div><b>Encarregado(s):</b> {texto_enc_resumo} ({len(lista_alvo_imp)})</div>
+                <div><b>Emitido por:</b> {st.session_state.nome_apontador}</div>
                 <div><b>Data:</b> ✍️ <i>Preenchimento manual a caneta no canteiro</i></div>
                 <div><b>Efetivo Total:</b> {len(equipe_imp)} colaboradores vinculados</div>
             </div>
@@ -1334,31 +1484,57 @@ with tab_imprimir:
                         st.warning("Nenhuma PDF gerado.")
 
 # ====================================================================
-# ABA 4: HISTÓRICO DE MOVIMENTAÇÕES (Audit Trail)
+# ABA 4: HISTÓRICO DE MOVIMENTAÇÕES E AUDITORIA DE QUEM ESTÁ USANDO
 # ====================================================================
 with tab_historico:
-    st.markdown("##### 📜 Histórico de Alterações Realizadas")
-    
-    df_hist = pde_engine.obter_historico_movimentacoes(limite=50)
-    
+    st.markdown("##### 📜 Histórico e Auditoria de Alterações")
+
+    st.markdown(f"""
+    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.38); border-radius: 12px; padding: 11px 14px; margin-bottom: 12px;">
+        <div style="font-size: 11px; color: #34d399; font-weight: 700;">🟢 SESSÃO ATIVA NESTE APARELHO:</div>
+        <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-top: 2px;">👤 {st.session_state.nome_apontador_curto} <span style="color:#38bdf8;">(Mat: {st.session_state.mat_apontador})</span></div>
+        <div style="font-size: 11px; color: #94a3b8;">Função: {st.session_state.funcao_apontador} • Todas as alterações feitas agora são gravadas com este nome e matrícula.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    df_hist = pde_engine.obter_historico_movimentacoes(limite=80, buscar_nuvem=True)
+
     if df_hist.empty:
-        st.info("Nenhuma movimentação registrada hoje ainda.")
+        st.info("Nenhuma movimentação registrada ainda.")
     else:
-        st.caption(f"Últimas **{len(df_hist)}** transferências de campo:")
-        for _, r_h in df_hist.iterrows():
-            st.markdown(f"""
-            <div style="background: rgba(15, 23, 42, 0.6); border-left: 4px solid #0ea5e9; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px;">
-                <div style="display: flex; justify-content: space-between; color: #94a3b8; font-size: 11px;">
-                    <span>🕒 {r_h['DATA_HORA']}</span>
-                    <span>👤 {r_h['APONTADOR']}</span>
+        # Resumo de quem está fazendo alterações
+        contagem_por_ap = df_hist["APONTADOR"].fillna("Não identificado").astype(str).value_counts()
+        with st.expander(f"👥 Resumo: Quem realizou alterações ({len(contagem_por_ap)} usuário(s))", expanded=True):
+            for ap_nome, qtd_movs in contagem_por_ap.items():
+                st.markdown(f"""
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); border-radius:8px; padding:6px 12px; margin-bottom:5px; font-size:12.5px;">
+                    <span style="color:#f8fafc; font-weight:600;">👤 {ap_nome}</span>
+                    <span class="badge-cc">{qtd_movs} alteração(ões)</span>
                 </div>
-                <div style="font-weight: 600; color: #f8fafc; margin: 4px 0;">{r_h['NOME']} ({r_h['MATRICULA']})</div>
+                """, unsafe_allow_html=True)
+
+        opcoes_filtro_ap = ["Todos os Apontadores"] + list(contagem_por_ap.index)
+        filtro_ap_hist = st.selectbox("Filtrar histórico por colaborador:", opcoes_filtro_ap, key="sel_filtro_ap_hist")
+        df_hist_view = df_hist if filtro_ap_hist == "Todos os Apontadores" else df_hist[df_hist["APONTADOR"].astype(str) == filtro_ap_hist]
+
+        st.caption(f"Exibindo **{len(df_hist_view)}** registro(s) de auditoria:")
+        for _, r_h in df_hist_view.iterrows():
+            obs_h = str(r_h.get("OBSERVACAO", "")).strip()
+            cc_h = str(r_h.get("PARA_CC", "")).strip()
+            st.markdown(f"""
+            <div style="background: rgba(15, 23, 42, 0.65); border-left: 4px solid #0ea5e9; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; color: #94a3b8; font-size: 11px; margin-bottom: 4px;">
+                    <span>🕒 {r_h['DATA_HORA']}</span>
+                    <span style="background:rgba(56,189,248,0.16); color:#38bdf8; border:1px solid rgba(56,189,248,0.35); border-radius:8px; padding:2px 8px; font-weight:700;">👤 {r_h['APONTADOR']}</span>
+                </div>
+                <div style="font-weight: 700; color: #f8fafc; margin: 4px 0;">👷 {r_h['NOME']} (Mat: {r_h['MATRICULA']})</div>
                 <div style="color: #cbd5e1;">
                     De: <span style="color:#ef4444;">{r_h['DE_ENCARREGADO']}</span> ➔ Para: <span style="color:#10b981; font-weight:600;">{r_h['PARA_ENCARREGADO']}</span>
                 </div>
-                {f"<div style='font-size: 11px; color: #38bdf8; margin-top: 2px;'>🏢 C.C: {formatar_cc_display(r_h['PARA_CC'])}</div>" if r_h.get('PARA_CC') else ''}
+                {f"<div style='font-size: 11px; color: #38bdf8; margin-top: 2px;'>🏢 C.C: {formatar_cc_display(cc_h)}</div>" if cc_h and cc_h != '-' else ''}
+                {f"<div style='font-size: 11px; color: #fbbf24; margin-top: 2px;'>📝 {obs_h}</div>" if obs_h else ''}
             </div>
             """, unsafe_allow_html=True)
-            
-        if st.button("🔄 Atualizar Histórico", use_container_width=True):
-            st.rerun()
+
+    if st.button("🔄 Atualizar Histórico", use_container_width=True, key="btn_refresh_hist"):
+        st.rerun()
